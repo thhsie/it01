@@ -1,15 +1,13 @@
 import json, unittest
 from decimal import Decimal
 from it01.law import Source
-from it01.tax import Facts, assess, chargeable_income, income_tax
+from it01.tax import Facts, assess, chargeable_income, income_tax, to_facts
 from test.helpers import ROOT
 
 CASES = json.loads((ROOT/"test"/"cases"/"calculator.json").read_text(), parse_float=Decimal)
-AMOUNTS = ("salary", "taxable_transport_allowance", "performance_bonus", "statutory_bonus", "other_income", "resident_dividends",
-           "housing_loan_interest", "medical_insurance", "other_reliefs")
 OUTPUTS = ("chargeable_income", "income_tax", "fair_share", "total")
 
-def facts(c:dict) -> Facts: return Facts(c["resident"], c["dependants"], **{k: Decimal(c[k]) for k in AMOUNTS})
+def facts(c:dict) -> Facts: return to_facts({k: v for k, v in c.items() if k not in OUTPUTS + ("case",)})
 def ci(dependants:int=0, **kw) -> Decimal: return chargeable_income(Facts(True, dependants, **{k: Decimal(v) for k, v in kw.items()})).amt
 
 class TestIncomeTax(unittest.TestCase):

@@ -1,9 +1,11 @@
-from dataclasses import dataclass, fields
+from dataclasses import MISSING, dataclass, fields
 from decimal import ROUND_HALF_UP, Decimal
+from typing import Any
 from it01.law import (BANDS, BANDS_SRC, CHARGEABLE_SRC, DEPENDANTS, DEPENDANTS_SRC, INTEREST_BAR, INTEREST_SRC, MEDICAL, MEDICAL_SRC, RESIDENT_SRC,
                       Source, FAIR_SHARE_RATE, FAIR_SHARE_SRC, FAIR_SHARE_THRESHOLD)
 
 ZERO = Decimal(0)
+JSON_TYPES: dict[Any, tuple[type, ...]] = {bool: (bool,), int: (int,), Decimal: (int, Decimal)}
 
 @dataclass(frozen=True)
 class Figure:
@@ -33,6 +35,16 @@ class Facts:
   @property
   def gross(self) -> Decimal:
     return self.salary + self.taxable_transport_allowance + self.performance_bonus + self.statutory_bonus + self.other_income
+
+def to_facts(raw:Any) -> Facts:
+  if not isinstance(raw, dict): raise ValueError("facts must be a JSON object")
+  types = {f.name: f.type for f in fields(Facts)}
+  if unknown := sorted(set(raw) - set(types)): raise ValueError(f"unknown facts {unknown}")
+  if missing := sorted(f.name for f in fields(Facts) if f.default is MISSING and f.name not in raw): raise ValueError(f"missing facts {missing}")
+  for k, v in raw.items():
+    if type(v) not in JSON_TYPES[types[k]]: raise ValueError(f"invalid {k} {v} of type {type(v).__name__}")
+  vals: dict[str, Any] = {k: Decimal(v) if types[k] is Decimal else v for k, v in raw.items()}
+  return Facts(**vals)
 
 def rupees(x:Decimal) -> Decimal: return x.quantize(Decimal(1), ROUND_HALF_UP)
 
