@@ -27,7 +27,7 @@ A local-first agent that prepares an individual's income tax. It reads the taxpa
 2. **Every line earns its place.** Deleting code is a contribution. Code that nothing calls, scaffolding for a future feature, and refactors done in expectation of something are rejected.
 3. **Fix the root cause.** No special case, no `if` that patches one input, no workaround that happens to pass. Never edit or delete a test to make it pass.
 4. **Complexity is never worth speed.** A speedup must be measured with a benchmark anyone can rerun, and should also simplify.
-5. **Data over code.** Rates, bands, thresholds, reliefs and deadlines are tables. One small interpreter reads them. A new tax year is a new table, not new logic.
+5. **Data over code.** Rates, bands, thresholds, reliefs and deadlines are tables. One small interpreter reads them.
 6. **Zero runtime dependencies.** The package imports the standard library and itself, nothing else. A small utility is written, not installed.
 7. **The taxpayer's data never leaves the machine unless they point it somewhere.** Exactly one module, `it01/llm.py`, may use the network, and only to reach the model endpoint the user configures. No telemetry, no update checks, no analytics, no crash reports. Ever.
 8. **You vouch for every line you submit.** If you could not explain each line when asked, do not submit it.
@@ -38,7 +38,7 @@ A local-first agent that prepares an individual's income tax. It reads the taxpa
 2. **Money is `Decimal`. Never `float`, anywhere in `it01/`.** Parse with `Decimal(str)`, and JSON with `json.loads(s, parse_float=Decimal)`. Round only where the law requires it, with the rounding it specifies, in one place.
 3. **Computation is pure.** No IO, no clock, no environment, no randomness. The same facts give the same result, byte for byte.
 4. **Every computed figure carries its provenance.** The result names the rule that produced it and the legal source that rule implements. A figure without a source is a bug. A source is a document id, a section and a page. Each official document is listed once, with its public URL; a link is that URL with `#page=N`.
-5. **Each tax year's parameters live in their own table.** Changing a past year is a bug fix. It cites the source and comes with a test.
+5. **One set of rules: the current law.** The code has no tax year parameter, no table per year and no year labels. A date appears only where the current law itself states it. When the law changes, the tables change in place, cite the amending source and come with a test. Git history keeps what the rules were. The result applies the law as it stands and does not check the year being filed for.
 6. **Refuse rather than guess.** An unsupported case raises an error naming what is unsupported. Never default silently, never approximate.
 7. **Bad input raises. Impossible states assert.** `assert` is stripped under `-O`, so it only guards invariants the code itself establishes.
 
@@ -49,7 +49,7 @@ A local-first agent that prepares an individual's income tax. It reads the taxpa
 - At most one blank line anywhere. Zero or one between definitions. `test_single_blank_lines`.
 - A body that is one statement goes on the header line: `def cdiv(a:int, b:int) -> int: return -(-a//b)`, `if amt <= 0: return ZERO`.
 - No semicolons. No lambda bound to a name; write a one-line `def`. `ruff E702 E703 E731`.
-- Annotations are tight, return arrows are spaced: `def tax(inc:Decimal, ty:int=2026) -> Decimal:`. Keyword arguments have no spaces: `f(a=1)`. `test_tight_annotations`, `ruff E251`.
+- Annotations are tight, return arrows are spaced: `def band_tax(amt:Decimal, bands:tuple[Band, ...]) -> Decimal:`. Keyword arguments have no spaces: `f(a=1)`. `test_tight_annotations`, `ruff E251`.
 - Imports are absolute. Standard library first on one line, `import os, re, sys`, then `from x import a, b`. No star imports, no `__all__`. `ruff F403 TID252`.
 - f-strings only. Double quotes by default. `ruff UP031 UP032`.
 - Continue long expressions inside brackets, never with a backslash.
@@ -86,7 +86,7 @@ A local-first agent that prepares an individual's income tax. It reads the taxpa
 - Configuration is environment flags declared in `it01/helpers.py`, and nowhere else reads the environment. No config classes, no config files. `test_env_only_in_helpers`.
 - No `logging`. Diagnostics are `if DEBUG >= 2: print(...)`. `ruff TID251`.
 - IO lives at the edges. `it01/helpers.py` imports nothing from `it01`. Imports flow one way, from low layers to high.
-- Errors use built-in exception types. Messages are lowercase, name the offending value, and have no trailing period: `raise ValueError(f"unknown tax year {ty}")`. No bare `except`. `except Exception` only at the command-line boundary. `test_error_messages`, `ruff E722 BLE001`.
+- Errors use built-in exception types. Messages are lowercase, name the offending value, and have no trailing period: `raise ValueError(f"unknown relief {name}")`. No bare `except`. `except Exception` only at the command-line boundary. `test_error_messages`, `ruff E722 BLE001`.
 
 ## Tests
 
@@ -105,7 +105,7 @@ A local-first agent that prepares an individual's income tax. It reads the taxpa
 - Never mix whitespace, formatting or renames with a change in behaviour. Whitespace-only changes are not accepted.
 - Read your diff before you open a PR. Delete everything that is not required.
 - The PR description says, in one or two sentences, why the change should be merged.
-- Commit subjects are lowercase, imperative and under 50 characters, with an optional `area:` prefix and no trailing period: `rates: add 2027 bands`, `remove unused rounding helper`.
+- Commit subjects are lowercase, imperative and under 50 characters, with an optional `area:` prefix and no trailing period: `rates: add the top band`, `remove unused rounding helper`.
 - No trailers, no URLs, no signatures in commit messages.
 - Do not amend or force-push a shared branch. Add a commit instead.
 - `MAX_LINE_COUNT` is raised in its own commit, with the reason in the message.
