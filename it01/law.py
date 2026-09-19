@@ -76,3 +76,6 @@ SMALL_PLANT = Decimal(60000)
 MOTOR_VEHICLE_CAP = Decimal(3000000)
 ALLOWANCE_SRC = (Source("ita", "s.2 base value", 13), Source("ita", "s.24", 43), Source("regs", "regulation 7", 8),
                  Source("regs", "Fourth Schedule", 46))
+BUSINESS_SRC = (Source("ita", "s.10(1)(b)", 31), Source("ita", "s.18(1)", 38))
+DISALLOWED = ("depreciation", "entertainment_gifts_and_donations")
+DISALLOWED_SRC = (Source("ita", "s.26(1)", 46),)

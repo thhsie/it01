@@ -4,11 +4,13 @@ from enum import Enum
 from typing import Any, get_args, get_origin
 from it01.law import (BANDS, BANDS_SRC, CHARGEABLE_SRC, DEPENDANTS, DEPENDANTS_SRC, INTEREST_BAR, INTEREST_SRC, MEDICAL, MEDICAL_SRC, RESIDENT_SRC,
                       Source, CREDITS_SRC, FAIR_SHARE_RATE, FAIR_SHARE_SRC, FAIR_SHARE_THRESHOLD, LOSSES_SRC, ALLOWANCE_SRC, ALLOWANCES,
-                      MOTOR_VEHICLE_CAP, SMALL_PLANT, AssetKind, Basis)
+                      MOTOR_VEHICLE_CAP, SMALL_PLANT, AssetKind, Basis, BUSINESS_SRC, DISALLOWED, DISALLOWED_SRC)
 
 ZERO = Decimal(0)
 AMOUNT_LIMIT = Decimal(10) ** 15
 JSON_TYPES: dict[Any, tuple[type, ...]] = {bool: (bool,), int: (int,), Decimal: (int, Decimal)}
+EXPENSES = ("wages", "professional_expenses", "entertainment_gifts_and_donations", "advertising", "overseas_travel", "interest", "bank_charges",
+            "utilities", "rent", "licences_and_taxes", "motor_vehicle_expenses", "repairs", "depreciation", "bad_debts", "other_expenses")
 
 @dataclass(frozen=True)
 class Figure:
@@ -40,6 +42,45 @@ class Asset:
     return min(base, (rate * (self.cost if basis is Basis.COST else base)).quantize(Decimal(1), ROUND_DOWN))
 
 @dataclass(frozen=True)
+class Business:
+  gross_income: Decimal = ZERO
+  cost_of_sales: Decimal = ZERO
+  other_income: Decimal = ZERO
+  wages: Decimal = ZERO
+  professional_expenses: Decimal = ZERO
+  entertainment_gifts_and_donations: Decimal = ZERO
+  advertising: Decimal = ZERO
+  overseas_travel: Decimal = ZERO
+  interest: Decimal = ZERO
+  bank_charges: Decimal = ZERO
+  utilities: Decimal = ZERO
+  rent: Decimal = ZERO
+  licences_and_taxes: Decimal = ZERO
+  motor_vehicle_expenses: Decimal = ZERO
+  repairs: Decimal = ZERO
+  depreciation: Decimal = ZERO
+  bad_debts: Decimal = ZERO
+  other_expenses: Decimal = ZERO
+  income_not_in_accounts: Decimal = ZERO
+  non_allowable_expenses: Decimal = ZERO
+  assets: tuple[Asset, ...] = ()
+
+  def __post_init__(self) -> None: check_amounts(self)
+
+  @property
+  def gross_profit(self) -> Decimal: return self.gross_income - self.cost_of_sales
+
+  @property
+  def net_profit(self) -> Decimal: return self.gross_profit + self.other_income - sum((getattr(self, n) for n in EXPENSES), ZERO)
+
+  @property
+  def non_allowable(self) -> Decimal: return self.non_allowable_expenses + sum((getattr(self, n) for n in DISALLOWED), ZERO)
+
+  @property
+  def net_income(self) -> Decimal:
+    return self.net_profit + self.income_not_in_accounts + self.non_allowable - sum((a.allowance for a in self.assets), ZERO)
+
+@dataclass(frozen=True)
 class Facts:
   resident: bool
   dependants: int = 0
@@ -48,8 +89,6 @@ class Facts:
   performance_bonus: Decimal = ZERO
   statutory_bonus: Decimal = ZERO
   other_income: Decimal = ZERO
-  business_gross_income: Decimal = ZERO
-  business_deductions: Decimal = ZERO
   losses_brought_forward: Decimal = ZERO
   resident_dividends: Decimal = ZERO
   housing_loan_interest: Decimal = ZERO
@@ -58,7 +97,7 @@ class Facts:
   paye_withheld: Decimal = ZERO
   tax_deducted_at_source: Decimal = ZERO
   quarterly_tax_paid: Decimal = ZERO
-  assets: tuple[Asset, ...] = ()
+  business: Business = Business()
 
   def __post_init__(self) -> None:
     if self.dependants < 0: raise ValueError(f"invalid dependants {self.dependants}")
@@ -67,7 +106,7 @@ class Facts:
   @property
   def emoluments(self) -> Decimal: return self.salary + self.taxable_transport_allowance + self.performance_bonus + self.statutory_bonus
 
-def from_json[T:(Facts, Asset)](cls:type[T], raw:Any) -> T:
+def from_json[T:(Facts, Business, Asset)](cls:type[T], raw:Any) -> T:
   name = cls.__name__.lower()
   if not isinstance(raw, dict): raise ValueError(f"{name} must be a JSON object")
   types = {f.name: f.type for f in fields(cls)}
@@ -78,6 +117,7 @@ def from_json[T:(Facts, Asset)](cls:type[T], raw:Any) -> T:
     if get_origin(t := types[k]) is tuple:
       if not isinstance(v, list): raise ValueError(f"{k} must be a JSON list")
       vals[k] = tuple(from_json(get_args(t)[0], x) for x in v)
+    elif t is Business: vals[k] = from_json(Business, v)
     elif isinstance(t, type) and issubclass(t, Enum):
       if (m := {x.name.lower(): x for x in t}.get(v)) is None: raise ValueError(f"unknown {k} {v}")
       vals[k] = m
@@ -88,7 +128,7 @@ def from_json[T:(Facts, Asset)](cls:type[T], raw:Any) -> T:
 def rupees(x:Decimal) -> Decimal: return x.quantize(Decimal(1), ROUND_HALF_UP)
 
 def net_income_and_losses(f:Facts) -> tuple[Decimal, Decimal]:
-  business = f.business_gross_income - f.business_deductions - sum((a.allowance for a in f.assets), ZERO)
+  business = f.business.net_income
   other = f.other_income + max(ZERO, business)
   used = min(other, losses := f.losses_brought_forward + max(ZERO, -business))
   return f.emoluments + other - used, losses - used
@@ -116,5 +156,9 @@ def assess(f:Facts) -> tuple[Figure, ...]:
   total = Figure("total tax", tax.amt + share.amt, tax.src + share.src)
   paid = f.paye_withheld + f.tax_deducted_at_source + f.quarterly_tax_paid
   balance = Figure("balance of tax", total.amt - paid, total.src + CREDITS_SRC)
-  allowances = tuple(Figure(f"annual allowance on {a.kind.name.lower().replace('_', ' ')}", a.allowance, ALLOWANCE_SRC) for a in f.assets)
-  return ci, tax, share, total, balance, Figure("losses carried forward", net_income_and_losses(f)[1], LOSSES_SRC), *allowances
+  ret = (ci, tax, share, total, balance, Figure("losses carried forward", net_income_and_losses(f)[1], LOSSES_SRC))
+  if (b := f.business) == Business(): return ret
+  allowances = tuple(Figure(f"annual allowance on {a.kind.name.lower().replace('_', ' ')}", a.allowance, ALLOWANCE_SRC) for a in b.assets)
+  return (*ret, Figure("gross profit", b.gross_profit, BUSINESS_SRC), Figure("net profit per accounts", b.net_profit, BUSINESS_SRC),
+          Figure("non-allowable expenses", b.non_allowable, DISALLOWED_SRC), *allowances,
+          Figure("net income from business", b.net_income, BUSINESS_SRC + DISALLOWED_SRC + ALLOWANCE_SRC))
