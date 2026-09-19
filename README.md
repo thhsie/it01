@@ -11,7 +11,7 @@ it01 prepares your income tax on your own computer.
 
 ## Status
 
-The project is in early development. It computes chargeable income, income tax, fair share contribution, total tax and the balance after tax already paid, for an individual with employment income, other income and resident dividends. It does not yet handle business income.
+The project is in early development. It computes chargeable income, income tax, fair share contribution, total tax, the balance after tax already paid and the losses to carry forward, for an individual with employment income, business income, other income and resident dividends. Business income is entered as gross income and the total of allowable deductions. It does not yet work out capital allowances or the allowable deductions from the accounts.
 
 ## Usage
 
@@ -21,7 +21,7 @@ Write the facts in a JSON file. Amounts are numbers with at most two decimal pla
 {"resident": true, "dependants": 1, "salary": 1200000}
 ```
 
-The other facts are `taxable_transport_allowance`, `performance_bonus`, `statutory_bonus`, `other_income`, `resident_dividends`, `housing_loan_interest`, `medical_insurance`, `other_reliefs`, `paye_withheld`, `tax_deducted_at_source` and `quarterly_tax_paid`.
+The other facts are `taxable_transport_allowance`, `performance_bonus`, `statutory_bonus`, `other_income`, `business_gross_income`, `business_deductions`, `losses_brought_forward`, `resident_dividends`, `housing_loan_interest`, `medical_insurance`, `other_reliefs`, `paye_withheld`, `tax_deducted_at_source` and `quarterly_tax_paid`.
 
 ```sh
 python -m it01 facts.json
@@ -29,7 +29,9 @@ python -m it01 facts.json
 
 Each figure is printed with the sections of the law it comes from and a link to each page.
 
-The last figure is the balance of tax. A positive balance is tax to pay. A negative balance is tax paid in excess.
+`salary` holds all emoluments, including pensions from past employment and benefits. `other_income` holds income other than emoluments and business income.
+
+The balance of tax is tax to pay when positive, and tax paid in excess when negative. The losses carried forward can be set against income other than emoluments in the next 5 years. `losses_brought_forward` holds only losses that have not lapsed. Losses brought forward are used before the loss of the year, oldest first.
 
 ## Development
 

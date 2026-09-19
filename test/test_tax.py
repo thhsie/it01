@@ -8,6 +8,10 @@ CASES = json.loads((ROOT/"test"/"cases"/"calculator.json").read_text(), parse_fl
 OUTPUTS = ("chargeable_income", "income_tax", "fair_share", "total")
 
 def facts(c:dict) -> Facts: return to_facts({k: v for k, v in c.items() if k not in OUTPUTS + ("case",)})
+def net(**kw) -> tuple[Decimal, Decimal]:
+  figs = assess(Facts(True, **{k: Decimal(v) for k, v in kw.items()}))
+  return figs[0].amt, figs[-1].amt
+
 def ci(dependants:int=0, **kw) -> Decimal: return chargeable_income(Facts(True, dependants, **{k: Decimal(v) for k, v in kw.items()})).amt
 
 class TestIncomeTax(unittest.TestCase):
@@ -39,6 +43,8 @@ class TestChargeableIncome(unittest.TestCase):
   def test_interest_relief_barred_above_four_million(self):
     self.assertEqual(ci(salary=3000000, resident_dividends=1000000, housing_loan_interest=100000), 2900000)
     self.assertEqual(ci(salary=3000000, resident_dividends=1000001, housing_loan_interest=100000), 3000000)
+    self.assertEqual(ci(salary=3000000, business_gross_income=1000000, housing_loan_interest=100000), 3900000)
+    self.assertEqual(ci(salary=3000000, business_gross_income=1000001, housing_loan_interest=100000), 4000001)
 
   def test_cites_reliefs_only_for_a_resident(self):
     relief = Source("ita", "Third Schedule Part I", 280)
@@ -53,23 +59,39 @@ class TestChargeableIncome(unittest.TestCase):
     for kw in bad:
       with self.subTest(kw), self.assertRaises(ValueError): Facts(True, **kw)
 
+class TestBusinessIncome(unittest.TestCase):
+  def test_profit_adds_to_salary(self):
+    self.assertEqual(net(salary=1200000, business_gross_income=300000, business_deductions=100000), (1400000, 0))
+
+  def test_loss_never_reduces_salary(self):
+    self.assertEqual(net(salary=1200000, business_gross_income=100000, business_deductions=300000), (1200000, 200000))
+
+  def test_loss_reduces_other_income(self):
+    self.assertEqual(net(salary=1200000, other_income=150000, business_gross_income=100000, business_deductions=300000), (1200000, 50000))
+
+  def test_brought_forward_loss_reduces_profit(self):
+    got = net(salary=1000000, business_gross_income=400000, business_deductions=100000, losses_brought_forward=500000)
+    self.assertEqual(got, (1000000, 200000))
+
+  def test_cites_the_loss_rules(self): self.assertEqual(assess(Facts(True))[-1].src, (Source("ita", "s.20", 40),))
+
 class TestAssess(unittest.TestCase):
   def test_calculator_cases(self):
     for c in CASES:
       with self.subTest(c["case"]):
-        income, tax, share, total, _ = (fig.amt for fig in assess(facts(c)))
+        income, tax, share, total, *_ = (fig.amt for fig in assess(facts(c)))
         self.assertEqual((income, share), (c["chargeable_income"], c["fair_share"]))
         self.assertIn(c["income_tax"] - tax, (0, 1))
         self.assertEqual(c["total"] - total, c["income_tax"] - tax)
 
   def test_employers_guide_illustration(self):
     f = Facts(True, 1, salary=Decimal(20200000), resident_dividends=Decimal(1000000))
-    self.assertEqual([fig.amt for fig in assess(f)], [20090000, 3868000, 1363500, 5231500, 5231500])
+    self.assertEqual([fig.amt for fig in assess(f)], [20090000, 3868000, 1363500, 5231500, 5231500, 0])
 
   def test_largest_amounts_are_exact(self):
     m = Decimal(10**15 - 1)
     f = Facts(False, salary=m, taxable_transport_allowance=m, performance_bonus=m, statutory_bonus=m, other_income=m)
-    self.assertEqual([fig.amt for fig in assess(f)], [4999999999999995, 999999999849999, 749999998199999, 1749999998049998, 1749999998049998])
+    self.assertEqual([fig.amt for fig in assess(f)], [4999999999999995, 999999999849999, 749999998199999, 1749999998049998, 1749999998049998, 0])
 
   def test_balance_credits_tax_already_paid(self):
     for paye, balance in ((40000, 18000), (60000, -2000)):
