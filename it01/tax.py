@@ -5,6 +5,7 @@ from it01.law import (BANDS, BANDS_SRC, CHARGEABLE_SRC, DEPENDANTS, DEPENDANTS_S
                       Source, FAIR_SHARE_RATE, FAIR_SHARE_SRC, FAIR_SHARE_THRESHOLD)
 
 ZERO = Decimal(0)
+AMOUNT_LIMIT = Decimal(10) ** 15
 JSON_TYPES: dict[Any, tuple[type, ...]] = {bool: (bool,), int: (int,), Decimal: (int, Decimal)}
 
 @dataclass(frozen=True)
@@ -30,7 +31,8 @@ class Facts:
   def __post_init__(self) -> None:
     if self.dependants < 0: raise ValueError(f"invalid dependants {self.dependants}")
     for f in (f for f in fields(self) if f.type is Decimal):
-      if not (isinstance(v := getattr(self, f.name), Decimal) and v.is_finite() and v >= 0): raise ValueError(f"invalid {f.name} {v}")
+      if not (isinstance(v := getattr(self, f.name), Decimal) and v.is_finite() and 0 <= v < AMOUNT_LIMIT and v == v.quantize(Decimal("0.01"))):
+        raise ValueError(f"invalid {f.name} {v}")
 
   @property
   def gross(self) -> Decimal:
