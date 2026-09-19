@@ -1,5 +1,5 @@
 from dataclasses import MISSING, dataclass, fields
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
 from typing import Any
 from it01.law import (BANDS, BANDS_SRC, CHARGEABLE_SRC, DEPENDANTS, DEPENDANTS_SRC, INTEREST_BAR, INTEREST_SRC, MEDICAL, MEDICAL_SRC, RESIDENT_SRC,
                       Source, FAIR_SHARE_RATE, FAIR_SHARE_SRC, FAIR_SHARE_THRESHOLD)
@@ -63,7 +63,7 @@ def income_tax(chargeable:Decimal) -> Figure:
   whole = chargeable.is_finite() and chargeable >= 0 and chargeable == chargeable.to_integral_value()
   if not whole: raise ValueError(f"invalid chargeable income {chargeable}")
   ret, lo = ZERO, ZERO
-  for width, rate in BANDS: ret, lo = ret + rupees(max(ZERO, min(chargeable - lo, width)) * rate), lo + width
+  for width, rate in BANDS: ret, lo = ret + (max(ZERO, min(chargeable - lo, width)) * rate).quantize(Decimal(1), ROUND_DOWN), lo + width
   return Figure("income tax", ret, BANDS_SRC)
 
 def assess(f:Facts) -> tuple[Figure, ...]:
