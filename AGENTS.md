@@ -63,6 +63,10 @@ A local-first agent that prepares an individual's income tax. It reads the taxpa
 - No docstrings. `test_no_docstrings`.
 - A shebang on line 1, `# noqa: CODE` and `# type: ignore[code]` are not comments and are exempt. Avoid them anyway; a new suppression needs a reason in the commit message.
 
+### Writing
+- Text meant for people is plain: README and docs, messages in code, comments, commit and PR text. Write short declarative sentences that say what something does.
+- No slogans, bold aphorisms, metaphors, rhetorical questions, "not X but Y" turns, dramatic fragments, intensifiers, or em and en dashes. `test_no_dashes`. This file is exempt.
+
 ### Names
 - Modules are one short lowercase word. Classes are `PascalCase`, functions and variables `snake_case`, constants and environment flags `UPPER_CASE`. A flag's name is its environment key.
 - Short names in short scopes, descriptive names in wide ones. House abbreviations: `ret` the value being built, `fxn` a callable, `ctx` a context, `src` a source, `amt` an amount, `idx` an index, `cnt` a count.
