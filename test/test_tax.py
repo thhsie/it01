@@ -57,19 +57,29 @@ class TestAssess(unittest.TestCase):
   def test_calculator_cases(self):
     for c in CASES:
       with self.subTest(c["case"]):
-        income, tax, share, total = (fig.amt for fig in assess(facts(c)))
+        income, tax, share, total, _ = (fig.amt for fig in assess(facts(c)))
         self.assertEqual((income, share), (c["chargeable_income"], c["fair_share"]))
         self.assertIn(c["income_tax"] - tax, (0, 1))
         self.assertEqual(c["total"] - total, c["income_tax"] - tax)
 
   def test_employers_guide_illustration(self):
     f = Facts(True, 1, salary=Decimal(20200000), resident_dividends=Decimal(1000000))
-    self.assertEqual([fig.amt for fig in assess(f)], [20090000, 3868000, 1363500, 5231500])
+    self.assertEqual([fig.amt for fig in assess(f)], [20090000, 3868000, 1363500, 5231500, 5231500])
 
   def test_largest_amounts_are_exact(self):
     m = Decimal(10**15 - 1)
     f = Facts(False, salary=m, taxable_transport_allowance=m, performance_bonus=m, statutory_bonus=m, other_income=m)
-    self.assertEqual([fig.amt for fig in assess(f)], [4999999999999995, 999999999849999, 749999998199999, 1749999998049998])
+    self.assertEqual([fig.amt for fig in assess(f)], [4999999999999995, 999999999849999, 749999998199999, 1749999998049998, 1749999998049998])
+
+  def test_balance_credits_tax_already_paid(self):
+    for paye, balance in ((40000, 18000), (60000, -2000)):
+      with self.subTest(paye):
+        f = Facts(True, 1, salary=Decimal(1200000), paye_withheld=Decimal(paye), tax_deducted_at_source=Decimal(5000),
+                  quarterly_tax_paid=Decimal(5000))
+        self.assertEqual(assess(f)[4].amt, balance)
+
+  def test_balance_cites_the_credits(self):
+    self.assertLessEqual({"s.93(1)", "s.103", "s.111(2)", "s.111G", "s.152(1)"}, {s.section for s in assess(Facts(True))[4].src})
 
   def test_fair_share_cites_its_sections(self):
     self.assertEqual(assess(Facts(True))[2].src, (Source("ita", "s.16B", 35), Source("ita", "s.16C", 37)))

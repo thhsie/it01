@@ -2,7 +2,7 @@ from dataclasses import MISSING, dataclass, fields
 from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
 from typing import Any
 from it01.law import (BANDS, BANDS_SRC, CHARGEABLE_SRC, DEPENDANTS, DEPENDANTS_SRC, INTEREST_BAR, INTEREST_SRC, MEDICAL, MEDICAL_SRC, RESIDENT_SRC,
-                      Source, FAIR_SHARE_RATE, FAIR_SHARE_SRC, FAIR_SHARE_THRESHOLD)
+                      Source, CREDITS_SRC, FAIR_SHARE_RATE, FAIR_SHARE_SRC, FAIR_SHARE_THRESHOLD)
 
 ZERO = Decimal(0)
 AMOUNT_LIMIT = Decimal(10) ** 15
@@ -27,6 +27,9 @@ class Facts:
   housing_loan_interest: Decimal = ZERO
   medical_insurance: Decimal = ZERO
   other_reliefs: Decimal = ZERO
+  paye_withheld: Decimal = ZERO
+  tax_deducted_at_source: Decimal = ZERO
+  quarterly_tax_paid: Decimal = ZERO
 
   def __post_init__(self) -> None:
     if self.dependants < 0: raise ValueError(f"invalid dependants {self.dependants}")
@@ -70,4 +73,6 @@ def assess(f:Facts) -> tuple[Figure, ...]:
   ci = chargeable_income(f)
   tax = income_tax(ci.amt)
   share = Figure("fair share contribution", rupees(max(ZERO, ci.amt + f.resident_dividends - FAIR_SHARE_THRESHOLD) * FAIR_SHARE_RATE), FAIR_SHARE_SRC)
-  return ci, tax, share, Figure("total tax", tax.amt + share.amt, tax.src + share.src)
+  total = Figure("total tax", tax.amt + share.amt, tax.src + share.src)
+  paid = f.paye_withheld + f.tax_deducted_at_source + f.quarterly_tax_paid
+  return ci, tax, share, total, Figure("balance of tax", total.amt - paid, total.src + CREDITS_SRC)
