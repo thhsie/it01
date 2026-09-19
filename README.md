@@ -1,18 +1,17 @@
 # it01
 
-Local-first income tax preparation for individuals.
+it01 prepares your income tax on your own computer.
 
-it01 reads your documents, proposes the facts it finds, and computes your tax from the facts you confirm. It runs on your machine.
+## How it works
 
-## Principles
-
-- **A model never decides tax.** A language model turns documents into proposed facts. Plain, tested, deterministic code turns confirmed facts into a tax position, and every figure names the rule and the legal source it comes from.
-- **Your data stays with you.** The package depends on nothing but the Python standard library. One module may use the network, only to reach the model endpoint you configure, and `test/test_privacy.py` enforces it on every commit.
-- **Bring your own model.** Point it at any OpenAI-compatible endpoint, on your machine or elsewhere.
+- A language model reads your documents and proposes facts. You confirm each fact before it is used.
+- Deterministic Python code computes the tax from the confirmed facts. Each figure names the rule and the legal source it comes from, with a link to the source.
+- The model is reached through an OpenAI-compatible endpoint that you configure. The endpoint can be on your computer or on a server.
+- The package uses only the Python standard library. One module, `it01/llm.py`, uses the network, and only to call your configured endpoint. `test/test_privacy.py` checks this on every change.
 
 ## Status
 
-Scaffold. Nothing to run yet.
+The project is in early development. There is nothing to run yet.
 
 ## Development
 
@@ -23,7 +22,7 @@ python -m ruff check . && python -m mypy && python -m unittest && MAX_LINE_COUNT
 
 ## Contributing
 
-Fixes and updates to the tax rules are welcome. Read [AGENTS.md](AGENTS.md) first: its rules apply to every contribution, written by a person or not.
+Fixes and updates to the tax rules are welcome. Read [AGENTS.md](AGENTS.md) before you contribute. Its rules apply to all contributions.
 
 ## License
 
