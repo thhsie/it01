@@ -14,6 +14,11 @@ class Figure:
   amt: Decimal
   src: tuple[Source, ...]
 
+def check_amounts(obj:Any) -> None:
+  for f in (f for f in fields(obj) if f.type is Decimal):
+    ok = isinstance(v := getattr(obj, f.name), Decimal) and v.is_finite() and 0 <= v < AMOUNT_LIMIT and v == v.quantize(Decimal("0.01"))
+    if not ok: raise ValueError(f"invalid {f.name} {v}")
+
 @dataclass(frozen=True)
 class Facts:
   resident: bool
@@ -36,22 +41,21 @@ class Facts:
 
   def __post_init__(self) -> None:
     if self.dependants < 0: raise ValueError(f"invalid dependants {self.dependants}")
-    for f in (f for f in fields(self) if f.type is Decimal):
-      if not (isinstance(v := getattr(self, f.name), Decimal) and v.is_finite() and 0 <= v < AMOUNT_LIMIT and v == v.quantize(Decimal("0.01"))):
-        raise ValueError(f"invalid {f.name} {v}")
+    check_amounts(self)
 
   @property
   def emoluments(self) -> Decimal: return self.salary + self.taxable_transport_allowance + self.performance_bonus + self.statutory_bonus
 
-def to_facts(raw:Any) -> Facts:
-  if not isinstance(raw, dict): raise ValueError("facts must be a JSON object")
-  types = {f.name: f.type for f in fields(Facts)}
-  if unknown := sorted(set(raw) - set(types)): raise ValueError(f"unknown facts {unknown}")
-  if missing := sorted(f.name for f in fields(Facts) if f.default is MISSING and f.name not in raw): raise ValueError(f"missing facts {missing}")
+def from_json(cls:type[Facts], raw:Any) -> Facts:
+  name = cls.__name__.lower()
+  if not isinstance(raw, dict): raise ValueError(f"{name} must be a JSON object")
+  types = {f.name: f.type for f in fields(cls)}
+  if unknown := sorted(set(raw) - set(types)): raise ValueError(f"unknown {name} {unknown}")
+  if missing := sorted(f.name for f in fields(cls) if f.default is MISSING and f.name not in raw): raise ValueError(f"missing {name} {missing}")
   for k, v in raw.items():
     if type(v) not in JSON_TYPES[types[k]]: raise ValueError(f"invalid {k} {v} of type {type(v).__name__}")
   vals: dict[str, Any] = {k: Decimal(v) if types[k] is Decimal else v for k, v in raw.items()}
-  return Facts(**vals)
+  return cls(**vals)
 
 def rupees(x:Decimal) -> Decimal: return x.quantize(Decimal(1), ROUND_HALF_UP)
 
