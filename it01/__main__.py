@@ -1,12 +1,12 @@
 import json, pathlib, sys
 from decimal import Decimal
-from it01.tax import assess, to_facts
+from it01.tax import Facts, assess, from_json
 
 def main() -> int:
   if len(sys.argv) != 2:
     print("usage: python -m it01 FACTS.json", file=sys.stderr)
     return 2
-  try: figs = assess(to_facts(json.loads(pathlib.Path(sys.argv[1]).read_text(), parse_float=Decimal)))
+  try: figs = assess(from_json(Facts, json.loads(pathlib.Path(sys.argv[1]).read_text(), parse_float=Decimal)))
   except (OSError, ValueError) as e:
     print(f"error: {e}", file=sys.stderr)
     return 1

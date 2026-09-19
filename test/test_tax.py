@@ -1,13 +1,13 @@
 import json, unittest
 from decimal import Decimal
 from it01.law import Source
-from it01.tax import Facts, assess, chargeable_income, income_tax, to_facts
+from it01.tax import Facts, assess, chargeable_income, from_json, income_tax
 from test.helpers import ROOT
 
 CASES = json.loads((ROOT/"test"/"cases"/"calculator.json").read_text(), parse_float=Decimal)
 OUTPUTS = ("chargeable_income", "income_tax", "fair_share", "total")
 
-def facts(c:dict) -> Facts: return to_facts({k: v for k, v in c.items() if k not in OUTPUTS + ("case",)})
+def facts(c:dict) -> Facts: return from_json(Facts, {k: v for k, v in c.items() if k not in OUTPUTS + ("case",)})
 def net(**kw) -> tuple[Decimal, Decimal]:
   figs = assess(Facts(True, **{k: Decimal(v) for k, v in kw.items()}))
   return figs[0].amt, figs[-1].amt
