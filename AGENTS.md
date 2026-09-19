@@ -37,7 +37,7 @@ A local-first agent that prepares an individual's income tax. It reads the taxpa
 1. **Two layers, one boundary.** Extraction is non-deterministic: it reads a document and proposes typed facts, each with the text it came from. Computation is deterministic: plain code that takes confirmed facts and a taxpayer profile and returns a result. Nothing a model outputs reaches computation without the taxpayer's confirmation. A model never computes an amount and never chooses a rule.
 2. **Money is `Decimal`. Never `float`, anywhere in `it01/`.** Parse with `Decimal(str)`, and JSON with `json.loads(s, parse_float=Decimal)`. Round only where the law requires it, with the rounding it specifies, in one place.
 3. **Computation is pure.** No IO, no clock, no environment, no randomness. The same facts give the same result, byte for byte.
-4. **Every computed figure carries its provenance.** The result names the rule that produced it and the legal source that rule implements. A figure without a source is a bug.
+4. **Every computed figure carries its provenance.** The result names the rule that produced it and the legal source that rule implements. A figure without a source is a bug. A source is a document id, a section and a page. Each official document is listed once, with its public URL; a link is that URL with `#page=N`.
 5. **Each tax year's parameters live in their own table.** Changing a past year is a bug fix. It cites the source and comes with a test.
 6. **Refuse rather than guess.** An unsupported case raises an error naming what is unsupported. Never default silently, never approximate.
 7. **Bad input raises. Impossible states assert.** `assert` is stripped under `-O`, so it only guards invariants the code itself establishes.
