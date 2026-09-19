@@ -1,0 +1,54 @@
+[project]
+name = "it01"
+version = "0.0.0"
+description = "Local-first income tax preparation for individuals"
+authors = [{ name = "thhsie" }]
+license = "MIT"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.optional-dependencies]
+linting = ["ruff==0.16.8", "mypy==2.3.1"]
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["it01"]
+
+[tool.ruff]
+preview = true
+target-version = "py312"
+line-length = 150
+indent-width = 2
+
+[tool.ruff.lint]
+select = [
+  "F", "W6", "E71", "E72", "E112", "E113", "E203", "E251", "E272", "E275", "E303", "E304", "E501", "E702", "E703", "E731",
+  "W191", "W291", "W293", "UP006", "UP007", "UP031", "UP032", "UP035", "UP039", "C416", "RET506", "RET507", "A",
+  "FURB110", "RUF018", "RUF100", "PGH004", "TID251", "TID252", "BLE001",
+]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"abc".msg = "raise NotImplementedError in the base instead"
+"logging".msg = "gate print on DEBUG instead"
+"typing.Optional".msg = "use X|None"
+"typing.Union".msg = "use X|Y"
+
+[tool.ruff.format]
+exclude = ["*"]
+
+[tool.mypy]
+files = ["it01"]
+strict_equality = true
+check_untyped_defs = true
+disallow_untyped_defs = true
+warn_unreachable = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_unused_configs = true

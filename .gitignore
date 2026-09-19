@@ -1,0 +1,15 @@
+__pycache__/
+*.egg-info/
+build/
+dist/
+.venv/
+.mypy_cache/
+.ruff_cache/
+*.pdf
+*.csv
+*.xls
+*.xlsx
+*.ofx
+*.qif
+*.db
+*.sqlite
