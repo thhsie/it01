@@ -1,16 +1,18 @@
 import json, unittest
 from decimal import Decimal
-from it01.law import Source
-from it01.tax import Facts, assess, chargeable_income, from_json, income_tax
+from it01.law import AssetKind, Source
+from it01.tax import Asset, Facts, Figure, assess, chargeable_income, from_json, income_tax
 from test.helpers import ROOT
 
 CASES = json.loads((ROOT/"test"/"cases"/"calculator.json").read_text(), parse_float=Decimal)
 OUTPUTS = ("chargeable_income", "income_tax", "fair_share", "total")
 
 def facts(c:dict) -> Facts: return from_json(Facts, {k: v for k, v in c.items() if k not in OUTPUTS + ("case",)})
+def fig(figs:tuple[Figure, ...], rule:str) -> Figure: return next(x for x in figs if x.rule == rule)
+
 def net(**kw) -> tuple[Decimal, Decimal]:
   figs = assess(Facts(True, **{k: Decimal(v) for k, v in kw.items()}))
-  return figs[0].amt, figs[-1].amt
+  return fig(figs, "chargeable income").amt, fig(figs, "losses carried forward").amt
 
 def ci(dependants:int=0, **kw) -> Decimal: return chargeable_income(Facts(True, dependants, **{k: Decimal(v) for k, v in kw.items()})).amt
 
@@ -73,7 +75,40 @@ class TestBusinessIncome(unittest.TestCase):
     got = net(salary=1000000, business_gross_income=400000, business_deductions=100000, losses_brought_forward=500000)
     self.assertEqual(got, (1000000, 200000))
 
-  def test_cites_the_loss_rules(self): self.assertEqual(assess(Facts(True))[-1].src, (Source("ita", "s.20", 40),))
+  def test_cites_the_loss_rules(self): self.assertEqual(fig(assess(Facts(True)), "losses carried forward").src, (Source("ita", "s.20", 40),))
+
+def asset(kind:str, cost:str, before:str="0") -> Asset: return Asset(AssetKind[kind.upper()], Decimal(cost), Decimal(before))
+
+class TestAnnualAllowance(unittest.TestCase):
+  def test_rates(self):
+    cases = [("computer", "80000", "0", 40000), ("computer", "70001", "0", 35000), ("computer", "50000", "0", 50000),
+             ("furniture", "1000000", "200000", 160000), ("other_plant", "60000", "0", 60000), ("electronic_equipment", "500000", "0", 500000),
+             ("green_technology", "50000", "0", 50000), ("green_technology", "100000", "0", 50000), ("commercial_premises", "1000000", "0", 50000),
+             ("commercial_premises", "1000000", "980000", 20000), ("other_capital_item", "40000", "0", 2000)]
+    for kind, cost, before, amt in cases:
+      with self.subTest(kind=kind, cost=cost, before=before): self.assertEqual(asset(kind, cost, before).allowance, amt)
+
+  def test_next_year_reads_this_year(self):
+    first = asset("other_plant", "100000.01")
+    self.assertEqual((first.allowance, asset("other_plant", "100000.01", str(first.allowance)).allowance), (35000, 22750))
+
+  def test_reduces_business_income(self):
+    f = Facts(True, salary=Decimal(1200000), business_gross_income=Decimal(300000), business_deductions=Decimal(100000),
+              assets=(asset("computer", "80000"),))
+    figs = assess(f)
+    self.assertEqual((fig(figs, "chargeable income").amt, fig(figs, "annual allowance on computer").amt), (1360000, 40000))
+
+  def test_allowance_can_make_a_loss(self):
+    figs = assess(Facts(True, salary=Decimal(1200000), business_gross_income=Decimal(20000), assets=(asset("computer", "100000"),)))
+    self.assertEqual((fig(figs, "chargeable income").amt, fig(figs, "losses carried forward").amt), (1200000, 30000))
+
+  def test_refuses_bad_assets(self):
+    for kind, cost, before in (("computer", "100", "101"), ("motor_vehicle", "3000001", "0"), ("computer", "-1", "0")):
+      with self.subTest(kind=kind, cost=cost), self.assertRaises(ValueError): asset(kind, cost, before)
+
+  def test_cites_the_schedule(self):
+    figs = assess(Facts(True, assets=(asset("computer", "1"),)))
+    self.assertIn(Source("regs", "Fourth Schedule", 46), fig(figs, "annual allowance on computer").src)
 
 class TestAssess(unittest.TestCase):
   def test_calculator_cases(self):

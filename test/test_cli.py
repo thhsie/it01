@@ -19,12 +19,15 @@ REFUSED = [
   ('{"resident": true, "salary": "10"}', "invalid salary 10 of type str"),
   ('{"resident": true, "dependants": 1.5}', "invalid dependants 1.5 of type Decimal"),
   ('{"resident": true, "salary": -1}', "invalid salary -1"),
+  ('{"resident": true, "assets": {}}', "assets must be a JSON list"),
+  ('{"resident": true, "assets": [{"kind": "computer"}]}', "missing asset ['cost']"),
+  ('{"resident": true, "assets": [{"kind": "boat", "cost": 1}]}', "unknown kind boat"),
 ]
 
 class TestCli(unittest.TestCase):
   def test_prints_figures_with_links(self):
     out = assess(json.dumps({"resident": True, "dependants": 1, "salary": 1200000})).stdout
-    self.assertIn("total tax                         68,000", out)
+    self.assertIn(f"{'total tax':<46}{'68,000':>14}", out)
     self.assertIn("First Schedule Part I                     https://www.mra.mu/download/ITAConsolidated.pdf#page=262", out)
 
   def test_refuses_bad_facts(self):
@@ -32,6 +35,10 @@ class TestCli(unittest.TestCase):
       with self.subTest(facts):
         ret = assess(facts)
         self.assertEqual((ret.returncode, ret.stderr), (1, f"error: {msg}\n"))
+
+  def test_reads_assets(self):
+    out = assess(json.dumps({"resident": True, "business_gross_income": 100000, "assets": [{"kind": "computer", "cost": 80000}]})).stdout
+    self.assertIn(f"{'annual allowance on computer':<46}{'40,000':>14}", out)
 
   def test_usage(self): self.assertEqual(run().returncode, 2)
 

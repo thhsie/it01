@@ -11,7 +11,7 @@ it01 prepares your income tax on your own computer.
 
 ## Status
 
-The project is in early development. It computes chargeable income, income tax, fair share contribution, total tax, the balance after tax already paid and the losses to carry forward, for an individual with employment income, business income, other income and resident dividends. Business income is entered as gross income and the total of allowable deductions. It does not yet work out capital allowances or the allowable deductions from the accounts.
+The project is in early development. It computes chargeable income, income tax, fair share contribution, total tax, the balance after tax already paid and the losses to carry forward, for an individual with employment income, business income, other income and resident dividends. Business income is entered as gross income, the total of allowable deductions and the business assets that earn an annual allowance. It does not yet work out the allowable deductions from the accounts, or the balancing charge or allowance when an asset is sold.
 
 ## Usage
 
@@ -28,6 +28,16 @@ python -m it01 facts.json
 ```
 
 Each figure is printed with the sections of the law it comes from and a link to each page.
+
+`assets` lists the assets of the business, bought this year or earlier:
+
+```json
+{"resident": true, "business_gross_income": 900000, "assets": [{"kind": "computer", "cost": 80000}]}
+```
+
+Each asset has a `kind`, its `cost` net of any subsidy, grant or contribution, and `allowances_before`, the total annual allowance claimed on it in earlier years. The kinds are `industrial_premises`, `commercial_premises`, `hotel`, `ship_or_aircraft`, `motor_vehicle`, `computer`, `electronic_equipment`, `furniture`, `other_plant`, `agricultural_improvement`, `research_and_development`, `golf_course`, `patent`, `green_technology`, `landscaping`, `solar_energy_unit` and `other_capital_item`.
+
+An allowance worked out at a rate is rounded down to whole rupees. The law sets a maximum rate, so a lower claim is allowed. Next year's `allowances_before` is this year's plus the allowance printed.
 
 `salary` holds all emoluments, including pensions from past employment and benefits. `other_income` holds income other than emoluments and business income.
 

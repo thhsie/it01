@@ -1,7 +1,8 @@
 from dataclasses import dataclass
 from decimal import Decimal
+from enum import Enum, auto
 
-DOCS = {"ita": "https://www.mra.mu/download/ITAConsolidated.pdf"}
+DOCS = {"ita": "https://www.mra.mu/download/ITAConsolidated.pdf", "regs": "https://www.mra.mu/download/ITaxRegulationsGN78of1996.pdf"}
 
 @dataclass(frozen=True)
 class Source:
@@ -28,3 +29,50 @@ FAIR_SHARE_SRC = (Source("ita", "s.16B", 35), Source("ita", "s.16C", 37))
 CREDITS_SRC = (Source("ita", "s.93(1)", 115), Source("ita", "s.103", 121), Source("ita", "s.111(2)", 123), Source("ita", "s.111G", 129),
                Source("ita", "s.152(1)", 222))
 LOSSES_SRC = (Source("ita", "s.20", 40),)
+
+class Basis(Enum):
+  COST = auto()
+  BASE_VALUE = auto()
+
+class AssetKind(Enum):
+  INDUSTRIAL_PREMISES = auto()
+  COMMERCIAL_PREMISES = auto()
+  HOTEL = auto()
+  SHIP_OR_AIRCRAFT = auto()
+  MOTOR_VEHICLE = auto()
+  COMPUTER = auto()
+  ELECTRONIC_EQUIPMENT = auto()
+  FURNITURE = auto()
+  OTHER_PLANT = auto()
+  AGRICULTURAL_IMPROVEMENT = auto()
+  RESEARCH_AND_DEVELOPMENT = auto()
+  GOLF_COURSE = auto()
+  PATENT = auto()
+  GREEN_TECHNOLOGY = auto()
+  LANDSCAPING = auto()
+  SOLAR_ENERGY_UNIT = auto()
+  OTHER_CAPITAL_ITEM = auto()
+
+ALLOWANCES = {
+  AssetKind.INDUSTRIAL_PREMISES: (Decimal("0.05"), Basis.COST, False),
+  AssetKind.COMMERCIAL_PREMISES: (Decimal("0.05"), Basis.COST, False),
+  AssetKind.HOTEL: (Decimal("0.30"), Basis.BASE_VALUE, False),
+  AssetKind.SHIP_OR_AIRCRAFT: (Decimal("0.20"), Basis.BASE_VALUE, True),
+  AssetKind.MOTOR_VEHICLE: (Decimal("0.25"), Basis.BASE_VALUE, True),
+  AssetKind.COMPUTER: (Decimal("0.50"), Basis.BASE_VALUE, True),
+  AssetKind.ELECTRONIC_EQUIPMENT: (Decimal("1"), Basis.COST, True),
+  AssetKind.FURNITURE: (Decimal("0.20"), Basis.BASE_VALUE, True),
+  AssetKind.OTHER_PLANT: (Decimal("0.35"), Basis.BASE_VALUE, True),
+  AssetKind.AGRICULTURAL_IMPROVEMENT: (Decimal("0.25"), Basis.BASE_VALUE, False),
+  AssetKind.RESEARCH_AND_DEVELOPMENT: (Decimal("0.50"), Basis.COST, False),
+  AssetKind.GOLF_COURSE: (Decimal("0.15"), Basis.BASE_VALUE, False),
+  AssetKind.PATENT: (Decimal("0.25"), Basis.BASE_VALUE, False),
+  AssetKind.GREEN_TECHNOLOGY: (Decimal("0.50"), Basis.COST, True),
+  AssetKind.LANDSCAPING: (Decimal("0.50"), Basis.COST, False),
+  AssetKind.SOLAR_ENERGY_UNIT: (Decimal("1"), Basis.COST, False),
+  AssetKind.OTHER_CAPITAL_ITEM: (Decimal("0.05"), Basis.COST, False),
+}
+SMALL_PLANT = Decimal(60000)
+MOTOR_VEHICLE_CAP = Decimal(3000000)
+ALLOWANCE_SRC = (Source("ita", "s.2 base value", 13), Source("ita", "s.24", 43), Source("regs", "regulation 7", 8),
+                 Source("regs", "Fourth Schedule", 46))
