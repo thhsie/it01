@@ -11,7 +11,7 @@ def main() -> int:
     print(f"error: {e}", file=sys.stderr)
     return 1
   ret = []
-  for fig in figs: ret += [f"{fig.rule:<26}{fig.amt:>14,}"] + [f"  {s.section:<42}{s.url}" for s in fig.src]
+  for fig in figs: ret += [f"{fig.rule:<46}{fig.amt:>14,}"] + [f"  {s.section:<42}{s.url}" for s in fig.src]
   print("\n".join(ret))
   return 0
 
