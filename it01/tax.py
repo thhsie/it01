@@ -1,7 +1,7 @@
 from dataclasses import dataclass, fields
 from decimal import ROUND_HALF_UP, Decimal
 from it01.law import (BANDS, BANDS_SRC, CHARGEABLE_SRC, DEPENDANTS, DEPENDANTS_SRC, INTEREST_BAR, INTEREST_SRC, MEDICAL, MEDICAL_SRC, RESIDENT_SRC,
-                      Source)
+                      Source, FAIR_SHARE_RATE, FAIR_SHARE_SRC, FAIR_SHARE_THRESHOLD)
 
 ZERO = Decimal(0)
 
@@ -51,3 +51,9 @@ def income_tax(chargeable:Decimal) -> Figure:
   ret, lo = ZERO, ZERO
   for width, rate in BANDS: ret, lo = ret + rupees(max(ZERO, min(chargeable - lo, width)) * rate), lo + width
   return Figure("income tax", ret, BANDS_SRC)
+
+def assess(f:Facts) -> tuple[Figure, ...]:
+  ci = chargeable_income(f)
+  tax = income_tax(ci.amt)
+  share = Figure("fair share contribution", rupees(max(ZERO, ci.amt + f.resident_dividends - FAIR_SHARE_THRESHOLD) * FAIR_SHARE_RATE), FAIR_SHARE_SRC)
+  return ci, tax, share, Figure("total tax", tax.amt + share.amt, tax.src + share.src)

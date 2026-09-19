@@ -17,3 +17,6 @@ MEDICAL = (Decimal(25000), Decimal(50000), Decimal(70000), Decimal(90000), Decim
 MEDICAL_SRC = (Source("ita", "s.27B", 51), Source("ita", "Third Schedule Part II", 281))
 INTEREST_BAR = Decimal(4000000)
 INTEREST_SRC = (Source("ita", "s.27A", 50), Source("ita", "s.27A(4)(c)", 51), Source("ita", "s.27A(5)", 51))
+FAIR_SHARE_THRESHOLD = Decimal(12000000)
+FAIR_SHARE_RATE = Decimal("0.15")
+FAIR_SHARE_SRC = (Source("ita", "s.16B", 35), Source("ita", "s.16C", 37))
