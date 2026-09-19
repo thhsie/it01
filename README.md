@@ -11,7 +11,7 @@ it01 prepares your income tax on your own computer.
 
 ## Status
 
-The project is in early development. It computes chargeable income, income tax, fair share contribution and total tax for an individual with employment income, other income and resident dividends. It does not yet handle business income.
+The project is in early development. It computes chargeable income, income tax, fair share contribution, total tax and the balance after tax already paid, for an individual with employment income, other income and resident dividends. It does not yet handle business income.
 
 ## Usage
 
@@ -21,13 +21,15 @@ Write the facts in a JSON file. Amounts are numbers with at most two decimal pla
 {"resident": true, "dependants": 1, "salary": 1200000}
 ```
 
-The other facts are `taxable_transport_allowance`, `performance_bonus`, `statutory_bonus`, `other_income`, `resident_dividends`, `housing_loan_interest`, `medical_insurance` and `other_reliefs`.
+The other facts are `taxable_transport_allowance`, `performance_bonus`, `statutory_bonus`, `other_income`, `resident_dividends`, `housing_loan_interest`, `medical_insurance`, `other_reliefs`, `paye_withheld`, `tax_deducted_at_source` and `quarterly_tax_paid`.
 
 ```sh
 python -m it01 facts.json
 ```
 
 Each figure is printed with the sections of the law it comes from and a link to each page.
+
+The last figure is the balance of tax. A positive balance is tax to pay. A negative balance is tax paid in excess.
 
 ## Development
 

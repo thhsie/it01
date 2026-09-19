@@ -25,3 +25,5 @@ INTEREST_SRC = (Source("ita", "s.27A", 50), Source("ita", "s.27A(4)(c)", 51), So
 FAIR_SHARE_THRESHOLD = Decimal(12000000)
 FAIR_SHARE_RATE = Decimal("0.15")
 FAIR_SHARE_SRC = (Source("ita", "s.16B", 35), Source("ita", "s.16C", 37))
+CREDITS_SRC = (Source("ita", "s.93(1)", 115), Source("ita", "s.103", 121), Source("ita", "s.111(2)", 123), Source("ita", "s.111G", 129),
+               Source("ita", "s.152(1)", 222))
