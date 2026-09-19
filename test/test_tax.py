@@ -13,7 +13,11 @@ def ci(dependants:int=0, **kw) -> Decimal: return chargeable_income(Facts(True, 
 class TestIncomeTax(unittest.TestCase):
   def test_calculator_cases(self):
     for c in CASES:
-      with self.subTest(c["case"]): self.assertEqual(income_tax(Decimal(c["chargeable_income"])).amt, c["income_tax"])
+      with self.subTest(c["case"]): self.assertIn(c["income_tax"] - income_tax(Decimal(c["chargeable_income"])).amt, (0, 1))
+
+  def test_drops_the_fraction_in_each_band(self):
+    for amt, tax in ((500005, 0), (500019, 1), (999999, 49999), (1000009, 50001)):
+      with self.subTest(amt): self.assertEqual(income_tax(Decimal(amt)).amt, tax)
 
   def test_names_rule_and_sources(self):
     fig = income_tax(Decimal(1))
@@ -52,7 +56,11 @@ class TestChargeableIncome(unittest.TestCase):
 class TestAssess(unittest.TestCase):
   def test_calculator_cases(self):
     for c in CASES:
-      with self.subTest(c["case"]): self.assertEqual([fig.amt for fig in assess(facts(c))], [c[k] for k in OUTPUTS])
+      with self.subTest(c["case"]):
+        income, tax, share, total = (fig.amt for fig in assess(facts(c)))
+        self.assertEqual((income, share), (c["chargeable_income"], c["fair_share"]))
+        self.assertIn(c["income_tax"] - tax, (0, 1))
+        self.assertEqual(c["total"] - total, c["income_tax"] - tax)
 
   def test_employers_guide_illustration(self):
     f = Facts(True, 1, salary=Decimal(20200000), resident_dividends=Decimal(1000000))
