@@ -1,14 +1,20 @@
 import ast, io, re, tokenize, unittest
 from test.helpers import sources, trees
 
-PRAGMA = re.compile(r"# (noqa: [A-Z]+[0-9]+|type: ignore\[[a-z-]+\])")
+PRAGMA = re.compile(r"#!.*|# (noqa: [A-Z]+[0-9]+|type: ignore\[[a-z-]+\])")
+JARGON = re.compile(r"[–—]|\b[A-Z]{2,}\b|\b(?=\w*\d)(?=\w*[A-Za-z])\w+\b|\w-\d|\w_\w")
 BODIES = (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
 
 class TestStyle(unittest.TestCase):
-  def test_no_comments(self):
+  def test_comments(self):
     for fn, src in sources().items():
-      for t in (t for t in tokenize.generate_tokens(io.StringIO(src).readline) if t.type is tokenize.COMMENT):
-        if t.start != (1, 0) or not t.string.startswith("#!"): self.assertRegex(t.string, PRAGMA, f"{fn}:{t.start[0]}")
+      prev = -1
+      for t in (t for t in tokenize.generate_tokens(io.StringIO(src).readline) if t.type is tokenize.COMMENT and not PRAGMA.fullmatch(t.string)):
+        self.assertRegex(t.string, r"^# \S", f"{fn}:{t.start[0]} write # text")
+        self.assertLessEqual(len(t.string.split()) - 1, 10, f"{fn}:{t.start[0]} at most ten words")
+        self.assertNotRegex(t.string, JARGON, f"{fn}:{t.start[0]} plain english only")
+        self.assertNotEqual(t.start[0], prev+1, f"{fn}:{t.start[0]} one line only")
+        prev = t.start[0]
 
   def test_no_docstrings(self):
     for fn, tree in trees().items():

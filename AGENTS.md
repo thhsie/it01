@@ -9,7 +9,7 @@ pip install -e '.[linting]'
 python -m ruff check .
 python -m mypy
 python -m unittest
-python -m unittest test.test_style.TestStyle.test_no_comments
+python -m unittest test.test_style.TestStyle.test_comments
 MAX_LINE_COUNT=3000 python sz.py
 ```
 
@@ -54,10 +54,14 @@ A local-first agent that prepares an individual's income tax. It reads the taxpa
 - f-strings only. Double quotes by default. `ruff UP031 UP032`.
 - Continue long expressions inside brackets, never with a backslash.
 
-### No comments
-- No comments. No docstrings. `test_no_comments`, `test_no_docstrings`.
-- The only allowed `#` are a shebang on line 1, `# noqa: CODE` and `# type: ignore[code]`, each with its code. Avoid those too; a new suppression needs a reason in the commit message.
-- What the code does is told by its names, its types and its tests. Why it does it goes in the commit message.
+### Comments
+- No comments by default. What the code does is told by its names, its types and its tests. Why it does it goes in the commit message.
+- A comment is the rare exception, for a why that nothing else can carry: `# the law rounds down, not to nearest`. `test_comments`.
+  - One line. Never two comment lines in a row.
+  - At most ten words, written as `# text`.
+  - Plain English only. No dashes, no acronyms, no identifiers, no codes, no labels like `NOTE`, `TODO` or `RULE`.
+- No docstrings. `test_no_docstrings`.
+- A shebang on line 1, `# noqa: CODE` and `# type: ignore[code]` are not comments and are exempt. Avoid them anyway; a new suppression needs a reason in the commit message.
 
 ### Names
 - Modules are one short lowercase word. Classes are `PascalCase`, functions and variables `snake_case`, constants and environment flags `UPPER_CASE`. A flag's name is its environment key.
