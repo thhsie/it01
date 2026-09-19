@@ -15,7 +15,7 @@ The project is in early development. It computes chargeable income, income tax, 
 
 ## Usage
 
-Write the facts in a JSON file. Amounts are numbers. Only `resident` is required.
+Write the facts in a JSON file. Amounts are numbers with at most two decimal places. Only `resident` is required.
 
 ```json
 {"resident": true, "dependants": 1, "salary": 1200000}

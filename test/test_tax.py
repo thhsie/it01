@@ -44,7 +44,9 @@ class TestChargeableIncome(unittest.TestCase):
   def test_fifth_dependant_never_counts(self): self.assertEqual(ci(salary=1000000, dependants=5), ci(salary=1000000, dependants=4))
 
   def test_refuses_invalid_facts(self):
-    for kw in ({"salary": Decimal(-1)}, {"dependants": -1}, {"resident_dividends": Decimal("NaN")}, {"salary": -1}):
+    bad = ({"salary": Decimal(-1)}, {"dependants": -1}, {"resident_dividends": Decimal("NaN")}, {"salary": -1}, {"salary": Decimal("1e15")},
+           {"salary": Decimal("0.001")}, {"salary": Decimal("1.4999999999999999999999999999")})
+    for kw in bad:
       with self.subTest(kw), self.assertRaises(ValueError): Facts(True, **kw)
 
 class TestAssess(unittest.TestCase):
@@ -55,6 +57,11 @@ class TestAssess(unittest.TestCase):
   def test_employers_guide_illustration(self):
     f = Facts(True, 1, salary=Decimal(20200000), resident_dividends=Decimal(1000000))
     self.assertEqual([fig.amt for fig in assess(f)], [20090000, 3868000, 1363500, 5231500])
+
+  def test_largest_amounts_are_exact(self):
+    m = Decimal(10**15 - 1)
+    f = Facts(False, salary=m, taxable_transport_allowance=m, performance_bonus=m, statutory_bonus=m, other_income=m)
+    self.assertEqual([fig.amt for fig in assess(f)], [4999999999999995, 999999999849999, 749999998199999, 1749999998049998])
 
   def test_fair_share_cites_its_sections(self):
     self.assertEqual(assess(Facts(True))[2].src, (Source("ita", "s.16B", 35), Source("ita", "s.16C", 37)))
