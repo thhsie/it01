@@ -20,3 +20,17 @@ jobs:
     - run: python -m mypy
     - run: python -m unittest -v
     - run: MAX_LINE_COUNT=3000 python sz.py
+  terms:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      TERMS: ${{ secrets.TERMS }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - if: env.TERMS != ''
+      run: |
+        printf '%s\n' "$TERMS" | grep . > "$RUNNER_TEMP/terms"
+        if git grep -lIiF -f "$RUNNER_TEMP/terms"; then echo "banned term in tree"; exit 1; fi
+        if git log --format='%an%n%ae%n%B' | grep -qiF -f "$RUNNER_TEMP/terms"; then echo "banned term in history"; exit 1; fi
