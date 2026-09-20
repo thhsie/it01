@@ -38,6 +38,6 @@ def proposals(document:str, reply:str) -> tuple[Proposal, ...]:
   return tuple(ret)
 
 def read(document:str) -> tuple[Proposal, ...]:
-  try: asked = instruction().format(facts=", ".join(AMOUNTS))
+  try: asked = instruction("reading").format(facts=", ".join(AMOUNTS))
   except (IndexError, KeyError) as e: raise ValueError(f"the instruction in reading.json uses a brace that is not {{facts}} {e}") from e
   return proposals(document, ask(asked, document))

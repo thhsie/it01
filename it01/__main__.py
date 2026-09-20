@@ -1,11 +1,13 @@
 import json, pathlib, sys
 from decimal import Decimal
+from it01.credits import label, totals
 from it01.read import read
 from it01.rows import Check, entries
 from it01.tax import Facts, assess, from_json
 
 MARKS = {Check.AGREES: "ok", Check.DIFFERS: "does not agree", Check.UNCHECKED: "not checked"}
-USAGE = "usage: python -m it01 FACTS.json\n       python -m it01 read DOCUMENT.txt\n       python -m it01 rows STATEMENT.txt"
+USAGE = ("usage: python -m it01 FACTS.json\n       python -m it01 read DOCUMENT.txt\n"
+         "       python -m it01 rows STATEMENT.txt\n       python -m it01 credits STATEMENT.txt")
 
 def money(amt:Decimal|None) -> str: return f"{amt:,}" if amt is not None else ""
 
@@ -24,7 +26,19 @@ def to_transactions(text:str) -> list[str]:
   return [f"{e.date:<12}{money(e.paid_out):>14}{money(e.paid_in):>14}{money(e.balance):>14}  {MARKS[e.check]:<15}{e.description}"
           for e in entries(text)]
 
-VERBS = {"read": to_proposals, "rows": to_transactions}
+def to_credits(text:str) -> list[str]:
+  found, questions = label(text)
+  if not found: return ["no money was paid into the account"]
+  ret = []
+  for kind, amt in totals(found).items():
+    same = [c for c in found if c.kind == kind]
+    unsure = sum(1 for c in same if c.check is not Check.AGREES)
+    ret.append(f"{kind:<46}{amt:>14,}{len(same):>5} credit" + ("s" if len(same) > 1 else "")
+               + (f", {unsure} with no balance that agrees" if unsure else ""))
+  if questions: ret += ["", "questions"] + [f"  {q.date:<12}{q.amt:>14,}  {q.asking:<30}{q.description}" for q in questions]
+  return ret
+
+VERBS = {"read": to_proposals, "rows": to_transactions, "credits": to_credits}
 
 def main() -> int:
   args = sys.argv[1:]
