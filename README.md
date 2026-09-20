@@ -31,6 +31,32 @@ The endpoint is read from `IT01_ENDPOINT`, the model name from `IT01_MODEL`, and
 
 The instruction sent to the model is in `it01/reading.json`. Change it to suit your model.
 
+## Reading a bank statement
+
+Save the statement as text, keeping the layout, then read its transactions. No model is used and nothing leaves your computer.
+
+```sh
+python -m it01 rows statement.txt
+```
+
+Each transaction is printed with its date, the amount paid out or in, the balance after it, and its description.
+
+The columns are worked out from the statement itself. A column is taken as the running balance when at least three in five of the changes between its amounts are matched by a single amount printed on the lines between. A balance that does not change is counted on neither side, and two changes are the fewest that can be matched, so a column of two amounts is never a running balance. The amounts that match those changes are the transactions.
+
+Each page is worked out on its own, because a statement can change its layout between pages. Pages are split on the form feed that a text extractor writes. A page with too few amounts to work out uses the columns found across the whole statement.
+
+The headings say which column is which. On each page every column looks for the heading printed nearest to it, on any row of that page, within a few characters either side. The row that names the most columns is the one that counts. A page that had too few amounts to work out on its own does not count at all. The larger side across the statement decides. The statement is refused when the count is tied, when no heading is recognised, or when two rows tied at the top count name the columns in opposite orders.
+
+The headings decide which column is money out and which is money in. The balance check cannot catch a statement whose headings are printed the wrong way round, because the amounts still add up either way.
+
+The check compares each balance with the running total, so it does not depend on the headings. Each transaction is marked `ok` when the balance follows, `does not agree` when it does not, and `not checked` when there is no balance to check it against. An amount with no balance after it, such as a subtotal printed in a money column, is added to the transaction that follows it, and that transaction is marked `does not agree` when there is a running total to compare with.
+
+Several transactions printed under one balance are reported as one line with the amounts added together. A line that only carries a balance forward is not a transaction and is not printed, unless the balance it carries does not follow, in which case it is printed and marked `does not agree`.
+
+An amount is read only when it is printed with two decimal places and is not followed by a percent sign, so a reference number or a rate is not mistaken for money. An amount in brackets or with a trailing minus is a negative balance. In a money column such an amount is reported in that column's direction, without its sign, so its balance will not follow and the transaction is marked `does not agree`. An amount in a column that explains no balance change is left out. If such an amount belonged to a transaction, that transaction's balance check fails.
+
+A statement with no amounts at all is refused, and so is a page whose amounts stand under no running balance.
+
 ## Usage
 
 Write the facts in a JSON file. Amounts are numbers with at most two decimal places. Only `resident` is required.
