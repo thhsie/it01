@@ -4,11 +4,22 @@ from test.helpers import ROOT
 def run(*args:str) -> subprocess.CompletedProcess:
   return subprocess.run([sys.executable, "-m", "it01", *args], cwd=ROOT, capture_output=True, text=True)
 
-def assess(facts:str) -> subprocess.CompletedProcess:
-  with tempfile.NamedTemporaryFile("w", suffix=".json") as f:
-    f.write(facts)
+def saved(text:str, suffix:str, *args:str) -> subprocess.CompletedProcess:
+  with tempfile.NamedTemporaryFile("w", suffix=suffix) as f:
+    f.write(text)
     f.flush()
-    return run(f.name)
+    return run(*args, f.name)
+
+def statement(text:str) -> subprocess.CompletedProcess: return saved(text, ".txt", "rows")
+
+def assess(facts:str) -> subprocess.CompletedProcess: return saved(facts, ".json")
+
+STATEMENT = """\
+Date        Description        Debit       Credit      Balance
+01/07/2025  Opening                                   1,000.00
+02/07/2025  Salary                       5,000.00     6,000.00
+03/07/2025  Rent               1,500.00               4,500.00
+"""
 
 REFUSED = [
   ("[]", "facts must be a JSON object"),
@@ -43,6 +54,15 @@ class TestCli(unittest.TestCase):
     self.assertIn(f"{'annual allowance on computer':<46}{'40,000':>14}", out)
 
   def test_usage(self):
-    for args in ((), ("read",), ("read", "a", "b"), ("a", "b")): self.assertEqual(run(*args).returncode, 2, args)
+    for args in ((), ("read",), ("rows",), ("read", "a", "b"), ("rows", "a", "b"), ("a", "b")):
+      self.assertEqual(run(*args).returncode, 2, args)
+
+  def test_prints_transactions_with_their_check(self):
+    out = statement(STATEMENT).stdout
+    self.assertIn(f"{'02/07/2025':<12}{'':>14}{'5,000.00':>14}{'6,000.00':>14}  {'ok':<15}Salary", out)
+
+  def test_refuses_a_statement_it_cannot_check(self):
+    ret = statement("Salary 5,000.00\nRent 1,500.00\n")
+    self.assertEqual((ret.returncode, ret.stderr), (1, "error: no running balance column in the statement\n"))
 
 if __name__ == "__main__": unittest.main()
