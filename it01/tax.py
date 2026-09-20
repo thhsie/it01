@@ -18,10 +18,13 @@ class Figure:
   amt: Decimal
   src: tuple[Source, ...]
 
+def amount_names(obj:Any) -> tuple[str, ...]: return tuple(f.name for f in fields(obj) if f.type is Decimal)
+
+def is_amount(v:Decimal) -> bool: return v.is_finite() and 0 <= v < AMOUNT_LIMIT and v == v.quantize(Decimal("0.01"))
+
 def check_amounts(obj:Any) -> None:
-  for f in (f for f in fields(obj) if f.type is Decimal):
-    ok = isinstance(v := getattr(obj, f.name), Decimal) and v.is_finite() and 0 <= v < AMOUNT_LIMIT and v == v.quantize(Decimal("0.01"))
-    if not ok: raise ValueError(f"invalid {f.name} {v}")
+  for name in amount_names(obj):
+    if not (isinstance(v := getattr(obj, name), Decimal) and is_amount(v)): raise ValueError(f"invalid {name} {v}")
 
 @dataclass(frozen=True)
 class Asset:

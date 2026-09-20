@@ -42,6 +42,7 @@ class TestCli(unittest.TestCase):
     out = assess(json.dumps({"resident": True, "business": {"gross_income": 100000, "assets": [{"kind": "computer", "cost": 80000}]}})).stdout
     self.assertIn(f"{'annual allowance on computer':<46}{'40,000':>14}", out)
 
-  def test_usage(self): self.assertEqual(run().returncode, 2)
+  def test_usage(self):
+    for args in ((), ("read",), ("read", "a", "b"), ("a", "b")): self.assertEqual(run(*args).returncode, 2, args)
 
 if __name__ == "__main__": unittest.main()

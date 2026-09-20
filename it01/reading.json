@@ -1,0 +1,3 @@
+{
+  "instruction": "You are given the text of one tax document. Report every amount in it that matches one of these facts: {facts}. Answer with a JSON list and nothing else. Each item is an object with three keys: fact, one of the names above; amount, the figure as it appears; quote, the exact line of the document the figure is printed on, copied character for character. Report a fact only if the document shows it. Report nothing you have to work out or assume. If the document shows none of these facts, answer with an empty list."
+}
