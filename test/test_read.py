@@ -51,7 +51,7 @@ class TestRead(unittest.TestCase):
   def test_empty_list_proposes_nothing(self): self.assertEqual(proposals(DOC, "[]"), ())
 
   def test_the_instruction_names_every_fact(self):
-    asked = instruction().format(facts=", ".join(AMOUNTS))
+    asked = instruction("reading").format(facts=", ".join(AMOUNTS))
     for fact in AMOUNTS: self.assertIn(fact, asked)
 
 if __name__ == "__main__": unittest.main()

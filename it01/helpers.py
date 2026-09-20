@@ -1,4 +1,5 @@
 import json, os, pathlib
+from typing import Any
 
 def flag(name:str, default:str) -> str: return os.environ.get(name, default)
 
@@ -12,7 +13,11 @@ IT01_KEY = flag("IT01_KEY", "")
 IT01_DEBUG = number("IT01_DEBUG", "0")
 IT01_TIMEOUT = number("IT01_TIMEOUT", "120")
 
-def instruction() -> str:
-  raw = json.loads((pathlib.Path(__file__).parent / "reading.json").read_text())
-  if not isinstance(text := raw.get("instruction"), str): raise ValueError(f"reading.json must hold an instruction string, not {text}")
+def data(name:str) -> dict[str, Any]:
+  raw = json.loads((pathlib.Path(__file__).parent / f"{name}.json").read_text())
+  if not isinstance(raw, dict): raise ValueError(f"{name}.json must hold a JSON object")
+  return raw
+
+def instruction(name:str) -> str:
+  if not isinstance(text := data(name).get("instruction"), str): raise ValueError(f"{name}.json must hold an instruction string, not {text}")
   return text

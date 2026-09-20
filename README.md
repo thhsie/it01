@@ -57,6 +57,22 @@ An amount is read only when it is printed with two decimal places and is not fol
 
 A statement with no amounts at all is refused, and so is a page whose amounts stand under no running balance.
 
+## Labelling what was paid in
+
+After a statement reads into transactions, each credit is labelled through your endpoint. The credits only you can explain are printed as questions.
+
+```sh
+python -m it01 credits statement.txt
+```
+
+Only money paid in is sent. Each credit goes with its date, its amount and its description, numbered, and the model answers with a kind for each number. The kinds and what they mean are in `it01/labelling.json`. Change them to suit your affairs.
+
+The totals for each kind are printed, and the number of credits in each. A kind holding a credit whose balance did not agree says how many. Nothing is computed from them. Copy the ones you accept into your facts file.
+
+Two kinds cannot be settled from the wording. A cash deposit does not say where the money came from, and neither does a credit whose wording explains nothing. Both are printed under `questions` with the date, the amount, what to ask yourself and the wording. They do not stop the rest being read.
+
+An answer is refused unless it names every credit exactly once and uses only the kinds in the file. The package does not retry and does not repair an answer.
+
 ## Usage
 
 Write the facts in a JSON file. Amounts are numbers with at most two decimal places. Only `resident` is required.

@@ -1,0 +1,17 @@
+{
+  "instruction": "You are given money paid into a taxpayer's bank account, one credit per line, numbered. Say which kind each one is, using only the names listed below. Answer with a JSON object and nothing else, whose keys are the numbers as they appear and whose values are the names. Give a name only if the wording of the credit supports it. Where the wording does not say where the money came from, answer unclear.",
+  "kinds": {
+    "pay": "Wages, salary, a bonus or any other payment from an employer.",
+    "business": "Money from a customer or a client for work done or goods sold, including a settlement from a payment platform.",
+    "interest": "Interest paid by a bank on a deposit or a savings account.",
+    "dividend": "A dividend or a distribution from a company or a fund.",
+    "rent": "Rent from a tenant for property let out.",
+    "other": "A transfer the taxpayer made between their own accounts, a refund, a reversal, a loan paid out to them, a reimbursement of what they spent, or a private gift.",
+    "cash": "Money paid in as cash, whatever else the wording says.",
+    "unclear": "The wording does not say where the money came from."
+  },
+  "asking": {
+    "cash": "where did this cash come from",
+    "unclear": "what was this payment for"
+  }
+}

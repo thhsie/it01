@@ -21,6 +21,14 @@ Date        Description        Debit       Credit      Balance
 03/07/2025  Rent               1,500.00               4,500.00
 """
 
+OUTGOINGS = """\
+Date        Description        Debit       Credit      Balance
+01/07/2025  Opening                                   5,000.00
+02/07/2025  Rent               1,500.00               3,500.00
+03/07/2025  Fees                 200.00               3,300.00
+04/07/2025  Card                 300.00               3,000.00
+"""
+
 REFUSED = [
   ("[]", "facts must be a JSON object"),
   ("{}", "missing facts ['resident']"),
@@ -54,12 +62,16 @@ class TestCli(unittest.TestCase):
     self.assertIn(f"{'annual allowance on computer':<46}{'40,000':>14}", out)
 
   def test_usage(self):
-    for args in ((), ("read",), ("rows",), ("read", "a", "b"), ("rows", "a", "b"), ("a", "b")):
+    for args in ((), ("read",), ("rows",), ("credits",), ("read", "a", "b"), ("rows", "a", "b"), ("a", "b")):
       self.assertEqual(run(*args).returncode, 2, args)
 
   def test_prints_transactions_with_their_check(self):
     out = statement(STATEMENT).stdout
     self.assertIn(f"{'02/07/2025':<12}{'':>14}{'5,000.00':>14}{'6,000.00':>14}  {'ok':<15}Salary", out)
+
+  def test_says_so_when_nothing_was_paid_in(self):
+    out = saved(OUTGOINGS, ".txt", "credits")
+    self.assertEqual((out.returncode, out.stdout.strip()), (0, "no money was paid into the account"))
 
   def test_refuses_a_statement_it_cannot_check(self):
     ret = statement("Salary 5,000.00\nRent 1,500.00\n")
