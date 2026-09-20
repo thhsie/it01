@@ -11,7 +11,25 @@ it01 prepares your income tax on your own computer.
 
 ## Status
 
-The project is in early development. It computes chargeable income, income tax, fair share contribution, total tax, the balance after tax already paid and the losses to carry forward, for an individual with employment income, business income, other income and resident dividends. It does not yet handle income from an exempt activity inside the business accounts, the extra deductions for special categories of employees, the artist and fast charger deductions, or the balancing charge or allowance when an asset is sold.
+The project is in early development. It computes chargeable income, income tax, fair share contribution, total tax, the balance after tax already paid and the losses to carry forward, for an individual with employment income, business income, other income and resident dividends. It does not yet handle income from an exempt activity inside the business accounts, the extra deductions for special categories of employees, the artist and fast charger deductions, or the balancing charge or allowance when an asset is sold. Reading proposes the amounts on the facts list below, not the business accounts and not the number of dependants.
+
+## Reading a document
+
+Save the document as text, then ask the model to propose facts from it.
+
+```sh
+export IT01_ENDPOINT=http://localhost:8080/v1/chat/completions
+export IT01_MODEL=your-model
+python -m it01 read statement.txt
+```
+
+Each proposal is printed with the line of the document it was read from. Nothing is computed from a proposal. Copy the ones you accept into your facts file.
+
+A proposal is refused unless its quote is one of the document's lines and that line shows the figure. An amount is refused unless it is a plain figure of at most two decimal places, and it is held to the same limits as a fact you write yourself. A fact name the package does not know is refused. The package does not retry and does not repair an answer.
+
+The endpoint is read from `IT01_ENDPOINT`, the model name from `IT01_MODEL`, and a bearer token from `IT01_KEY` if your endpoint needs one. `IT01_TIMEOUT` is the number of seconds to wait for an answer, 120 by default. `IT01_DEBUG=2` prints the endpoint's reply.
+
+The instruction sent to the model is in `it01/reading.json`. Change it to suit your model.
 
 ## Usage
 
