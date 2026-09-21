@@ -21,6 +21,10 @@
       "reliefs_claimed": "Amount of reliefs, deductions and allowances claimed by the employee",
       "tax_withheld": "Amount of tax withheld and remitted",
       "retirement_fund": "Amount of employer contributions to a retirement fund"
+    },
+    "feeds": {
+      "net_emoluments": "salary",
+      "tax_withheld": "paye_withheld"
     }
   }
 }

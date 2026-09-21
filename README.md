@@ -57,7 +57,13 @@ The package asks for as many lines at a time as the `lines` input holds and repe
 
 A document that does not fit is read in windows. The form takes part of the room, and the document is cut to as many words as the tokeniser leaves for it. Windows overlap by a quarter of their length, so a figure and the words naming it fall inside one window unless they run longer than that quarter. An answer covering the first or last word of a window is left out when there is another window on that side, because the words it needs may be cut off. The same words answered twice are reported once, with the higher of the two confidences, and the same figure printed in two places is reported twice.
 
-Every answer the model is at least half sure of is printed, with its confidence and the words it came from. Two lines can propose the same words, and both are printed for you to choose between. A figure printed twice on the form is proposed twice, once for each place it appears. A proposal is read as an amount and nothing further is done with it. The names printed are the form's lines, not the names your facts file takes. Decide which fact each line feeds, then write that fact yourself.
+Every answer the model is at least half sure of is printed, with its confidence and the words it came from. Two lines can propose the same words, and both are printed for you to choose between. A figure printed twice on the form is proposed twice, once for each place it appears. A proposal is read as an amount and nothing further is done with it.
+
+The name on the left is the form's line. When that line feeds a fact your facts file takes, the fact is printed on the right. The mapping is in `it01/reading.json`, under `feeds`.
+
+Two lines feed a fact and the rest do not. The facts file adds the emoluments together, so the one figure it needs is the form's emoluments net of exempt income, which goes to `salary`. The tax the employer withheld goes to `paye_withheld`.
+
+The rest of the form is how the form reaches those two figures, so writing it as well would count it twice. The reliefs line feeds nothing for a different reason: the facts file works the dependant deduction out from `dependants`, and the medical and housing loan reliefs have facts of their own, so copying the employer's figure would claim them twice. Employer contributions to a retirement fund feed nothing because they are not a deduction the employee claims.
 
 Several things are refused rather than guessed, each naming what is wrong.
 
@@ -68,6 +74,7 @@ Several things are refused rather than guessed, each naming what is wrong.
 - A tokeniser that splits the document into a different number of words, which would make the quoted wording wrong. A tokeniser that marks the start of a word differently fails this way, so set `word_start` to match.
 - A document with no words, or one whose form leaves no room for any of it.
 - A form in `it01/reading.json` with no name, or a line left without a description.
+- A feed in `it01/reading.json` naming a line the form does not have, a fact the facts file does not take, or one fact from two lines.
 - An `it01/model.json` that leaves out one of the nine names, one of the four parts of the wording, or one of the two marks, or that names a mark the wording never writes.
 - A part of the wording that leaves out one of the names the package fills in, or takes one it does not.
 

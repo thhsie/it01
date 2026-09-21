@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 from it01.helpers import IT01_MODEL_FILE, IT01_TOKENISER, data
-from it01.read import amount
+from it01.read import AMOUNTS, amount
 
 WORD = re.compile(r"\w+|[^\w\s]")
 SURE = 50
@@ -35,6 +35,7 @@ class Shape:
 class Form:
   name: str
   fields: tuple[tuple[str, str], ...]
+  feeds: tuple[tuple[str, str], ...] = ()
 
 @dataclass(frozen=True)
 class Found:
@@ -42,6 +43,7 @@ class Found:
   amt: Decimal
   quote: str
   sure: int
+  fact: str
 
 def words(text:str) -> tuple[tuple[str, int, int], ...]:
   return tuple((m.group().lower(), m.start(), m.end()) for m in WORD.finditer(text))
@@ -145,7 +147,13 @@ def wanted() -> Form:
   fields = held.get("fields")
   if not isinstance(fields, dict) or not fields or not all(isinstance(v, str) and v.strip() for v in fields.values()):
     raise ValueError("reading.json must hold the form lines as an object of descriptions")
-  return Form(name, tuple(fields.items()))
+  feeds = held.get("feeds", {})
+  if not isinstance(feeds, dict) or not all(isinstance(v, str) for v in feeds.values()):
+    raise ValueError("reading.json must hold feeds as an object from a line to a fact")
+  if unknown := sorted(set(feeds) - set(fields)): raise ValueError(f"reading.json feeds lines the form does not have {unknown}")
+  if unknown := sorted(set(feeds.values()) - set(AMOUNTS)): raise ValueError(f"reading.json feeds facts the package does not know {unknown}")
+  if len(set(feeds.values())) != len(feeds): raise ValueError(f"reading.json feeds one fact from more than one line {sorted(feeds)}")
+  return Form(name, tuple(fields.items()), tuple(feeds.items()))
 
 def named(held:dict[str, Any], key:str, roles:tuple[str, ...]) -> dict[str, Any]:
   if not isinstance(got := held.get(key), dict) or set(got) != set(roles):
@@ -196,8 +204,8 @@ def found(document:str) -> tuple[Found, ...]:
           if (at > 0 and first == 0) or (last == cnt and idx < len(cuts) - 1): continue
           key = (name, at + first, at + last)
           best[key] = max(best.get(key, 0), sure)
-  ret = []
+  ret, feeds = [], dict(ask.feeds)
   for (name, a, b), sure in best.items():
     quote = document[said[a][1]:said[b - 1][2]]
-    if (amt := figure(quote)) is not None: ret.append(Found(name, amt, quote, sure))
+    if (amt := figure(quote)) is not None: ret.append(Found(name, amt, quote, sure, feeds.get(name, "")))
   return tuple(sorted(ret, key=lambda f: (-f.sure, f.field)))
