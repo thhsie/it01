@@ -10,6 +10,7 @@ dependencies = []
 
 [project.optional-dependencies]
 linting = ["ruff==0.16.8", "mypy==2.3.1"]
+local = ["onnxruntime>=1.17", "tokenizers>=0.15"]
 
 [build-system]
 requires = ["setuptools>=77"]
