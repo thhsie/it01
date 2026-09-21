@@ -62,12 +62,31 @@ class TestCli(unittest.TestCase):
     self.assertIn(f"{'annual allowance on computer':<46}{'40,000':>14}", out)
 
   def test_usage(self):
-    for args in ((), ("read",), ("rows",), ("credits",), ("read", "a", "b"), ("rows", "a", "b"), ("a", "b")):
+    for args in ((), ("read",), ("rows",), ("credits",), ("keep",), ("read", "a", "b"), ("keep", "a", "b"), ("a", "b")):
       self.assertEqual(run(*args).returncode, 2, args)
 
   def test_prints_transactions_with_their_check(self):
     out = statement(STATEMENT).stdout
     self.assertIn(f"{'02/07/2025':<12}{'':>14}{'5,000.00':>14}{'6,000.00':>14}  {'ok':<15}Salary", out)
+
+  def test_the_record_holds_the_wording_and_the_law(self):
+    out = saved(json.dumps({"resident": True, "salary": 1200000, "dependants": 1,
+                            "sources": {"salary": "Total emoluments  1,200,000.00"}}), ".json", "keep").stdout
+    self.assertIn("      Total emoluments  1,200,000.00", out)
+    self.assertIn("First Schedule Part I", out)
+
+  def test_the_same_key_written_twice_is_refused_everywhere(self):
+    twice = '{"resident": true, "salary": 1, "salary": 2}'
+    for verb in ((), ("keep",)):
+      with self.subTest(verb):
+        ret = saved(twice, ".json", *verb)
+        self.assertEqual((ret.returncode, ret.stderr), (1, "error: the same key is written twice salary\n"))
+
+  def test_a_facts_file_with_wording_still_computes(self):
+    out = assess(json.dumps({"resident": True, "dependants": 1, "salary": 1200000,
+                             "sources": {"salary": "Total emoluments  1,200,000.00"}}))
+    self.assertEqual(out.returncode, 0)
+    self.assertIn(f"{'total tax':<46}{'68,000':>14}", out.stdout)
 
   def test_says_so_when_nothing_was_paid_in(self):
     out = saved(OUTGOINGS, ".txt", "credits")

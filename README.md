@@ -111,6 +111,31 @@ The printed figures follow the return: gross profit, net profit per accounts, no
 
 An allowance worked out at a rate is rounded down to whole rupees. The law sets a maximum rate, so a lower claim is allowed. Next year's `allowances_before` is this year's plus the allowance printed.
 
+## The record to keep
+
+When the return is filed, print what you confirmed, where it came from and the law behind each figure, and keep it.
+
+```sh
+python -m it01 keep facts.json
+```
+
+It prints the facts you confirmed, the wording each came from, every figure with the rule and the section of law behind it, and the questions you answered.
+
+Two optional keys in the facts file carry the wording. Neither reaches the computation, so adding them cannot change a figure.
+
+```json
+{
+  "resident": true,
+  "salary": 1107000,
+  "sources": {"salary": "Total emoluments        1,107,000.00"},
+  "answers": {"05/07/2025 500.00 where did this cash come from": "sold my old bicycle"}
+}
+```
+
+`sources` maps a fact to the line it was read from. Naming a fact that is not in the file is refused, and so is naming the business, because a business line cannot carry wording of its own. `answers` maps a question you were asked to what you replied, in your own words. A blank question or a blank source is refused in either. The same key written twice is refused anywhere in the file, because one of the two would be lost without saying so.
+
+The command that computes the tax reads the same file. Both keys are set aside before the facts are computed, so adding wording does not stop it working.
+
 ## Development
 
 ```sh
