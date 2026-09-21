@@ -45,7 +45,13 @@ python -m it01 local statement.txt
 
 The model is asked to fill in one form. The form's name, its lines and what each line means are in `it01/reading.json`, under `form`. The lines are the lines of a statement of emoluments, in the order the form prints them. Change them to read a different document.
 
-The package builds the model's input itself: the form's name, a description of each line, the list of lines, a separator, then the document split into words the way the model expects. It asks for as many lines at a time as the file holds and repeats until all are asked. Export the model file with a query slot for every line, so all of them are asked at once and the lines compete for the same figures. The model file must be exported at a fixed size, because the package reads that size to know how much room it has.
+The package builds the model's input itself: the form's name, a description of each line, the list of lines, a separator, then the document split into words the way the model expects. Your file has to match what it builds.
+
+- It takes six inputs, named `input_ids`, `attention_mask`, `tw_idx`, `tw_mask`, `q_idx` and `q_mask`. Each is two-dimensional and fixed in size, because the package reads that size to know how much room it has.
+- It answers with three outputs. `indices` has four dimensions, `pair_logits` and `valid_mask` have three.
+- Its tokeniser knows `[P]`, `[DESCRIPTION]`, `[C]` and `[SEP_TEXT]`, and splits the document into the same words the package does.
+
+The package asks for as many lines at a time as `q_idx` holds and repeats until all are asked. A file with a slot for every line asks them all at once, so the lines compete for the same figures.
 
 A document that does not fit is read in windows. The form takes part of the room, and the document is cut to as many words as the tokeniser leaves for it. Windows overlap by a quarter of their length, so a figure and the words naming it fall inside one window unless they run longer than that quarter. An answer covering the first or last word of a window is left out when there is another window on that side, because the words it needs may be cut off. The same words answered twice are reported once, with the higher of the two confidences, and the same figure printed in two places is reported twice.
 
@@ -54,8 +60,8 @@ Every answer the model is at least half sure of is printed, with its confidence 
 Several things are refused rather than guessed, each naming what is wrong.
 
 - A model file or tokeniser that is not named, or named and not there.
-- A model file left at no fixed size, or one wanting inputs other than the six this gives.
-- A model file that answers without one of the three things this reads, or answers in a shape this does not read.
+- A model file left at no fixed size or in fewer than two dimensions, or one wanting inputs other than the six above.
+- A model file that answers without one of the three outputs above, or answers in a shape this does not read.
 - A tokeniser that does not know the marks the model was trained with, or marks a different number of lines.
 - A tokeniser that splits the document into a different number of words, which would make the quoted wording wrong.
 - A document with no words, or one whose form leaves no room for any of it.
