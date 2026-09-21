@@ -23,7 +23,7 @@ def to_local(text:str) -> list[str]:
   try: from it01.local import found
   except ImportError as e: raise ValueError(f"reading with a model file needs pip install 'it01[local]' ({e})") from e
   ret = []
-  for f in found(text): ret += [f"{f.fact:<40}{f.amt:>14,}{f.sure:>6}%", f"  {f.quote}"]
+  for f in found(text): ret += [f"{f.field:<40}{f.amt:>14,}{f.sure:>6}%", f"  {f.quote}"]
   return ret or ["no facts found in the document"]
 
 def to_transactions(text:str) -> list[str]:
