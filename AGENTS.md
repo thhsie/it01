@@ -28,7 +28,7 @@ A local-first agent that prepares an individual's income tax. It reads the taxpa
 3. **Fix the root cause.** No special case, no `if` that patches one input, no workaround that happens to pass. Never edit or delete a test to make it pass.
 4. **Complexity is never worth speed.** A speedup must be measured with a benchmark anyone can rerun, and should also simplify.
 5. **Data over code.** Rates, bands, thresholds, reliefs and deadlines are tables. One small interpreter reads them.
-6. **Zero runtime dependencies.** The package imports the standard library and itself, nothing else. A small utility is written, not installed.
+6. **One dependency boundary.** Computation imports the standard library and itself, nothing else, so working out a tax result needs no install beyond the package. Exactly one module, `it01/local.py`, may import a model runtime, and only under the `local` extra. Everything else is written, not installed. `test_privacy.py` names the module and the imports it may have.
 7. **The taxpayer's data never leaves the machine unless they point it somewhere.** Exactly one module, `it01/llm.py`, may use the network, and only to reach the model endpoint the user configures. No telemetry, no update checks, no analytics, no crash reports. Ever.
 8. **You vouch for every line you submit.** If you could not explain each line when asked, do not submit it.
 
