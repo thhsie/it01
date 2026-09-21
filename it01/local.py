@@ -186,14 +186,17 @@ def checked(given:Any, lines:set[str]) -> tuple[Working, ...]:
     ret.append(Working(one["is"], tuple(plus), tuple(less)))
   return tuple(ret)
 
-def sums(form:Form, seen:tuple[Found, ...]) -> tuple[Sum, ...]:
-  best:dict[str, Decimal] = {}
-  for f in sorted(seen, key=lambda f: -f.sure): best.setdefault(f.field, f.amt)
+def surest(seen:tuple[Found, ...]) -> dict[str, Decimal]:
+  ret:dict[str, Decimal] = {}
+  for f in sorted(seen, key=lambda f: -f.sure): ret.setdefault(f.field, f.amt)
+  return ret
+
+def sums(form:Form, amts:dict[str, Decimal]) -> tuple[Sum, ...]:
   ret = []
   for check in form.checks:
-    if not {check.line, *check.plus, *check.less} <= set(best): continue
-    adds = sum((best[n] for n in check.plus), Decimal(0)) - sum((best[n] for n in check.less), Decimal(0))
-    ret.append(Sum(check.line, best[check.line], adds))
+    if not {check.line, *check.plus, *check.less} <= set(amts): continue
+    adds = sum((amts[n] for n in check.plus), Decimal(0)) - sum((amts[n] for n in check.less), Decimal(0))
+    ret.append(Sum(check.line, amts[check.line], adds))
   return tuple(ret)
 
 def named(held:dict[str, Any], key:str, roles:tuple[str, ...]) -> dict[str, Any]:

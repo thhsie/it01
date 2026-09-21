@@ -20,12 +20,12 @@ def to_proposals(text:str) -> list[str]:
   return ret or ["no facts found in the document"]
 
 def to_local(text:str) -> list[str]:
-  try: from it01.local import found, sums, wanted
+  try: from it01.local import found, sums, surest, wanted
   except ImportError as e: raise ValueError(f"reading with a model file needs pip install 'it01[local]' ({e})") from e
   seen = found(text)
   ret = []
   for f in seen: ret += [f"{f.field:<32}{f.amt:>14,}{f.sure:>6}%" + (f"  {f.fact}" if f.fact else ""), f"  {f.quote}"]
-  for s in sums(wanted(), seen):
+  for s in sums(wanted(), surest(seen)):
     ret += ["", f"{s.line} says {s.says:,} and the form's own working adds to {s.adds:,}  {'ok' if s.agrees else 'does not agree'}"]
   return ret or ["no facts found in the document"]
 
