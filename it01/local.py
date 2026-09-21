@@ -1,4 +1,4 @@
-import math, pathlib, re
+import itertools, math, pathlib, re
 import numpy as np, onnxruntime, tokenizers
 from dataclasses import dataclass
 from decimal import Decimal
@@ -10,6 +10,10 @@ WORD = re.compile(r"\w+|[^\w\s]")
 SURE = 50
 QUARTER = 4
 LIMIT = 700
+TRIES = 4096
+Span = tuple[int, Decimal]
+Way = dict[Span, str]
+Spans = tuple[tuple[Span, tuple[str, ...]], ...]
 ROLES = ("tokens", "attention", "words", "word_mask", "lines", "line_mask")
 ANSWERS = (("spans", 4), ("scores", 3), ("valid", 3))
 TAKEN = {"form": ("name", "described", "listed"), "describes": ("line", "means"), "lists": ("line",), "document": ("text",)}
@@ -50,15 +54,33 @@ class Found:
   amt: Decimal
   quote: str
   sure: int
+  at: int
+
+@dataclass(frozen=True)
+class Told:
   fact: str
+  amt: Decimal
+  quote: str
+  line: str
+
+@dataclass(frozen=True)
+class Asked:
+  amt: Decimal
+  quote: str
+  asking: str
+  lines: tuple[tuple[str, str], ...]
 
 @dataclass(frozen=True)
 class Sum:
   line: str
   says: Decimal
   adds: Decimal
+  can_grow: bool
+  can_shrink: bool
   @property
   def agrees(self) -> bool: return self.says == self.adds
+  @property
+  def wrong(self) -> bool: return (self.adds > self.says and not self.can_shrink) or (self.adds < self.says and not self.can_grow)
 
 def words(text:str) -> tuple[tuple[str, int, int], ...]:
   return tuple((m.group().lower(), m.start(), m.end()) for m in WORD.finditer(text))
@@ -186,18 +208,70 @@ def checked(given:Any, lines:set[str]) -> tuple[Working, ...]:
     ret.append(Working(one["is"], tuple(plus), tuple(less)))
   return tuple(ret)
 
-def surest(seen:tuple[Found, ...]) -> dict[str, Decimal]:
-  ret:dict[str, Decimal] = {}
-  for f in sorted(seen, key=lambda f: -f.sure): ret.setdefault(f.field, f.amt)
-  return ret
-
 def sums(form:Form, amts:dict[str, Decimal]) -> tuple[Sum, ...]:
   ret = []
   for check in form.checks:
-    if not {check.line, *check.plus, *check.less} <= set(amts): continue
-    adds = sum((amts[n] for n in check.plus), Decimal(0)) - sum((amts[n] for n in check.less), Decimal(0))
-    ret.append(Sum(check.line, amts[check.line], adds))
+    if check.line not in amts or not {*check.plus, *check.less} & set(amts): continue
+    adds = sum((amts.get(n, Decimal(0)) for n in check.plus), Decimal(0)) - sum((amts.get(n, Decimal(0)) for n in check.less), Decimal(0))
+    ret.append(Sum(check.line, amts[check.line], adds, any(n not in amts for n in check.plus), any(n not in amts for n in check.less)))
   return tuple(ret)
+
+def claimed(seen:tuple[Found, ...]) -> Spans:
+  by:dict[Span, list[str]] = {}
+  for f in sorted(seen, key=lambda f: -f.sure): by.setdefault((f.at, f.amt), []).append(f.field)
+  return tuple((where, tuple(dict.fromkeys(lines))) for where, lines in sorted(by.items()))
+
+def amounts(way:Way) -> dict[str, Decimal]|None:
+  ret:dict[str, Decimal] = {}
+  for (_, amt), line in way.items():
+    if ret.setdefault(line, amt) != amt: return None
+  return ret
+
+def ways(form:Form, held:Spans) -> list[Way]:
+  loose = [(where, lines) for where, lines in held if len(lines) > 1]
+  if math.prod(len(lines) + 1 for _, lines in loose) > TRIES: return []
+  fixed = {where: lines[0] for where, lines in held if len(lines) == 1}
+  ret = []
+  for pick in itertools.product(*[(*lines, "") for _, lines in loose]):
+    way = fixed | {where: line for line, (where, _) in zip(pick, loose) if line}
+    if (amts := amounts(way)) is not None and not any(one.wrong for one in sums(form, amts)): ret.append(way)
+  return ret
+
+def narrowed(held:Spans, kept:list[Way]) -> dict[Span, tuple[str, ...]]:
+  ret = {}
+  for where, lines in held:
+    took = [way.get(where, "") for way in kept] if kept else list(lines)
+    ret[where] = tuple(dict.fromkeys(n for n in took if n))
+  return ret
+
+def fitted(form:Form, kept:list[Way], settled:Way) -> dict[str, Decimal]:
+  ret, mark = amounts(settled) or {}, (-1, -1)
+  for way in kept:
+    amts = amounts(way) or {}
+    if (score := (sum(1 for one in sums(form, amts) if one.agrees), len(way))) > mark: ret, mark = amts, score
+  return ret
+
+def tells(form:Form, seen:tuple[Found, ...]) -> tuple[tuple[Told, ...], tuple[Asked, ...], tuple[Sum, ...]]:
+  held = claimed(seen)
+  kept = ways(form, held)
+  left = narrowed(held, kept)
+  desc = dict(form.fields)
+  quotes:dict[Span, str] = {}
+  for f in sorted(seen, key=lambda f: -f.sure): quotes.setdefault((f.at, f.amt), f.quote)
+  ret, ask = [], {}
+  for line, fact in form.feeds:
+    mine = [where for where, lines in left.items() if line in lines]
+    if not mine: continue
+    if all(len(left[where]) == 1 for where in mine) and len({amt for _, amt in mine}) == 1:
+      at, amt = mine[0]
+      ret.append(Told(fact, amt, quotes[(at, amt)], line))
+    else:
+      for where in mine:
+        names = left[where]
+        asking = "which line is this" if len(names) > 1 else f"which of these is the {fact}"
+        ask[where] = Asked(where[1], quotes[where], asking, tuple((n, desc[n]) for n in names))
+  settled = {where: lines[0] for where, lines in left.items() if len(lines) == 1 and where not in ask}
+  return tuple(ret), tuple(ask[where] for where in sorted(ask)), sums(form, fitted(form, kept, settled))
 
 def named(held:dict[str, Any], key:str, roles:tuple[str, ...]) -> dict[str, Any]:
   if not isinstance(got := held.get(key), dict) or set(got) != set(roles):
@@ -248,8 +322,8 @@ def found(document:str) -> tuple[Found, ...]:
           if (at > 0 and first == 0) or (last == cnt and idx < len(cuts) - 1): continue
           key = (name, at + first, at + last)
           best[key] = max(best.get(key, 0), sure)
-  ret, feeds = [], dict(ask.feeds)
+  ret = []
   for (name, a, b), sure in best.items():
     quote = document[said[a][1]:said[b - 1][2]]
-    if (amt := figure(quote)) is not None: ret.append(Found(name, amt, quote, sure, feeds.get(name, "")))
+    if (amt := figure(quote)) is not None: ret.append(Found(name, amt, quote, sure, said[a][1]))
   return tuple(sorted(ret, key=lambda f: (-f.sure, f.field)))

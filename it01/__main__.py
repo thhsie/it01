@@ -20,13 +20,19 @@ def to_proposals(text:str) -> list[str]:
   return ret or ["no facts found in the document"]
 
 def to_local(text:str) -> list[str]:
-  try: from it01.local import found, sums, surest, wanted
+  try: from it01.local import found, tells, wanted
   except ImportError as e: raise ValueError(f"reading with a model file needs pip install 'it01[local]' ({e})") from e
-  seen = found(text)
+  told, asked, working = tells(wanted(), found(text))
   ret = []
-  for f in seen: ret += [f"{f.field:<32}{f.amt:>14,}{f.sure:>6}%" + (f"  {f.fact}" if f.fact else ""), f"  {f.quote}"]
-  for s in sums(wanted(), surest(seen)):
-    ret += ["", f"{s.line} says {s.says:,} and the form's own working adds to {s.adds:,}  {'ok' if s.agrees else 'does not agree'}"]
+  for t in told: ret += [f"{t.fact:<32}{t.amt:>16,}", f"  {t.line}, {t.quote}"]
+  if asked:
+    ret += ["", "questions"]
+    for q in asked:
+      ret += [f"  {q.amt:>16,}  {q.asking}"] + [f"    {n:<32}{d}" for n, d in q.lines] + [f"    {q.quote}"]
+  if working:
+    ret += ["", "the form's own working"]
+    ret += [f"  {s.line} says {s.says:,} and adds to {s.adds:,}  " +
+            ("ok" if s.agrees else "does not agree" if s.wrong else "not checked") for s in working]
   return ret or ["no facts found in the document"]
 
 def to_transactions(text:str) -> list[str]:
