@@ -8,7 +8,7 @@ from it01.rows import Check, entries
 MARKS = {Check.AGREES: "ok", Check.DIFFERS: "does not agree", Check.UNCHECKED: "not checked"}
 USAGE = ("usage: python -m it01 FACTS.json\n       python -m it01 read DOCUMENT.txt\n"
          "       python -m it01 rows STATEMENT.txt\n       python -m it01 credits STATEMENT.txt\n"
-         "       python -m it01 keep FACTS.json")
+         "       python -m it01 keep FACTS.json\n       python -m it01 local DOCUMENT.txt")
 
 def money(amt:Decimal|None) -> str: return f"{amt:,}" if amt is not None else ""
 
@@ -17,6 +17,13 @@ def to_figures(text:str) -> list[str]: return figures(apart(loaded(text))[0])
 def to_proposals(text:str) -> list[str]:
   ret = []
   for p in read(text): ret += [f"{p.fact:<46}{p.amt:>14,}", f"  {p.quote}"]
+  return ret or ["no facts found in the document"]
+
+def to_local(text:str) -> list[str]:
+  try: from it01.local import found
+  except ImportError as e: raise ValueError(f"reading with a model file needs pip install 'it01[local]' ({e})") from e
+  ret = []
+  for f in found(text): ret += [f"{f.fact:<40}{f.amt:>14,}{f.sure:>6}%", f"  {f.quote}"]
   return ret or ["no facts found in the document"]
 
 def to_transactions(text:str) -> list[str]:
@@ -35,7 +42,7 @@ def to_credits(text:str) -> list[str]:
   if questions: ret += ["", "questions"] + [f"  {q.date:<12}{q.amt:>14,}  {q.asking:<30}{q.description}" for q in questions]
   return ret
 
-VERBS = {"read": to_proposals, "rows": to_transactions, "credits": to_credits, "keep": keep}
+VERBS = {"read": to_proposals, "rows": to_transactions, "credits": to_credits, "keep": keep, "local": to_local}
 
 def main() -> int:
   args = sys.argv[1:]

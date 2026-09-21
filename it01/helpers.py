@@ -12,6 +12,8 @@ IT01_MODEL = flag("IT01_MODEL", "local")
 IT01_KEY = flag("IT01_KEY", "")
 IT01_DEBUG = number("IT01_DEBUG", "0")
 IT01_TIMEOUT = number("IT01_TIMEOUT", "120")
+IT01_MODEL_FILE = flag("IT01_MODEL_FILE", "")
+IT01_TOKENISER = flag("IT01_TOKENISER", "")
 
 def data(name:str) -> dict[str, Any]:
   raw = json.loads((pathlib.Path(__file__).parent / f"{name}.json").read_text())
