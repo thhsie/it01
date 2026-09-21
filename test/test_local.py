@@ -220,6 +220,37 @@ class TestLocal(unittest.TestCase):
     with mock.patch("it01.local.data", lambda name: {"form": {"name": "soe", "fields": {"salary": ""}}}):
       with self.assertRaisesRegex(ValueError, "an object of descriptions"): wanted()
 
+  def test_a_feed_naming_a_line_the_form_does_not_have_is_refused(self):
+    with mock.patch("it01.local.data", lambda name: {"form": {"name": "soe", "fields": {"salary": "pay"}, "feeds": {"wages": "salary"}}}):
+      with self.assertRaisesRegex(ValueError, "feeds lines the form does not have"): wanted()
+
+  def test_a_feed_naming_a_fact_the_package_does_not_know_is_refused(self):
+    with mock.patch("it01.local.data", lambda name: {"form": {"name": "soe", "fields": {"salary": "pay"}, "feeds": {"salary": "wages"}}}):
+      with self.assertRaisesRegex(ValueError, "feeds facts the package does not know"): wanted()
+
+  def test_a_proposal_names_the_fact_its_line_feeds(self):
+    fed = {"form": {"name": FORM.name, "fields": dict(FORM.fields), "feeds": {"salary": "salary"}}}
+    with mock.patch("it01.local.reader", lambda: (Model(), Fake())), \
+         mock.patch("it01.local.data", lambda name: fed if name == "reading" else SHOWN):
+      self.assertEqual([(f.field, f.fact) for f in found("pay 1,200.00")], [("salary", "salary")])
+
+  def test_a_proposal_whose_line_feeds_nothing_names_nothing(self):
+    with mock.patch("it01.local.reader", lambda: (Model(), Fake())), \
+         mock.patch("it01.local.data", lambda name: HELD if name == "reading" else SHOWN):
+      self.assertEqual([f.fact for f in found("pay 1,200.00")], [""])
+
+  def test_a_feed_that_is_not_a_name_is_refused(self):
+    with mock.patch("it01.local.data", lambda name: {"form": {"name": "soe", "fields": {"salary": "pay"}, "feeds": {"salary": ["salary"]}}}):
+      with self.assertRaisesRegex(ValueError, "an object from a line to a fact"): wanted()
+
+  def test_two_lines_feeding_one_fact_are_refused(self):
+    held = {"form": {"name": "soe", "fields": {"salary": "pay", "total": "the total"}, "feeds": {"salary": "salary", "total": "salary"}}}
+    with mock.patch("it01.local.data", lambda name: held):
+      with self.assertRaisesRegex(ValueError, "feeds one fact from more than one line"): wanted()
+
+  def test_the_feeds_the_package_ships_are_the_two_lines_that_carry_a_fact(self):
+    self.assertEqual(dict(wanted().feeds), {"net_emoluments": "salary", "tax_withheld": "paye_withheld"})
+
   def test_the_form_is_read_in_the_order_it_is_written(self):
     with mock.patch("it01.local.data", lambda name: {"form": {"name": "soe", "fields": {"total": "the total", "salary": "the pay"}}}):
       self.assertEqual(wanted(), Form("soe", (("total", "the total"), ("salary", "the pay"))))
