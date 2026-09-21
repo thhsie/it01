@@ -1,7 +1,8 @@
 import json, unittest
 from decimal import Decimal
 from it01.helpers import instruction
-from it01.read import AMOUNTS, Proposal, proposals
+from it01.read import Proposal, proposals
+from it01.tax import AMOUNTS
 
 PAY = "Total emoluments        1,107,000.00"
 TAX = "Tax withheld               71,401.00"

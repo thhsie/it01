@@ -1,25 +1,15 @@
-import json, re
+import json
 from dataclasses import dataclass
 from decimal import Decimal
 from it01.helpers import instruction
 from it01.llm import ask
-from it01.tax import Facts, amount_names, is_amount
-
-AMOUNTS = amount_names(Facts)
-FIGURE = re.compile(r"(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{1,2})?")
+from it01.tax import AMOUNTS, amount, figures
 
 @dataclass(frozen=True)
 class Proposal:
   fact: str
   amt: Decimal
   quote: str
-
-def figures(line:str) -> set[Decimal]: return {Decimal(m.replace(",", "")) for m in FIGURE.findall(line)}
-
-def amount(raw:object) -> Decimal:
-  if not FIGURE.fullmatch(text := str(raw).strip()): raise ValueError(f"not an amount {raw}")
-  if not is_amount(value := Decimal(text.replace(",", ""))): raise ValueError(f"invalid amount {raw}")
-  return value
 
 def proposals(document:str, reply:str) -> tuple[Proposal, ...]:
   try: raw = json.loads(reply, parse_float=Decimal)

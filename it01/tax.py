@@ -1,3 +1,4 @@
+import re
 from dataclasses import MISSING, dataclass, fields
 from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
 from enum import Enum
@@ -8,6 +9,7 @@ from it01.law import (BANDS, BANDS_SRC, CHARGEABLE_SRC, DEPENDANTS, DEPENDANTS_S
 
 ZERO = Decimal(0)
 AMOUNT_LIMIT = Decimal(10) ** 15
+FIGURE = re.compile(r"(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{1,2})?")
 JSON_TYPES: dict[Any, tuple[type, ...]] = {bool: (bool,), int: (int,), Decimal: (int, Decimal)}
 EXPENSES = ("wages", "professional_expenses", "entertainment_gifts_and_donations", "advertising", "overseas_travel", "interest", "bank_charges",
             "utilities", "rent", "licences_and_taxes", "motor_vehicle_expenses", "repairs", "depreciation", "bad_debts", "other_expenses")
@@ -21,6 +23,13 @@ class Figure:
 def amount_names(obj:Any) -> tuple[str, ...]: return tuple(f.name for f in fields(obj) if f.type is Decimal)
 
 def is_amount(v:Decimal) -> bool: return v.is_finite() and 0 <= v < AMOUNT_LIMIT and v == v.quantize(Decimal("0.01"))
+
+def figures(line:str) -> set[Decimal]: return {Decimal(m.replace(",", "")) for m in FIGURE.findall(line)}
+
+def amount(raw:object) -> Decimal:
+  if not FIGURE.fullmatch(text := str(raw).strip()): raise ValueError(f"not an amount {raw}")
+  if not is_amount(value := Decimal(text.replace(",", ""))): raise ValueError(f"invalid amount {raw}")
+  return value
 
 def check_amounts(obj:Any) -> None:
   for name in amount_names(obj):
@@ -108,6 +117,8 @@ class Facts:
 
   @property
   def emoluments(self) -> Decimal: return self.salary + self.taxable_transport_allowance + self.performance_bonus + self.statutory_bonus
+
+AMOUNTS = amount_names(Facts)
 
 def from_json[T:(Facts, Business, Asset)](cls:type[T], raw:Any) -> T:
   name = cls.__name__.lower()
