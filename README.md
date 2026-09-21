@@ -47,6 +47,8 @@ The model is asked, for each fact, which words of the document hold it. The fiel
 
 The package builds the model's input itself: the field descriptions, a separator, then the document split into words the way the model expects. It asks for as many fields at a time as the file holds and repeats until all are asked. The model file must be exported at a fixed size, because the package reads that size to know how much room it has.
 
+A document that does not fit is read in windows. The field descriptions take part of the room, and the document is cut to as many words as the tokeniser leaves for it. Windows overlap by a quarter of their length, so a figure and the words naming it fall inside one window unless they run longer than that quarter. An answer covering the first or last word of a window is left out when there is another window on that side, because the words it needs may be cut off. The same words answered twice are reported once, with the higher of the two confidences, and the same figure printed in two places is reported twice.
+
 Every answer the model is at least half sure of is printed, with its confidence and the words it came from. Each field is asked on its own, so two fields can propose the same words, and both are printed for you to choose between. A proposal is read as an amount and nothing further is done with it: no proposal reaches a tax result until you copy the ones you accept into your facts file.
 
 Several things are refused rather than guessed, each naming what is wrong.
@@ -56,7 +58,7 @@ Several things are refused rather than guessed, each naming what is wrong.
 - A model file that answers without one of the three things this reads, or answers in a shape this does not read.
 - A tokeniser that does not know the marks the model was trained with, or marks a different number of fields.
 - A tokeniser that splits the document into a different number of words, which would make the quoted wording wrong.
-- A document with no words, or one needing more tokens or words than the model file takes.
+- A document with no words, or one whose field descriptions leave no room for any of it.
 - A field name in `it01/reading.json` that is not a fact the package knows, or one left without a description.
 
 Two answers are left out instead of refusing the document: a span reaching past the last word, and a span whose words do not read as a figure. The other fields are still printed.

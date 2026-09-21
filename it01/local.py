@@ -9,6 +9,7 @@ from it01.read import AMOUNTS, amount
 WORD = re.compile(r"\w+|[^\w\s]")
 WORD_START = "▁"
 SURE = 50
+QUARTER = 4
 TAKES = ("input_ids", "attention_mask", "tw_idx", "tw_mask", "q_idx", "q_mask")
 GIVES = {"indices": 4, "pair_logits": 3, "valid_mask": 3}
 LIMIT = 700
@@ -27,13 +28,16 @@ def schema(fields:dict[str, str]) -> str:
   return ("([P] entities" + "".join(f"[DESCRIPTION] {name}: {means}" for name, means in fields.items())
           + " (" + "".join(f"[E] {name}" for name in fields) + " ) )")
 
+def written(fields:dict[str, str], said:tuple[tuple[str, int, int], ...]) -> str:
+  # the model was trained on text ending in a period
+  return schema(fields) + "[SEP_TEXT] " + " ".join(w for w, _, _ in said) + " ."
+
 def marker(tok:Any, name:str) -> int:
   if (at := tok.token_to_id(name)) is None: raise ValueError(f"the tokeniser has no {name}, so it does not go with this model")
   return int(at)
 
 def prompt(tok:Any, said:tuple[tuple[str, int, int], ...], fields:dict[str, str]) -> tuple[list[int], list[int], list[int]]:
-  # the model was trained on text ending in a period
-  coded = tok.encode(schema(fields) + "[SEP_TEXT] " + " ".join(w for w, _, _ in said) + " .", add_special_tokens=False)
+  coded = tok.encode(written(fields, said), add_special_tokens=False)
   sep, mark = marker(tok, "[SEP_TEXT]"), marker(tok, "[E]")
   if sep not in coded.ids: raise ValueError("the tokeniser did not mark where the document starts")
   starts = [i for i in range(coded.ids.index(sep) + 1, len(coded.ids)) if coded.tokens[i].startswith(WORD_START)]
@@ -42,6 +46,24 @@ def prompt(tok:Any, said:tuple[tuple[str, int, int], ...], fields:dict[str, str]
   markers = [i for i, x in enumerate(coded.ids) if x == mark]
   if len(markers) != len(fields): raise ValueError(f"the tokeniser marked {len(markers)} of {len(fields)} fields")
   return coded.ids, starts[:len(said)], markers
+
+def room(tok:Any, said:tuple[tuple[str, int, int], ...], fields:dict[str, str], cap:int) -> int:
+  low, high = 0, len(said)
+  while low < high:
+    mid = (low + high + 1) // 2
+    if len(tok.encode(written(fields, said[:mid]), add_special_tokens=False).ids) <= cap: low = mid
+    else: high = mid - 1
+  if not low: raise ValueError(f"the field descriptions leave no room for the document in a model file that takes {cap} tokens")
+  return low
+
+def windows(tok:Any, said:tuple[tuple[str, int, int], ...], fields:dict[str, str], size:dict[str, int]) -> list[tuple[int, int]]:
+  ret, at = [], 0
+  while at < len(said):
+    cnt = room(tok, said[at:at + size["tw_idx"]], fields, size["input_ids"])
+    ret.append((at, cnt))
+    if at + cnt >= len(said): return ret
+    at += max(cnt - max(cnt // QUARTER, 1), 1)
+  return ret
 
 def sizes(session:Any) -> dict[str, int]:
   ret = {}
@@ -74,19 +96,19 @@ def answer(session:Any, fed:dict[str, np.ndarray]) -> dict[str, np.ndarray]:
 
 def score(logit:Any) -> int: return round(100 / (1 + math.exp(-max(min(logit, LIMIT), -LIMIT))))
 
-def spans(session:Any, tok:Any, text:str, said:tuple[tuple[str, int, int], ...], fields:dict[str, str],
-          size:dict[str, int]) -> dict[str, list[tuple[int, str]]]:
+def spans(session:Any, tok:Any, said:tuple[tuple[str, int, int], ...], fields:dict[str, str],
+          size:dict[str, int]) -> dict[str, list[tuple[int, int, int]]]:
   ids, starts, markers = prompt(tok, said, fields)
   out = answer(session, feed(size, ids, starts, markers))
-  ret:dict[str, list[tuple[int, str]]] = {name: [] for name in fields}
+  ret:dict[str, list[tuple[int, int, int]]] = {name: [] for name in fields}
   for q, name in enumerate(fields):
     for c in range(out["indices"].shape[2]):
       if not out["valid_mask"][0][q][c]: continue
       sure = score(out["pair_logits"][0][q][c])
       first, last = int(out["indices"][0][q][c][0]), int(out["indices"][0][q][c][1])
       if sure < SURE or first >= last or last > len(said): continue
-      ret[name].append((sure, text[said[first][1]:said[last - 1][2]]))
-  return {name: sorted(seen, reverse=True) for name, seen in ret.items()}
+      ret[name].append((sure, first, last))
+  return ret
 
 def batched(fields:dict[str, str], size:int) -> list[dict[str, str]]:
   names = list(fields)
@@ -113,8 +135,18 @@ def found(document:str) -> tuple[Found, ...]:
   if not (said := words(document)): raise ValueError("the document holds no words")
   ask = wanted()
   session, tok = reader()
-  size, ret = sizes(session), []
+  size = sizes(session)
+  best:dict[tuple[str, int, int], int] = {}
   for few in batched(ask, size["q_idx"]):
-    for name, seen in spans(session, tok, document, said, few, size).items():
-      ret += [Found(name, amt, quote, sure) for sure, quote in seen if (amt := figure(quote)) is not None]
-  return tuple(ret)
+    cuts = windows(tok, said, few, size)
+    for idx, (at, cnt) in enumerate(cuts):
+      for name, seen in spans(session, tok, said[at:at + cnt], few, size).items():
+        for sure, first, last in seen:
+          if (at > 0 and first == 0) or (last == cnt and idx < len(cuts) - 1): continue
+          key = (name, at + first, at + last)
+          best[key] = max(best.get(key, 0), sure)
+  ret = []
+  for (name, a, b), sure in best.items():
+    quote = document[said[a][1]:said[b - 1][2]]
+    if (amt := figure(quote)) is not None: ret.append(Found(name, amt, quote, sure))
+  return tuple(sorted(ret, key=lambda f: (-f.sure, f.fact)))
