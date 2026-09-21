@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 from it01.helpers import IT01_MODEL_FILE, IT01_TOKENISER, data
-from it01.read import AMOUNTS, amount
+from it01.tax import AMOUNTS, amount
 
 WORD = re.compile(r"\w+|[^\w\s]")
 SURE = 50
