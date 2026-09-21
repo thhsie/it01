@@ -62,7 +62,7 @@ class TestCli(unittest.TestCase):
     self.assertIn(f"{'annual allowance on computer':<46}{'40,000':>14}", out)
 
   def test_usage(self):
-    for args in ((), ("read",), ("rows",), ("credits",), ("keep",), ("read", "a", "b"), ("keep", "a", "b"), ("a", "b")):
+    for args in ((), ("read",), ("rows",), ("credits",), ("keep",), ("local",), ("read", "a", "b"), ("keep", "a", "b"), ("a", "b")):
       self.assertEqual(run(*args).returncode, 2, args)
 
   def test_prints_transactions_with_their_check(self):

@@ -1,3 +1,18 @@
 {
-  "instruction": "You are given the text of one tax document. Report every amount in it that matches one of these facts: {facts}. Answer with a JSON list and nothing else. Each item is an object with three keys: fact, one of the names above; amount, the figure as it appears; quote, the exact line of the document the figure is printed on, copied character for character. Report a fact only if the document shows it. Report nothing you have to work out or assume. If the document shows none of these facts, answer with an empty list."
+  "instruction": "You are given the text of one tax document. Report every amount in it that matches one of these facts: {facts}. Answer with a JSON list and nothing else. Each item is an object with three keys: fact, one of the names above; amount, the figure as it appears; quote, the exact line of the document the figure is printed on, copied character for character. Report a fact only if the document shows it. Report nothing you have to work out or assume. If the document shows none of these facts, answer with an empty list.",
+  "fields": {
+    "salary": "the total emoluments or gross pay for the year, before anything is taken off",
+    "taxable_transport_allowance": "the taxable part of a travelling or transport allowance",
+    "performance_bonus": "a bonus paid for performance",
+    "statutory_bonus": "the end of year bonus the law requires",
+    "other_income": "income that is neither pay nor from a business",
+    "losses_brought_forward": "a loss from an earlier year carried into this one",
+    "resident_dividends": "a dividend from a company resident in the same place as the taxpayer",
+    "housing_loan_interest": "interest paid on a loan for the taxpayer's home",
+    "medical_insurance": "a premium paid for medical or health insurance",
+    "other_reliefs": "any other relief or deduction claimed",
+    "paye_withheld": "tax already taken off the pay by the employer",
+    "tax_deducted_at_source": "tax already taken off at source by a payer other than an employer",
+    "quarterly_tax_paid": "tax already paid in quarterly instalments"
+  }
 }
