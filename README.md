@@ -59,13 +59,34 @@ python -m it01 local statement.txt
 
 The model is asked to fill in one form. It is asked for as many lines at a time as the `lines` input holds. A file with a slot for every line asks them all at once.
 
-Every answer the model is at least half sure of is printed, with its confidence. The form line is on the left. The fact that line feeds, if any, is on the right. Under each is the words it came from.
+What is printed is the facts, then any questions, then the sums the form works out for itself.
 
-Two lines can propose the same words, and both are printed. The same words answered twice are reported once, with the higher confidence. A figure printed twice on the form is proposed twice.
+```
+salary                              1,107,000.00
+  net_emoluments, 1,107,000.00
+paye_withheld                          71,401.00
+  tax_withheld, 71,401.00
 
-The form's own sum is printed below. It takes the total, takes off the exempt income, and compares the result with the net emoluments line. It prints as `ok` or `does not agree`, and is left out when one of its lines was not found.
+the form's own working
+  total says 1,227,000.00 and adds to 1,227,000.00  ok
+  net_emoluments says 1,107,000.00 and adds to 1,107,000.00  ok
+```
 
-Where a line was proposed more than once, the sum uses the figure the model was surest of.
+Under each fact is the form line and the words it came from. An answer the model is less than half sure of is left out before any of this.
+
+The model often claims one figure under several lines. Every way of sharing those figures among the claiming lines is tried.
+
+A line the reader missed looks the same as a line the form leaves blank. A missing added line can only make a sum too small. A missing subtracted line can only make it too big. A way is thrown out when a sum is wrong in the direction no missing line could explain.
+
+A figure with one line left becomes a fact. A figure no surviving way uses is dropped. A figure with two or more lines left goes under `questions`, with the wording of each line.
+
+A fact is told only when every figure that could feed it settles on one amount. Otherwise all of them are asked about. When too many figures are contested to work through, none of the contested ones is settled.
+
+One sum adds the lines that make the total. The other takes the total less the exempt income.
+
+Each prints `ok` when it comes out. It prints `does not agree` when no missing line could explain the difference. It prints `not checked` when one could.
+
+The sums are read from the surviving way that makes the most of them come out. When no way survives they are read from the figures only one line claims, and that no question is about. A sum is left out when the line it works out was not found. It is left out when none of the lines it adds and takes away was found.
 
 Two of the form's lines feed a fact and the rest do not. The emoluments net of exempt income go to `salary`. The tax withheld goes to `paye_withheld`. Writing any other emoluments line as well would count it twice.
 

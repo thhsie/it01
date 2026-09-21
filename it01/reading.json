@@ -28,6 +28,23 @@
     },
     "checks": [
       {
+        "is": "total",
+        "plus": [
+          "salary",
+          "bonus",
+          "housing_allowance",
+          "entertainment_allowance",
+          "transport_allowance",
+          "travel_reimbursement",
+          "other_allowance",
+          "private_expense_reimbursement",
+          "passage_reimbursement",
+          "fringe_benefits",
+          "lump_sum",
+          "pension"
+        ]
+      },
+      {
         "is": "net_emoluments",
         "plus": [
           "total"

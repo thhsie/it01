@@ -5,7 +5,7 @@ from unittest import mock
 try:
   import numpy as np
   from it01.local import Form, Found, Working, batched, filled, found, prompt, reader, room
-  from it01.local import shaped, sizes, spans, sums, surest, wanted, windows, words, written
+  from it01.local import shaped, sizes, spans, sums, tells, wanted, windows, words, written
   FORM = Form("statement_of_emoluments", (("salary", "the gross pay"),))
   SHAPE = shaped()
   SCHEMA = SHAPE.schema
@@ -166,7 +166,9 @@ class TestLocal(unittest.TestCase):
   def test_the_same_figure_in_two_places_is_reported_twice(self):
     with mock.patch("it01.local.reader", lambda: (Model(cap=15, each=[(1, 2), (1, 2)]), Fake())), \
          mock.patch("it01.local.data", lambda name: HELD if name == "reading" else SHOWN):
-      self.assertEqual([str(f.amt) for f in found(" ".join(["1"] * 15))], ["1", "1"])
+      seen = found(" ".join(["1"] * 15))
+      self.assertEqual([str(f.amt) for f in seen], ["1", "1"])
+      self.assertEqual(len({f.at for f in seen}), 2)
 
   def test_a_span_cut_by_the_start_of_a_window_is_left_out(self):
     with mock.patch("it01.local.reader", lambda: (Model(cap=15, each=[(1, 2), (0, 1)]), Fake())), \
@@ -176,12 +178,16 @@ class TestLocal(unittest.TestCase):
   def test_a_span_on_the_first_word_of_the_document_is_kept(self):
     with mock.patch("it01.local.reader", lambda: (Model(cap=15, each=[(0, 1), (5, 6)]), Fake())), \
          mock.patch("it01.local.data", lambda name: HELD if name == "reading" else SHOWN):
-      self.assertEqual([str(f.amt) for f in found(" ".join(["1"] * 15))], ["1", "1"])
+      seen = found(" ".join(["1"] * 15))
+      self.assertEqual([str(f.amt) for f in seen], ["1", "1"])
+      self.assertEqual(len({f.at for f in seen}), 2)
 
   def test_a_span_on_the_last_word_of_the_document_is_kept(self):
     with mock.patch("it01.local.reader", lambda: (Model(cap=15, each=[(1, 2), (5, 6)]), Fake())), \
          mock.patch("it01.local.data", lambda name: HELD if name == "reading" else SHOWN):
-      self.assertEqual([str(f.amt) for f in found(" ".join(["1"] * 15))], ["1", "1"])
+      seen = found(" ".join(["1"] * 15))
+      self.assertEqual([str(f.amt) for f in seen], ["1", "1"])
+      self.assertEqual(len({f.at for f in seen}), 2)
 
   def test_a_span_cut_by_the_end_of_a_window_is_left_out(self):
     with mock.patch("it01.local.reader", lambda: (Model(cap=15, each=[(11, 12), (1, 2)]), Fake())), \
@@ -229,17 +235,6 @@ class TestLocal(unittest.TestCase):
     with mock.patch("it01.local.data", lambda name: {"form": {"name": "soe", "fields": {"salary": "pay"}, "feeds": {"salary": "wages"}}}):
       with self.assertRaisesRegex(ValueError, "feeds facts the package does not know"): wanted()
 
-  def test_a_proposal_names_the_fact_its_line_feeds(self):
-    fed = {"form": {"name": FORM.name, "fields": dict(FORM.fields), "feeds": {"salary": "salary"}}}
-    with mock.patch("it01.local.reader", lambda: (Model(), Fake())), \
-         mock.patch("it01.local.data", lambda name: fed if name == "reading" else SHOWN):
-      self.assertEqual([(f.field, f.fact) for f in found("pay 1,200.00")], [("salary", "salary")])
-
-  def test_a_proposal_whose_line_feeds_nothing_names_nothing(self):
-    with mock.patch("it01.local.reader", lambda: (Model(), Fake())), \
-         mock.patch("it01.local.data", lambda name: HELD if name == "reading" else SHOWN):
-      self.assertEqual([f.fact for f in found("pay 1,200.00")], [""])
-
   def test_a_sum_says_whether_the_figures_come_out(self):
     form = Form("soe", (("total", "a"), ("exempt_income", "b"), ("net_emoluments", "c")), (),
                 (Working("net_emoluments", ("total",), ("exempt_income",)),))
@@ -252,12 +247,108 @@ class TestLocal(unittest.TestCase):
                 (Working("net_emoluments", ("total",), ("exempt_income",)),))
     self.assertEqual(sums(form, {"total": Decimal("1227000")}), ())
 
-  def test_a_sum_uses_the_figure_the_model_was_surest_of(self):
-    form = Form("soe", (("total", "a"), ("exempt_income", "b"), ("net_emoluments", "c")), (),
-                (Working("net_emoluments", ("total",), ("exempt_income",)),))
-    seen = (Found("total", Decimal("9"), "", 60, ""), Found("total", Decimal("1227000"), "", 100, ""),
-            Found("exempt_income", Decimal("120000"), "", 100, ""), Found("net_emoluments", Decimal("1107000"), "", 100, ""))
-    self.assertTrue(sums(form, surest(seen))[0].agrees)
+  def test_one_line_cannot_hold_two_different_figures(self):
+    form = Form("soe", (("total", "a"), ("salary", "b"), ("bonus", "c")), (("salary", "salary"),),
+                (Working("total", ("salary", "bonus"), ()),))
+    seen = (Found("total", Decimal("60"), "60", 100, 0), Found("salary", Decimal("60"), "60", 100, 5),
+            Found("salary", Decimal("40"), "40", 90, 9), Found("bonus", Decimal("40"), "40", 100, 9))
+    told, asked, _ = tells(form, seen)
+    self.assertEqual([str(t.amt) for t in told], ["60"])
+    self.assertEqual(asked, ())
+
+  def test_two_figures_for_one_fact_are_asked_about_not_told(self):
+    form = Form("soe", (("net_emoluments", "a"),), (("net_emoluments", "salary"),))
+    seen = (Found("net_emoluments", Decimal("1107000"), "1,107,000", 100, 40),
+            Found("net_emoluments", Decimal("1170000"), "1,170,000", 100, 80))
+    told, asked, _ = tells(form, seen)
+    self.assertEqual(told, ())
+    self.assertEqual([str(q.amt) for q in asked], ["1107000", "1170000"])
+    self.assertTrue(all(q.lines for q in asked))
+
+  def test_a_figure_no_surviving_reading_uses_is_dropped(self):
+    told, asked, _ = tells(*self.broken())
+    self.assertEqual(told, ())
+    self.assertEqual(asked, ())
+
+  def test_the_sums_come_from_the_reading_that_holds_together(self):
+    working = tells(*self.broken())[2]
+    self.assertTrue(all(w.agrees for w in working), [(w.line, str(w.says), str(w.adds)) for w in working])
+
+  def broken(self):
+    form = Form("soe", (("total", "a"), ("salary", "b"), ("bonus", "c"), ("housing_allowance", "d")), (("bonus", "performance_bonus"),),
+                (Working("total", ("salary", "bonus", "housing_allowance"), ()),))
+    seen = (Found("total", Decimal("100"), "100", 100, 0), Found("salary", Decimal("100"), "100", 100, 5),
+            Found("bonus", Decimal("40"), "40", 100, 9), Found("housing_allowance", Decimal("40"), "40", 90, 9))
+    return form, seen
+
+  def test_too_many_contested_figures_settles_none_of_them(self):
+    lines = tuple((f"l{n}", f"line {n}") for n in range(14))
+    form = Form("soe", lines, (("l0", "salary"), ("l13", "paye_withheld")))
+    seen = tuple(Found(f"l{n}", Decimal("5"), "5", 100, at) for at in range(13) for n in (0, 1))
+    seen += (Found("l13", Decimal("7"), "7", 100, 99),)
+    told, asked, _ = tells(form, seen)
+    self.assertEqual([(t.fact, str(t.amt)) for t in told], [("paye_withheld", "7")])
+    self.assertEqual(len(asked), 13)
+
+  def test_a_line_the_reader_missed_does_not_stop_the_settling(self):
+    form = Form("soe", (("total", "a"), ("salary", "b"), ("bonus", "c"), ("exempt_income", "d")), (("exempt_income", "other_reliefs"),),
+                (Working("total", ("salary", "bonus"), ()),))
+    seen = (Found("total", Decimal("100"), "100", 100, 0), Found("salary", Decimal("60"), "60", 100, 5),
+            Found("bonus", Decimal("200"), "200", 100, 9), Found("exempt_income", Decimal("200"), "200", 90, 9))
+    told, asked, _ = tells(form, seen)
+    self.assertEqual([(t.fact, str(t.amt)) for t in told], [("other_reliefs", "200")])
+    self.assertEqual(asked, ())
+
+  def test_the_reading_kept_is_the_one_whose_sums_come_out(self):
+    form = Form("soe", (("total", "a"), ("salary", "b"), ("bonus", "c"), ("exempt_income", "d"), ("net_emoluments", "e")), (),
+                (Working("total", ("salary", "bonus"), ()), Working("net_emoluments", ("total",), ("exempt_income",))))
+    seen = (Found("total", Decimal("100"), "100", 100, 0), Found("salary", Decimal("60"), "60", 100, 5),
+            Found("net_emoluments", Decimal("60"), "60", 100, 10),
+            Found("exempt_income", Decimal("40"), "40", 99, 20), Found("bonus", Decimal("40"), "40", 90, 20),
+            Found("exempt_income", Decimal("40"), "40", 99, 30), Found("bonus", Decimal("40"), "40", 90, 30))
+    working = tells(form, seen)[2]
+    self.assertTrue(all(w.agrees for w in working), [(w.line, str(w.says), str(w.adds)) for w in working])
+
+  def test_a_subtracted_line_the_reader_missed_does_not_stop_the_settling(self):
+    form = Form("soe", (("total", "a"), ("salary", "b"), ("bonus", "c"), ("housing_allowance", "d"),
+                        ("exempt_income", "e"), ("net_emoluments", "f")), (("housing_allowance", "other_reliefs"),),
+                (Working("total", ("salary", "bonus"), ()), Working("net_emoluments", ("total",), ("exempt_income",))))
+    seen = (Found("total", Decimal("100"), "100", 100, 0), Found("salary", Decimal("60"), "60", 100, 5),
+            Found("net_emoluments", Decimal("60"), "60", 100, 10),
+            Found("bonus", Decimal("30"), "30", 100, 20), Found("housing_allowance", Decimal("30"), "30", 90, 20))
+    told, asked, _ = tells(form, seen)
+    self.assertEqual([(t.fact, str(t.amt)) for t in told], [("other_reliefs", "30")])
+    self.assertEqual(asked, ())
+
+  def test_two_figures_for_one_fact_ask_which_is_the_fact(self):
+    form = Form("soe", (("net_emoluments", "a"),), (("net_emoluments", "salary"),))
+    seen = (Found("net_emoluments", Decimal("100"), "100", 100, 10), Found("net_emoluments", Decimal("200"), "200", 100, 20))
+    told, asked, _ = tells(form, seen)
+    self.assertEqual(told, ())
+    self.assertEqual([q.asking for q in asked], ["which of these is the salary"] * 2)
+
+  def test_a_sum_is_never_read_from_a_figure_the_output_asks_about(self):
+    form = Form("soe", (("total", "a"), ("exempt_income", "b"), ("net_emoluments", "c"), ("salary", "d")),
+                (("net_emoluments", "salary"),), (Working("net_emoluments", ("total",), ("exempt_income",)),))
+    seen = (Found("total", Decimal("1227000"), "", 99, 10), Found("salary", Decimal("1107000"), "", 95, 20),
+            Found("net_emoluments", Decimal("1107000"), "", 99, 20), Found("net_emoluments", Decimal("900000"), "", 60, 70),
+            Found("exempt_income", Decimal("120000"), "", 99, 40))
+    told, asked, working = tells(form, seen)
+    self.assertEqual(told, ())
+    self.assertEqual([str(q.amt) for q in asked], ["1107000", "900000"])
+    self.assertEqual(working, ())
+
+  def test_a_figure_a_line_cannot_take_costs_a_reading(self):
+    form = Form("soe", (("total", "a"), ("salary", "b"), ("bonus", "c")), (("salary", "salary"),),
+                (Working("total", ("salary", "bonus"), ()),))
+    seen = (Found("total", Decimal("100"), "100", 100, 0), Found("salary", Decimal("60"), "60", 100, 5),
+            Found("bonus", Decimal("40"), "40", 100, 9), Found("bonus", Decimal("999"), "999", 90, 20))
+    _, _, working = tells(form, seen)
+    self.assertTrue(all(w.agrees for w in working), [(w.line, str(w.says), str(w.adds)) for w in working])
+
+  def test_a_sum_whose_other_lines_were_all_missed_is_not_checked(self):
+    form = Form("soe", (("total", "a"), ("salary", "b")), (), (Working("total", ("salary",), ()),))
+    self.assertEqual(sums(form, {"total": Decimal("100")}), ())
 
   def test_a_check_naming_a_line_the_form_does_not_have_is_refused(self):
     held = {"form": {"name": "soe", "fields": {"salary": "pay"}, "checks": [{"is": "salary", "plus": ["wages"]}]}}
@@ -288,7 +379,11 @@ class TestLocal(unittest.TestCase):
       with self.assertRaisesRegex(ValueError, "a list of sums"): wanted()
 
   def test_the_check_the_package_ships_works_the_net_line_out(self):
-    self.assertEqual([(c.line, c.plus, c.less) for c in wanted().checks], [("net_emoluments", ("total",), ("exempt_income",))])
+    checks = wanted().checks
+    self.assertEqual([(c.line, c.less) for c in checks], [("total", ()), ("net_emoluments", ("exempt_income",))])
+    self.assertEqual(checks[1].plus, ("total",))
+    self.assertEqual(len(checks[0].plus), 12)
+    self.assertEqual(checks[0].plus[:2], ("salary", "bonus"))
 
   def test_a_feed_that_is_not_a_name_is_refused(self):
     with mock.patch("it01.local.data", lambda name: {"form": {"name": "soe", "fields": {"salary": "pay"}, "feeds": {"salary": ["salary"]}}}):
