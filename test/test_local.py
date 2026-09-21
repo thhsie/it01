@@ -1,10 +1,11 @@
 import unittest
+from decimal import Decimal
 from unittest import mock
 
 try:
   import numpy as np
-  from it01.local import Form, batched, filled, found, prompt, reader, room
-  from it01.local import shaped, sizes, spans, wanted, windows, words, written
+  from it01.local import Form, Found, Working, batched, filled, found, prompt, reader, room
+  from it01.local import shaped, sizes, spans, sums, wanted, windows, words, written
   FORM = Form("statement_of_emoluments", (("salary", "the gross pay"),))
   SHAPE = shaped()
   SCHEMA = SHAPE.schema
@@ -238,6 +239,57 @@ class TestLocal(unittest.TestCase):
     with mock.patch("it01.local.reader", lambda: (Model(), Fake())), \
          mock.patch("it01.local.data", lambda name: HELD if name == "reading" else SHOWN):
       self.assertEqual([f.fact for f in found("pay 1,200.00")], [""])
+
+  def test_a_sum_says_whether_the_figures_come_out(self):
+    form = Form("soe", (("total", "a"), ("exempt_income", "b"), ("net_emoluments", "c")), (),
+                (Working("net_emoluments", ("total",), ("exempt_income",)),))
+    for net, agrees in ((Decimal("1107000"), True), (Decimal("1107000.00"), True), (Decimal("1207000"), False)):
+      seen = (Found("total", Decimal("1227000.00"), "", 100, ""), Found("exempt_income", Decimal("120000"), "", 100, ""),
+              Found("net_emoluments", net, "", 100, ""))
+      self.assertEqual(sums(form, seen)[0].agrees, agrees, net)
+
+  def test_a_sum_missing_a_line_is_not_checked(self):
+    form = Form("soe", (("total", "a"), ("exempt_income", "b"), ("net_emoluments", "c")), (),
+                (Working("net_emoluments", ("total",), ("exempt_income",)),))
+    self.assertEqual(sums(form, (Found("total", Decimal("1227000"), "", 100, ""),)), ())
+
+  def test_a_sum_uses_the_figure_the_model_was_surest_of(self):
+    form = Form("soe", (("total", "a"), ("exempt_income", "b"), ("net_emoluments", "c")), (),
+                (Working("net_emoluments", ("total",), ("exempt_income",)),))
+    seen = (Found("total", Decimal("9"), "", 60, ""), Found("total", Decimal("1227000"), "", 100, ""),
+            Found("exempt_income", Decimal("120000"), "", 100, ""), Found("net_emoluments", Decimal("1107000"), "", 100, ""))
+    self.assertTrue(sums(form, seen)[0].agrees)
+
+  def test_a_check_naming_a_line_the_form_does_not_have_is_refused(self):
+    held = {"form": {"name": "soe", "fields": {"salary": "pay"}, "checks": [{"is": "salary", "plus": ["wages"]}]}}
+    with mock.patch("it01.local.data", lambda name: held):
+      with self.assertRaisesRegex(ValueError, "names lines the form does not have"): wanted()
+
+  def test_a_check_that_does_not_say_which_line_it_works_out_is_refused(self):
+    for one in ({"plus": ["salary"]}, {"is": 5}, {"is": "salary", "spare": []}, "salary", 5):
+      with mock.patch("it01.local.data", lambda name: {"form": {"name": "soe", "fields": {"salary": "pay"}, "checks": [one]}}):
+        with self.assertRaisesRegex(ValueError, "must say which line it works out"): wanted()
+
+  def test_a_check_whose_sides_are_not_lists_of_names_is_refused(self):
+    for one in ({"is": "salary", "plus": "salary"}, {"is": "salary", "plus": 5}, {"is": "salary", "less": [["salary"]]}):
+      with mock.patch("it01.local.data", lambda name: {"form": {"name": "soe", "fields": {"salary": "pay"}, "checks": [one]}}):
+        with self.assertRaisesRegex(ValueError, "lists of line names"): wanted()
+
+  def test_a_check_that_works_a_line_out_from_itself_is_refused(self):
+    held = {"form": {"name": "soe", "fields": {"salary": "pay"}, "checks": [{"is": "salary", "plus": ["salary"]}]}}
+    with mock.patch("it01.local.data", lambda name: held):
+      with self.assertRaisesRegex(ValueError, "works it out from itself"): wanted()
+
+  def test_a_check_that_adds_and_takes_away_nothing_is_refused(self):
+    with mock.patch("it01.local.data", lambda name: {"form": {"name": "soe", "fields": {"salary": "pay"}, "checks": [{"is": "salary"}]}}):
+      with self.assertRaisesRegex(ValueError, "adds and takes away nothing"): wanted()
+
+  def test_checks_that_are_not_a_list_are_refused(self):
+    with mock.patch("it01.local.data", lambda name: {"form": {"name": "soe", "fields": {"salary": "pay"}, "checks": {}}}):
+      with self.assertRaisesRegex(ValueError, "a list of sums"): wanted()
+
+  def test_the_check_the_package_ships_works_the_net_line_out(self):
+    self.assertEqual([(c.line, c.plus, c.less) for c in wanted().checks], [("net_emoluments", ("total",), ("exempt_income",))])
 
   def test_a_feed_that_is_not_a_name_is_refused(self):
     with mock.patch("it01.local.data", lambda name: {"form": {"name": "soe", "fields": {"salary": "pay"}, "feeds": {"salary": ["salary"]}}}):

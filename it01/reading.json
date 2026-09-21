@@ -25,6 +25,17 @@
     "feeds": {
       "net_emoluments": "salary",
       "tax_withheld": "paye_withheld"
-    }
+    },
+    "checks": [
+      {
+        "is": "net_emoluments",
+        "plus": [
+          "total"
+        ],
+        "less": [
+          "exempt_income"
+        ]
+      }
+    ]
   }
 }
