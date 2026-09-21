@@ -1,0 +1,24 @@
+{
+  "takes": {
+    "tokens": "tokens",
+    "attention": "attention",
+    "words": "words",
+    "word_mask": "word_mask",
+    "lines": "lines",
+    "line_mask": "line_mask"
+  },
+  "gives": {
+    "spans": "spans",
+    "scores": "scores",
+    "valid": "valid"
+  },
+  "schema": {
+    "form": "([FORM] {name}{described} ({listed} ) )",
+    "describes": "[MEANS] {line}: {means}",
+    "lists": "[LINE] {line}",
+    "document": "[TEXT] {text} ."
+  },
+  "line_mark": "[LINE]",
+  "text_mark": "[TEXT]",
+  "word_start": "▁"
+}

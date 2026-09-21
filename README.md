@@ -34,7 +34,7 @@ The instruction sent to the model is in `it01/reading.json`. Change it to suit y
 
 ## Reading with a model of your own
 
-The reading above sends the document to an endpoint. If you hold a model as a file instead, the package can run it.
+The reading above sends the document to an endpoint, and any model that answers chat requests will do. This second way is for a model of another kind. It is an encoder. It reads the document once and scores runs of words in it, so every answer points at a place in the text.
 
 ```sh
 pip install 'it01[local]'
@@ -45,13 +45,15 @@ python -m it01 local statement.txt
 
 The model is asked to fill in one form. The form's name, its lines and what each line means are in `it01/reading.json`, under `form`. The lines are the lines of a statement of emoluments, in the order the form prints them. Change them to read a different document.
 
-The package builds the model's input itself: the form's name, a description of each line, the list of lines, a separator, then the document split into words the way the model expects. Your file has to match what it builds.
+The package builds the model's input itself: the form's name, a description of each line, the list of lines, a separator, then the document split into words the way the model expects. What your file calls each part of that is in `it01/model.json`. Change it to suit your model.
 
-- It takes six inputs, named `input_ids`, `attention_mask`, `tw_idx`, `tw_mask`, `q_idx` and `q_mask`. Each is two-dimensional and fixed in size, because the package reads that size to know how much room it has.
-- It answers with three outputs. `indices` has four dimensions, `pair_logits` and `valid_mask` have three.
-- Its tokeniser knows `[P]`, `[DESCRIPTION]`, `[C]` and `[SEP_TEXT]`, and splits the document into the same words the package does.
+The package needs six things from the file and calls them `tokens`, `attention`, `words`, `word_mask`, `lines` and `line_mask`. Each is two-dimensional and fixed in size, because the package reads that size to know how much room it has. It reads three things back and calls them `spans`, `scores` and `valid`. `spans` has four dimensions, the other two have three.
 
-The package asks for as many lines at a time as `q_idx` holds and repeats until all are asked. A file with a slot for every line asks them all at once, so the lines compete for the same figures.
+`model.json` says what your file calls each of those nine. It also holds the wording your model expects, in four parts, and the two marks inside that wording that the package has to find: the one that starts a line and the one that starts the document. `word_start` is the character your tokeniser puts at the start of a word, and the package needs it to trace each word back to the document.
+
+`scores` are logits. The package puts each one through a logistic to get a percentage, so a file that already outputs a probability will report the wrong confidence.
+
+The package asks for as many lines at a time as the `lines` input holds and repeats until all are asked. A file with a slot for every line asks them all at once, so the lines compete for the same figures.
 
 A document that does not fit is read in windows. The form takes part of the room, and the document is cut to as many words as the tokeniser leaves for it. Windows overlap by a quarter of their length, so a figure and the words naming it fall inside one window unless they run longer than that quarter. An answer covering the first or last word of a window is left out when there is another window on that side, because the words it needs may be cut off. The same words answered twice are reported once, with the higher of the two confidences, and the same figure printed in two places is reported twice.
 
@@ -60,12 +62,14 @@ Every answer the model is at least half sure of is printed, with its confidence 
 Several things are refused rather than guessed, each naming what is wrong.
 
 - A model file or tokeniser that is not named, or named and not there.
-- A model file left at no fixed size or in fewer than two dimensions, or one wanting inputs other than the six above.
-- A model file that answers without one of the three outputs above, or answers in a shape this does not read.
-- A tokeniser that does not know the marks the model was trained with, or marks a different number of lines.
-- A tokeniser that splits the document into a different number of words, which would make the quoted wording wrong.
+- A model file left at no fixed size or in fewer than two dimensions, or one wanting inputs other than the six `it01/model.json` names.
+- A model file that answers without one of the three outputs `it01/model.json` names, or answers in a shape this does not read.
+- A tokeniser that does not know the two marks your wording uses, or marks a different number of lines.
+- A tokeniser that splits the document into a different number of words, which would make the quoted wording wrong. A tokeniser that marks the start of a word differently fails this way, so set `word_start` to match.
 - A document with no words, or one whose form leaves no room for any of it.
 - A form in `it01/reading.json` with no name, or a line left without a description.
+- An `it01/model.json` that leaves out one of the nine names, one of the four parts of the wording, or one of the two marks, or that names a mark the wording never writes.
+- A part of the wording that leaves out one of the names the package fills in, or takes one it does not.
 
 Two answers are left out instead of refusing the document: a span reaching past the last word, and a span whose words do not read as a figure. The other lines are still printed.
 
