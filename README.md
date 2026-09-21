@@ -12,7 +12,7 @@ it01 prepares your income tax on your own computer.
 
 ## Status
 
-The project is in early development. It computes chargeable income, income tax, fair share contribution, total tax, the balance after tax already paid and the losses to carry forward, for an individual with employment income, business income, other income and resident dividends. It does not yet handle income from an exempt activity inside the business accounts, the extra deductions for special categories of employees, the artist and fast charger deductions, or the balancing charge or allowance when an asset is sold. Reading proposes the amounts on the facts list below, not the business accounts and not the number of dependants.
+The project is in early development. It computes chargeable income, income tax, fair share contribution, total tax, the balance after tax already paid and the losses to carry forward, for an individual with employment income, business income, other income and resident dividends. It does not yet handle income from an exempt activity inside the business accounts, the extra deductions for special categories of employees, the artist and fast charger deductions, or the balancing charge or allowance when an asset is sold. Reading through an endpoint proposes the amounts on the facts list below, not the business accounts and not the number of dependants. Reading with a model file proposes the lines of one form.
 
 ## Reading a document
 
@@ -43,25 +43,25 @@ export IT01_TOKENISER=tokenizer.json
 python -m it01 local statement.txt
 ```
 
-The model is asked, for each fact, which words of the document hold it. The fields and what each means are in `it01/reading.json`. Change them to suit your affairs. A name there that is not a fact the package knows is refused.
+The model is asked to fill in one form. The form's name, its lines and what each line means are in `it01/reading.json`, under `form`. The lines are the lines of a statement of emoluments, in the order the form prints them. Change them to read a different document.
 
-The package builds the model's input itself: the field descriptions, a separator, then the document split into words the way the model expects. It asks for as many fields at a time as the file holds and repeats until all are asked. The model file must be exported at a fixed size, because the package reads that size to know how much room it has.
+The package builds the model's input itself: the form's name, a description of each line, the list of lines, a separator, then the document split into words the way the model expects. It asks for as many lines at a time as the file holds and repeats until all are asked. Export the model file with a query slot for every line, so all of them are asked at once and the lines compete for the same figures. The model file must be exported at a fixed size, because the package reads that size to know how much room it has.
 
-A document that does not fit is read in windows. The field descriptions take part of the room, and the document is cut to as many words as the tokeniser leaves for it. Windows overlap by a quarter of their length, so a figure and the words naming it fall inside one window unless they run longer than that quarter. An answer covering the first or last word of a window is left out when there is another window on that side, because the words it needs may be cut off. The same words answered twice are reported once, with the higher of the two confidences, and the same figure printed in two places is reported twice.
+A document that does not fit is read in windows. The form takes part of the room, and the document is cut to as many words as the tokeniser leaves for it. Windows overlap by a quarter of their length, so a figure and the words naming it fall inside one window unless they run longer than that quarter. An answer covering the first or last word of a window is left out when there is another window on that side, because the words it needs may be cut off. The same words answered twice are reported once, with the higher of the two confidences, and the same figure printed in two places is reported twice.
 
-Every answer the model is at least half sure of is printed, with its confidence and the words it came from. Each field is asked on its own, so two fields can propose the same words, and both are printed for you to choose between. A proposal is read as an amount and nothing further is done with it: no proposal reaches a tax result until you copy the ones you accept into your facts file.
+Every answer the model is at least half sure of is printed, with its confidence and the words it came from. Two lines can propose the same words, and both are printed for you to choose between. A figure printed twice on the form is proposed twice, once for each place it appears. A proposal is read as an amount and nothing further is done with it. The names printed are the form's lines, not the names your facts file takes. Decide which fact each line feeds, then write that fact yourself.
 
 Several things are refused rather than guessed, each naming what is wrong.
 
 - A model file or tokeniser that is not named, or named and not there.
 - A model file left at no fixed size, or one wanting inputs other than the six this gives.
 - A model file that answers without one of the three things this reads, or answers in a shape this does not read.
-- A tokeniser that does not know the marks the model was trained with, or marks a different number of fields.
+- A tokeniser that does not know the marks the model was trained with, or marks a different number of lines.
 - A tokeniser that splits the document into a different number of words, which would make the quoted wording wrong.
-- A document with no words, or one whose field descriptions leave no room for any of it.
-- A field name in `it01/reading.json` that is not a fact the package knows, or one left without a description.
+- A document with no words, or one whose form leaves no room for any of it.
+- A form in `it01/reading.json` with no name, or a line left without a description.
 
-Two answers are left out instead of refusing the document: a span reaching past the last word, and a span whose words do not read as a figure. The other fields are still printed.
+Two answers are left out instead of refusing the document: a span reaching past the last word, and a span whose words do not read as a figure. The other lines are still printed.
 
 Only `it01/local.py` imports the runtime and the tokeniser, and only under the `local` extra. Computing a tax result needs neither.
 
