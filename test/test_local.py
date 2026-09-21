@@ -5,7 +5,7 @@ from unittest import mock
 try:
   import numpy as np
   from it01.local import Form, Found, Working, batched, filled, found, prompt, reader, room
-  from it01.local import shaped, sizes, spans, sums, wanted, windows, words, written
+  from it01.local import shaped, sizes, spans, sums, surest, wanted, windows, words, written
   FORM = Form("statement_of_emoluments", (("salary", "the gross pay"),))
   SHAPE = shaped()
   SCHEMA = SHAPE.schema
@@ -244,21 +244,20 @@ class TestLocal(unittest.TestCase):
     form = Form("soe", (("total", "a"), ("exempt_income", "b"), ("net_emoluments", "c")), (),
                 (Working("net_emoluments", ("total",), ("exempt_income",)),))
     for net, agrees in ((Decimal("1107000"), True), (Decimal("1107000.00"), True), (Decimal("1207000"), False)):
-      seen = (Found("total", Decimal("1227000.00"), "", 100, ""), Found("exempt_income", Decimal("120000"), "", 100, ""),
-              Found("net_emoluments", net, "", 100, ""))
-      self.assertEqual(sums(form, seen)[0].agrees, agrees, net)
+      amts = {"total": Decimal("1227000.00"), "exempt_income": Decimal("120000"), "net_emoluments": net}
+      self.assertEqual(sums(form, amts)[0].agrees, agrees, net)
 
   def test_a_sum_missing_a_line_is_not_checked(self):
     form = Form("soe", (("total", "a"), ("exempt_income", "b"), ("net_emoluments", "c")), (),
                 (Working("net_emoluments", ("total",), ("exempt_income",)),))
-    self.assertEqual(sums(form, (Found("total", Decimal("1227000"), "", 100, ""),)), ())
+    self.assertEqual(sums(form, {"total": Decimal("1227000")}), ())
 
   def test_a_sum_uses_the_figure_the_model_was_surest_of(self):
     form = Form("soe", (("total", "a"), ("exempt_income", "b"), ("net_emoluments", "c")), (),
                 (Working("net_emoluments", ("total",), ("exempt_income",)),))
     seen = (Found("total", Decimal("9"), "", 60, ""), Found("total", Decimal("1227000"), "", 100, ""),
             Found("exempt_income", Decimal("120000"), "", 100, ""), Found("net_emoluments", Decimal("1107000"), "", 100, ""))
-    self.assertTrue(sums(form, seen)[0].agrees)
+    self.assertTrue(sums(form, surest(seen))[0].agrees)
 
   def test_a_check_naming_a_line_the_form_does_not_have_is_refused(self):
     held = {"form": {"name": "soe", "fields": {"salary": "pay"}, "checks": [{"is": "salary", "plus": ["wages"]}]}}
