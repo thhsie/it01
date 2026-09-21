@@ -10,7 +10,7 @@ dependencies = []
 
 [project.optional-dependencies]
 linting = ["ruff==0.16.8", "mypy==2.3.1"]
-local = ["onnxruntime>=1.17", "tokenizers>=0.15"]
+local = ["numpy>=1.24", "onnxruntime>=1.17", "tokenizers>=0.15"]
 
 [build-system]
 requires = ["setuptools>=77"]
@@ -56,3 +56,7 @@ warn_unreachable = true
 warn_redundant_casts = true
 warn_unused_ignores = true
 warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+module = ["numpy.*", "onnxruntime.*", "tokenizers.*"]
+ignore_missing_imports = true

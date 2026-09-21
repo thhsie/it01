@@ -24,7 +24,7 @@ class TestPrivacy(unittest.TestCase):
 
   def test_the_runtime_is_an_extra(self):
     extras = tomllib.loads((ROOT/"pyproject.toml").read_text())["project"]["optional-dependencies"]
-    self.assertEqual({name.split(">")[0].split("=")[0] for name in extras["local"]}, RUNTIME - {"numpy"})
+    self.assertEqual({name.split(">")[0].split("=")[0] for name in extras["local"]}, RUNTIME)
 
   def test_network_only_in_llm(self):
     for fn, tree in trees("it01").items():
