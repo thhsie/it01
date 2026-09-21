@@ -8,6 +8,7 @@ it01 prepares your income tax on your own computer.
 - Deterministic Python code computes the tax from the confirmed facts. Each figure names the rule and the legal source it comes from, with a link to the source.
 - The model is reached through an OpenAI-compatible endpoint that you configure. The endpoint can be on your computer or on a server.
 - The package uses only the Python standard library. One module, `it01/llm.py`, uses the network, and only to call your configured endpoint. `test/test_privacy.py` checks this on every change.
+- Working out a tax result needs no install beyond the package. Reading a document with a model file of your own needs `pip install it01[local]`, which adds a model runtime and a tokeniser. One module, `it01/local.py`, may import them.
 
 ## Status
 
