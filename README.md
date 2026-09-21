@@ -65,6 +65,8 @@ Two lines feed a fact and the rest do not. The facts file adds the emoluments to
 
 The rest of the form is how the form reaches those two figures, so writing it as well would count it twice. The reliefs line feeds nothing for a different reason: the facts file works the dependant deduction out from `dependants`, and the medical and housing loan reliefs have facts of their own, so copying the employer's figure would claim them twice. Employer contributions to a retirement fund feed nothing because they are not a deduction the employee claims.
 
+The form works some of its own lines out from others, and the package checks that the figures it read come out the same way. The sums are in `it01/reading.json`, under `checks`. The shipped one takes the form's total, takes off the exempt income, and compares the result with the net emoluments line, which is the line that feeds `salary`. It is printed under the proposals as `ok` or `does not agree`, and left out when one of its lines was not found. Where a line was proposed more than once, the sum uses the figure the model was surest of.
+
 Several things are refused rather than guessed, each naming what is wrong.
 
 - A model file or tokeniser that is not named, or named and not there.
@@ -75,6 +77,7 @@ Several things are refused rather than guessed, each naming what is wrong.
 - A document with no words, or one whose form leaves no room for any of it.
 - A form in `it01/reading.json` with no name, or a line left without a description.
 - A feed in `it01/reading.json` naming a line the form does not have, a fact the facts file does not take, or one fact from two lines.
+- A `checks` list in `it01/reading.json` that is not a list of sums, or a check that does not say which line it works out, that adds or takes away something which is not a line name, that adds and takes away nothing, that works a line out from itself, or that names a line the form does not have.
 - An `it01/model.json` that leaves out one of the nine names, one of the four parts of the wording, or one of the two marks, or that names a mark the wording never writes.
 - A part of the wording that leaves out one of the names the package fills in, or takes one it does not.
 

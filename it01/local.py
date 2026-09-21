@@ -32,10 +32,17 @@ class Shape:
   word_start: str
 
 @dataclass(frozen=True)
+class Working:
+  line: str
+  plus: tuple[str, ...]
+  less: tuple[str, ...]
+
+@dataclass(frozen=True)
 class Form:
   name: str
   fields: tuple[tuple[str, str], ...]
   feeds: tuple[tuple[str, str], ...] = ()
+  checks: tuple[Working, ...] = ()
 
 @dataclass(frozen=True)
 class Found:
@@ -44,6 +51,14 @@ class Found:
   quote: str
   sure: int
   fact: str
+
+@dataclass(frozen=True)
+class Sum:
+  line: str
+  says: Decimal
+  adds: Decimal
+  @property
+  def agrees(self) -> bool: return self.says == self.adds
 
 def words(text:str) -> tuple[tuple[str, int, int], ...]:
   return tuple((m.group().lower(), m.start(), m.end()) for m in WORD.finditer(text))
@@ -153,7 +168,33 @@ def wanted() -> Form:
   if unknown := sorted(set(feeds) - set(fields)): raise ValueError(f"reading.json feeds lines the form does not have {unknown}")
   if unknown := sorted(set(feeds.values()) - set(AMOUNTS)): raise ValueError(f"reading.json feeds facts the package does not know {unknown}")
   if len(set(feeds.values())) != len(feeds): raise ValueError(f"reading.json feeds one fact from more than one line {sorted(feeds)}")
-  return Form(name, tuple(fields.items()), tuple(feeds.items()))
+  return Form(name, tuple(fields.items()), tuple(feeds.items()), checked(held.get("checks", []), set(fields)))
+
+def checked(given:Any, lines:set[str]) -> tuple[Working, ...]:
+  if not isinstance(given, list): raise ValueError("reading.json must hold checks as a list of sums")
+  ret = []
+  for one in given:
+    if not isinstance(one, dict) or set(one) - {"is", "plus", "less"} or not isinstance(one.get("is"), str):
+      raise ValueError("a check in reading.json must say which line it works out, and nothing the package does not read")
+    plus, less = (one.get(side, []) for side in ("plus", "less"))
+    if not all(isinstance(side, list) and all(isinstance(n, str) for n in side) for side in (plus, less)):
+      raise ValueError("a check in reading.json must add and take away lists of line names")
+    if not plus and not less: raise ValueError(f"the check on {one['is']} in reading.json adds and takes away nothing")
+    if one["is"] in (*plus, *less): raise ValueError(f"the check on {one['is']} in reading.json works it out from itself")
+    if not (named := {one["is"], *plus, *less}) <= lines:
+      raise ValueError(f"a check in reading.json names lines the form does not have {sorted(named - lines)}")
+    ret.append(Working(one["is"], tuple(plus), tuple(less)))
+  return tuple(ret)
+
+def sums(form:Form, seen:tuple[Found, ...]) -> tuple[Sum, ...]:
+  best:dict[str, Decimal] = {}
+  for f in sorted(seen, key=lambda f: -f.sure): best.setdefault(f.field, f.amt)
+  ret = []
+  for check in form.checks:
+    if not {check.line, *check.plus, *check.less} <= set(best): continue
+    adds = sum((best[n] for n in check.plus), Decimal(0)) - sum((best[n] for n in check.less), Decimal(0))
+    ret.append(Sum(check.line, best[check.line], adds))
+  return tuple(ret)
 
 def named(held:dict[str, Any], key:str, roles:tuple[str, ...]) -> dict[str, Any]:
   if not isinstance(got := held.get(key), dict) or set(got) != set(roles):
