@@ -277,24 +277,28 @@ When the return is filed, print what you confirmed and keep it.
 python -m it01 keep facts.json
 ```
 
-It prints the facts you confirmed and the wording each came from. It prints every figure with the rule and the section of law behind it. It prints the questions you answered.
+It prints the facts you confirmed and the wording each came from. It prints every figure with the rule and the section of law behind it. It prints the documents you read, the questions you answered and the questions still open.
 
-Two optional keys in the facts file carry the wording. Neither reaches the computation, so adding them cannot change a figure.
+Four optional keys in the facts file carry wording. None reaches the computation, so adding them cannot change a figure.
 
 ```json
 {
   "resident": true,
   "salary": 1107000,
   "sources": {"salary": "Total emoluments        1,107,000.00"},
-  "answers": {"05/07/2025 500.00 where did this cash come from": "sold my old bicycle"}
+  "documents": {"statement.txt": "statement of emoluments"},
+  "answers": {"05/07/2025 500.00 where did this cash come from": "sold my old bicycle"},
+  "pending": {"12/08/2025 1,200.00 where did this cash come from": "ask the bank for the payer"}
 }
 ```
 
 `sources` maps a fact to the line it was read from. Naming a fact that is not in the file is refused. So is naming the business, since a business line carries no wording of its own.
 
-`answers` maps a question you were asked to what you replied, in your own words. A blank question or a blank source is refused in either. The same key written twice is refused anywhere in the file.
+`documents` maps a document you have read to what it was. `answers` maps a question you were asked to what you replied. `pending` maps a question still open to what to do about it.
 
-The command that computes the tax reads the same file. Both keys are set aside before the facts are computed.
+Each of the four holds text against text. A blank key or a blank value is refused in any of them. The same key written twice is refused anywhere in the file.
+
+The command that computes the tax reads the same file. All four keys are set aside before the facts are computed.
 
 ## Development
 

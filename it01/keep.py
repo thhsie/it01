@@ -3,7 +3,8 @@ from decimal import Decimal
 from typing import Any
 from it01.tax import Facts, assess, from_json
 
-ASIDE = ("sources", "answers")
+TITLES = {"documents": "documents you read", "answers": "questions you answered", "pending": "questions still open"}
+ASIDE = ("sources", *TITLES)
 
 def once(pairs:list[tuple[str, Any]]) -> dict[str, Any]:
   ret:dict[str, Any] = {}
@@ -21,13 +22,13 @@ def wording(raw:dict[str, Any], name:str) -> dict[str, str]:
     raise ValueError(f"{name} must be a JSON object of text, with nothing left blank")
   return held
 
-def apart(raw:Any) -> tuple[dict[str, Any], dict[str, str], dict[str, str]]:
+def apart(raw:Any) -> tuple[dict[str, Any], dict[str, dict[str, str]]]:
   if not isinstance(raw, dict): raise ValueError("facts must be a JSON object")
-  sources, answers = wording(raw, "sources"), wording(raw, "answers")
+  held = {name: wording(raw, name) for name in ASIDE}
   given = {k: v for k, v in raw.items() if k not in ASIDE}
-  if unknown := sorted(set(sources) - set(given)): raise ValueError(f"sources name facts that were not given {unknown}")
-  if nested := sorted(k for k in sources if isinstance(given[k], (dict, list))): raise ValueError(f"sources cannot name {nested}")
-  return given, sources, answers
+  if unknown := sorted(set(held["sources"]) - set(given)): raise ValueError(f"sources name facts that were not given {unknown}")
+  if nested := sorted(k for k in held["sources"] if isinstance(given[k], (dict, list))): raise ValueError(f"sources cannot name {nested}")
+  return given, held
 
 def shown(value:Any) -> str:
   if isinstance(value, bool): return "yes" if value else "no"
@@ -58,10 +59,11 @@ def confirmed(given:dict[str, Any], sources:dict[str, str]) -> list[str]:
   return ret
 
 def keep(text:str) -> list[str]:
-  given, sources, answers = apart(loaded(text))
+  given, held = apart(loaded(text))
   worked = figures(given)
-  ret = ["facts you confirmed"] + confirmed(given, sources) + ["", "figures"] + ["  " + line for line in worked]
-  if answers:
-    ret += ["", "questions you answered"]
-    for asked, said in answers.items(): ret += [f"  {asked}", f"      {said}"]
+  ret = ["facts you confirmed"] + confirmed(given, held["sources"]) + ["", "figures"] + ["  " + line for line in worked]
+  for name, title in TITLES.items():
+    if not held[name]: continue
+    ret += ["", title]
+    for key, value in held[name].items(): ret += [f"  {key}", f"      {value}"]
   return ret
