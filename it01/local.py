@@ -127,7 +127,7 @@ def windows(tok:Any, said:tuple[tuple[str, int, int], ...], form:Form, shape:Sha
 def sizes(session:Any, shape:Shape) -> dict[str, int]:
   held = {}
   for d in session.get_inputs():
-    if len(d.shape) < 2: raise ValueError(f"the model file takes {d.name} in {len(d.shape)} dimensions and this gives 2")
+    if len(d.shape) != 2: raise ValueError(f"the model file takes {d.name} in {len(d.shape)} dimensions and this gives 2")
     if not isinstance(size := d.shape[1], int): raise ValueError(f"the model file leaves {d.name} unsized, and this reads a model of fixed size")
     held[d.name] = size
   if set(held) != set(shape.takes): raise ValueError(f"the model file wants {sorted(held)} and model.json names {list(shape.takes)}")

@@ -108,7 +108,7 @@ Several things are refused rather than guessed, each naming what is wrong.
 
 - A model file or tokeniser that is not named, or named and not there.
 - A model file whose inputs or outputs are not the nine names in `it01/model.json`.
-- A model file at no fixed size, or in fewer than two dimensions.
+- A model file at no fixed size, or with an input that is not two-dimensional.
 - A model file that answers in a shape this does not read.
 - A tokeniser that does not know the marks your wording uses.
 - A tokeniser that splits the document into words `word_start` does not match.

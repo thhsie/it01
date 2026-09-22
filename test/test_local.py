@@ -45,8 +45,8 @@ class Deaf(Fake):
 class Size:
   def __init__(self, name, size): self.name, self.shape = name, [1, size]
 
-class Flat:
-  def __init__(self, name): self.name, self.shape = name, [64]
+class Odd:
+  def __init__(self, name, shape): self.name, self.shape = name, shape
 
 class Model:
   def __init__(self, last=6, logit=9.0, takes=None, gives=None, size=64, dims=4, first=1, cap=None, each=None):
@@ -103,10 +103,12 @@ class TestLocal(unittest.TestCase):
   def test_a_model_file_that_wants_other_inputs_is_refused(self):
     with self.assertRaisesRegex(ValueError, "model.json names"): sizes(Model(takes=SHAPE.takes + ("extra",)), SHAPE)
 
-  def test_a_model_file_that_takes_an_input_of_one_dimension_is_refused(self):
-    loose = Model()
-    loose.get_inputs = lambda: [Size(n, 64) if n != "lines" else Flat(n) for n in SHAPE.takes]
-    with self.assertRaisesRegex(ValueError, "lines in 1 dimensions"): sizes(loose, SHAPE)
+  def test_a_model_file_that_takes_an_input_in_other_than_two_dimensions_is_refused(self):
+    for shape in ([64], [1, 1, 64]):
+      with self.subTest(shape):
+        loose = Model()
+        loose.get_inputs = lambda shape=shape: [Size(n, 64) if n != "lines" else Odd(n, shape) for n in SHAPE.takes]
+        with self.assertRaisesRegex(ValueError, f"lines in {len(shape)} dimensions"): sizes(loose, SHAPE)
 
   def test_a_model_file_that_answers_with_other_names_is_refused(self):
     with self.assertRaisesRegex(ValueError, "\\['valid'\\]"):
