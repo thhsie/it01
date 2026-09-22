@@ -1,6 +1,6 @@
 import unittest
 from decimal import Decimal
-from it01.rows import Check, entries
+from it01.rows import Check, dropped, entries
 
 SIDE_BY_SIDE = """\
 Date        Description                    Debit       Credit      Balance
@@ -29,6 +29,12 @@ Date        Description                   Credit        Debit      Balance
 07/07/2025  Charges                                     25.00      4,300.00
 08/07/2025  Transfer in                 1,000.00                   5,300.00
 09/07/2025  Standing order                             300.00      5,000.00
+"""
+
+NO_BALANCE_PAGE = """\
+\fDate        Description                    Debit       Credit
+06/07/2025  Refund                                     111.11
+07/07/2025  Charges                       222.22
 """
 
 DEBITS_ONLY = """\
@@ -231,6 +237,20 @@ class TestRows(unittest.TestCase):
     at = head.index("Debit") + len("Debit")
     summary = SIDE_BY_SIDE + "\fAccount summary\n" + "Total paid out".ljust(at - 8) + "1,700.00\n" + "Total paid in".ljust(at - 8) + "5,012.50\n"
     self.assertEqual(len(entries(summary)), len(entries(SIDE_BY_SIDE)))
+
+  def test_the_amounts_a_page_loses_are_counted(self):
+    self.assertEqual(dropped(SIDE_BY_SIDE + NO_BALANCE_PAGE), {2: 2})
+
+  def test_a_page_that_does_not_repeat_its_headings_is_counted_too(self):
+    bare = SIDE_BY_SIDE + "\f" + "\n".join(NO_BALANCE_PAGE.split("\n")[1:])
+    self.assertEqual(dropped(bare), {2: 2})
+
+  def test_a_statement_that_reads_whole_loses_no_amount(self):
+    for name, text in (("side by side", SIDE_BY_SIDE), ("two lines", TWO_LINES), ("second page", SECOND_PAGE)):
+      with self.subTest(name): self.assertEqual(dropped(text), {})
+
+  def test_an_amount_in_a_column_that_explains_nothing_is_counted(self):
+    self.assertEqual(dropped(BOTH_WAYS), {1: 2})
 
   def test_a_cover_page_does_not_stop_the_statement_being_read(self):
     cover = "Your statement\nAccount number 0012345678\nOpening balance 1,000.00\nClosing balance 4,312.50\n\f" + SIDE_BY_SIDE

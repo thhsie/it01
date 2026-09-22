@@ -3,7 +3,7 @@ from decimal import Decimal
 from it01.credits import label, totals
 from it01.keep import apart, figures, keep, loaded
 from it01.read import read
-from it01.rows import Check, entries
+from it01.rows import Check, dropped, entries
 
 MARKS = {Check.AGREES: "ok", Check.DIFFERS: "does not agree", Check.UNCHECKED: "not checked"}
 USAGE = ("usage: python -m it01 FACTS.json\n       python -m it01 read DOCUMENT.txt\n"
@@ -36,8 +36,10 @@ def to_local(text:str) -> list[str]:
   return ret or ["no facts found in the document"]
 
 def to_transactions(text:str) -> list[str]:
-  return [f"{e.date:<12}{money(e.paid_out):>14}{money(e.paid_in):>14}{money(e.balance):>14}  {MARKS[e.check]:<15}{e.description}"
-          for e in entries(text)]
+  ret = [f"{e.date:<12}{money(e.paid_out):>14}{money(e.paid_in):>14}{money(e.balance):>14}  {MARKS[e.check]:<15}{e.description}"
+         for e in entries(text)]
+  if left := dropped(text): ret += [""] + [f"{n} amount{'s' if n > 1 else ''} on page {page} left out" for page, n in left.items()]
+  return ret
 
 def to_credits(text:str) -> list[str]:
   found, questions = label(text)

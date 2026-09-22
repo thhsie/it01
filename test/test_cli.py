@@ -29,6 +29,12 @@ Date        Description        Debit       Credit      Balance
 04/07/2025  Card                 300.00               3,000.00
 """
 
+LOST_PAGE = STATEMENT + """\
+\fDate        Description        Debit       Credit
+04/07/2025  Refund                          111.11
+05/07/2025  Charges              222.22
+"""
+
 REFUSED = [
   ("[]", "facts must be a JSON object"),
   ("{}", "missing facts ['resident']"),
@@ -50,6 +56,16 @@ class TestCli(unittest.TestCase):
     out = assess(json.dumps({"resident": True, "dependants": 1, "salary": 1200000})).stdout
     self.assertIn(f"{'total tax':<46}{'68,000':>14}", out)
     self.assertIn("First Schedule Part I                     https://www.mra.mu/download/ITAConsolidated.pdf#page=262", out)
+
+  def test_says_how_many_amounts_a_page_lost(self):
+    out = statement(LOST_PAGE).stdout
+    self.assertIn("2 amounts on page 2 left out", out)
+    self.assertIn("Rent", out)
+
+  def test_a_cover_page_says_what_it_left_out(self):
+    out = statement("Your statement\nOpening balance 1,000.00\nClosing balance 4,500.00\n\f" + STATEMENT).stdout
+    self.assertIn("2 amounts on page 1 left out", out)
+    self.assertIn("Rent", out)
 
   def test_refuses_bad_facts(self):
     for facts, msg in REFUSED:
