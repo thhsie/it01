@@ -161,6 +161,16 @@ def settle(rows:list[str], moves:tuple[tuple[Amount, Kind], ...], balance:Amount
                 paid_out, paid_in, balance.value if balance is not None else None, check)
   return entry, balance.value if balance is not None else running
 
+def dropped(text:str) -> dict[int, int]:
+  rows = text.split("\n")
+  found = amounts(text)
+  starts = breaks(text)
+  maps = kinds(len(rows), starts, found)
+  ret = {}
+  for i, start, stop, here in leaves(len(rows), starts, found):
+    if left := sum(1 for a in here if nearest(tuple(maps[i][0]), a.col) is None): ret[i + 1] = left
+  return ret
+
 def entries(text:str) -> tuple[Entry, ...]:
   rows = text.split("\n")
   found = amounts(text)

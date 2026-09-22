@@ -163,7 +163,7 @@ An amount is read only when it is printed with two decimal places and is not fol
 
 In a money column such an amount is reported in that column's direction, without its sign. Its balance will not follow, and the transaction is marked `does not agree` when there is a running total. An amount in a column that explains no balance change is left out. A transaction that owned such an amount then fails its balance check, when there is a running total.
 
-A statement with no amounts at all is refused. So is one with no running balance column anywhere. On a statement that has one, the amounts of a page standing under no running balance are left out.
+A statement with no amounts at all is refused. So is one with no running balance column anywhere. On a statement that has one, the amounts of a page standing under no running balance are left out. For each page, the count of amounts left out is printed.
 
 ## Labelling what was paid in
 
