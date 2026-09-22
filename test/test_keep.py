@@ -1,17 +1,24 @@
 import json, unittest
 from decimal import Decimal
-from it01.keep import apart, figures, keep, loaded, shown
+from it01.keep import ASIDE, TITLES, apart, figures, keep, loaded, shown
 
 FACTS = {"resident": True, "dependants": 1, "salary": 1107000, "paye_withheld": 71401,
          "sources": {"salary": "Total emoluments        1,107,000.00"},
-         "answers": {"cash of 500.00 on 05/07/2025": "sold my old bicycle"}}
+         "answers": {"cash of 500.00 on 05/07/2025": "sold my old bicycle"},
+         "documents": {"statement.txt": "statement of emoluments"},
+         "pending": {"cash of 1,200.00 on 12/08/2025": "where did this come from"}}
 
 def written(**changes:object) -> str: return json.dumps(FACTS | changes)
 
 class TestKeep(unittest.TestCase):
-  def test_the_record_holds_the_facts_the_figures_and_the_answers(self):
+  def test_the_record_holds_every_heading(self):
     ret = "\n".join(keep(written()))
-    for heading in ("facts you confirmed", "figures", "questions you answered"): self.assertIn(heading, ret)
+    for heading in ("facts you confirmed", "figures", *TITLES.values()): self.assertIn(heading, ret)
+
+  def test_every_aside_part_is_shown_under_its_own_key(self):
+    ret = keep(written())
+    for key, value in (("statement.txt", "statement of emoluments"), ("cash of 1,200.00 on 12/08/2025", "where did this come from")):
+      with self.subTest(key): self.assertEqual(ret[ret.index(f"  {key}") + 1], f"      {value}")
 
   def test_a_fact_is_shown_with_the_wording_it_came_from(self):
     ret = keep(written())
@@ -29,7 +36,7 @@ class TestKeep(unittest.TestCase):
 
   def test_the_wording_never_reaches_the_computation(self):
     rich = FACTS | {"business": {"gross_income": 900000, "assets": [{"kind": "computer", "cost": 80000}]}}
-    plain = {k: v for k, v in rich.items() if k not in ("sources", "answers")}
+    plain = {k: v for k, v in rich.items() if k not in ASIDE}
     self.assertEqual(figures(plain), figures(apart(loaded(json.dumps(rich)))[0]))
 
   def test_an_asset_that_produced_a_figure_is_in_the_record(self):
@@ -73,15 +80,15 @@ class TestKeep(unittest.TestCase):
     with self.assertRaisesRegex(ValueError, "not given"): keep(written(sources={"rent": "somewhere"}))
 
   def test_wording_that_is_not_text_is_refused(self):
-    for part in ("sources", "answers"):
+    for part in ASIDE:
       with self.subTest(part):
         with self.assertRaisesRegex(ValueError, "object of text"): keep(written(**{part: {"salary": 1}}))
 
   def test_a_facts_file_with_no_wording_still_makes_a_record(self):
-    plain = {k: v for k, v in FACTS.items() if k not in ("sources", "answers")}
+    plain = {k: v for k, v in FACTS.items() if k not in ASIDE}
     ret = "\n".join(keep(json.dumps(plain)))
     self.assertIn("figures", ret)
-    self.assertNotIn("questions you answered", ret)
+    for title in TITLES.values(): self.assertNotIn(title, ret)
 
   def test_the_facts_come_back_the_way_a_person_reads_them(self):
     self.assertEqual([shown(True), shown(False), shown(Decimal("1107000"))], ["yes", "no", "1,107,000"])
@@ -94,9 +101,9 @@ class TestKeep(unittest.TestCase):
   def test_a_file_that_is_not_an_object_is_refused(self):
     with self.assertRaisesRegex(ValueError, "must be a JSON object"): keep("[]")
 
-  def test_the_split_keeps_the_three_parts_apart(self):
-    given, sources, answers = apart(json.loads(written()))
-    self.assertEqual((set(given) & {"sources", "answers"}, list(sources), list(answers)),
-                     (set(), ["salary"], ["cash of 500.00 on 05/07/2025"]))
+  def test_the_split_keeps_every_aside_part_out_of_the_facts(self):
+    given, held = apart(json.loads(written()))
+    self.assertEqual((set(given) & set(ASIDE), sorted(held), list(held["documents"])),
+                     (set(), sorted(ASIDE), ["statement.txt"]))
 
 if __name__ == "__main__": unittest.main()
