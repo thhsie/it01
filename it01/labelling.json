@@ -11,6 +11,10 @@
     "cash": "Money paid in as cash, whatever else the wording says.",
     "unclear": "The wording does not say where the money came from."
   },
+  "feeds": {
+    "dividend": "resident_dividends",
+    "rent": "other_income"
+  },
   "asking": {
     "cash": "where did this cash come from",
     "unclear": "what was this payment for"

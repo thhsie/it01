@@ -1,7 +1,9 @@
 import json, unittest
 from decimal import Decimal
+from unittest import mock
 from it01.rows import Check
-from it01.credits import asked, listed, named, received, spoken, totals
+from it01.credits import ADRIFT, asked, fed, listed, named, received, spoken, totals
+from it01.tax import AMOUNTS
 
 PAID_IN = """\
 Date        Description                    Debit       Credit      Balance
@@ -12,13 +14,56 @@ Date        Description                    Debit       Credit      Balance
 05/07/2025  CASH DEPOSIT                               500.00      5,012.50
 """
 
-CALLED, KINDS, ASKING = spoken("labelling")
+OFF_BY = """\
+Date        Description                    Debit       Credit      Balance
+01/07/2025  Opening balance                                       1,000.00
+02/07/2025  RENT JULY                                2,000.00      3,000.00
+03/07/2025  Shop                          1,000.00                 2,000.00
+04/07/2025  RENT AUGUST                              2,000.00      4,000.00
+05/07/2025  Shop                            500.00                 3,500.00
+06/07/2025  RENT SEPTEMBER                           2,000.00      5,600.00
+"""
+
+CALLED, KINDS, FEEDS, ASKING = spoken("labelling")
 
 def reply(*names:str) -> str: return json.dumps({str(n): name for n, name in enumerate(names, 1)})
 
 class TestCredits(unittest.TestCase):
   def test_a_labelling_file_says_what_it_reads(self):
     self.assertEqual(CALLED, "bank statement")
+
+  def test_a_kind_that_feeds_a_fact_totals_its_credits(self):
+    found = named(received(PAID_IN), reply("rent", "rent", "cash"), KINDS)
+    self.assertEqual(fed(found, FEEDS)[0], {"other_income": (Decimal("5012.50"), "2 labelled rent")})
+
+  def test_a_credit_whose_balance_does_not_agree_is_left_out_and_asked_about(self):
+    found = named(received(OFF_BY), reply("rent", "rent", "rent"), KINDS)
+    seen, adrift = fed(found, FEEDS)
+    self.assertEqual(seen, {"other_income": (Decimal("4000.00"), "2 labelled rent")})
+    self.assertEqual([(q.amt, q.description, q.asking) for q in adrift], [(Decimal("2000.00"), "RENT SEPTEMBER", ADRIFT)])
+
+  def test_a_kind_that_feeds_nothing_proposes_nothing(self):
+    found = named(received(PAID_IN), reply("pay", "interest", "cash"), KINDS)
+    self.assertEqual(fed(found, FEEDS), ({}, ()))
+
+  def test_a_feeds_table_that_does_not_hold_up_is_refused(self):
+    base = {"name": "a statement", "kinds": {"one": "a", "two": "b", "three": "c"}, "asking": {"three": "what is this"}}
+    for feeds, says in (({"nope": "salary"}, "feeds from unknown kinds"), ({"one": "nope"}, "feeds unknown facts"),
+                        ({"three": "salary"}, "both feeds and asks about"), ({"one": "salary", "two": "salary"}, "more than one kind"),
+                        ("not an object", "object of names")):
+      with self.subTest(says), mock.patch("it01.credits.data", return_value=base | {"feeds": feeds}):
+        with self.assertRaisesRegex(ValueError, says): spoken("labelling")
+
+  def test_a_labelling_file_with_no_feeds_proposes_nothing(self):
+    base = {"name": "a statement", "kinds": {"one": "a"}, "asking": {"one": "what is this"}}
+    with mock.patch("it01.credits.data", return_value=base): self.assertEqual(spoken("labelling")[2], {})
+
+  def test_the_shipped_table_feeds_only_kinds_and_facts(self):
+    for kind, fact in FEEDS.items():
+      with self.subTest(kind):
+        self.assertIn(kind, KINDS)
+        self.assertIn(fact, AMOUNTS)
+        self.assertNotIn(kind, ASKING)
 
   def test_only_money_paid_in_is_labelled(self):
     self.assertEqual([e.paid_in for e in received(PAID_IN)], [Decimal("5000.00"), Decimal("12.50"), Decimal("500.00")])
