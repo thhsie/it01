@@ -59,6 +59,7 @@ def dumped(value:Any, deep:int=0) -> str:
 class Noted:
   proposed: tuple[str, ...]
   asked: tuple[str, ...]
+  answered: tuple[str, ...]
 
 def as_file(given:dict[str, Any], held:dict[str, dict[str, str]], proposed:dict[str, Decimal]) -> str:
   whole:dict[str, Any] = given | ({"proposed": proposed} if proposed else {})
@@ -76,11 +77,13 @@ def noted(text:str, seen:dict[str, tuple[Decimal, str]], documents:dict[str, str
       proposed[name] = proposed.get(name, ZERO) + amt
       held["sources"][name] = f"{said}, {quote}" if (said := held["sources"].get(name)) else quote
       wrote.append(name)
-  for question, asks in ask:
+  before = tuple(q for q, _ in ask if q in held["answers"])
+  fresh = [(q, asks) for q, asks in ask if q not in before]
+  for question, asks in fresh:
     if held["pending"].get(question, asks) != asks: raise ValueError(f"the same question is already open with different wording {question}")
     held["pending"][question] = asks
   held["documents"].update(documents)
-  return as_file(given, held, proposed), Noted(tuple(wrote), tuple(q for q, _ in ask))
+  return as_file(given, held, proposed), Noted(tuple(wrote), tuple(q for q, _ in fresh), before)
 
 def confirm(text:str, name:str) -> str:
   given, held, proposed = apart(loaded(text))
