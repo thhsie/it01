@@ -123,6 +123,14 @@ class TestCli(unittest.TestCase):
                  ("confirm",), ("confirm", "a"), ("confirm", "a", "b", "c"), ("add",), ("add", "a"), ("add", "a", "b", "c")):
       self.assertEqual(run(*args).returncode, 2, args)
 
+  def test_a_document_already_read_is_not_read_again(self):
+    name = on_disk(json.dumps({"resident": True, "documents": {"gone.txt": "payslip"}}))
+    self.addCleanup(os.unlink, name)
+    was = pathlib.Path(name).read_text()
+    ret = run("add", name, "gone.txt")
+    self.assertEqual((ret.returncode, pathlib.Path(name).read_text()), (0, was))
+    self.assertIn("was read before", ret.stdout)
+
   def test_confirming_moves_a_figure_into_the_facts(self):
     name = on_disk(json.dumps({"resident": True, "salary": 1200000, "proposed": {"other_income": 40000},
                                "sources": {"other_income": "Rent received 40,000.00"}}))

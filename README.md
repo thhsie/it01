@@ -50,7 +50,9 @@ A document is read as text. Installing `it01[pdf]` lets a PDF be given instead, 
 
 `add` works out what the document is. A running balance column means a bank statement, which is labelled through your endpoint. Anything else is read with a model file of your own.
 
-What it finds goes to `proposed`, with a note of where it came from. What it cannot place goes to `pending` as a question. Nothing is overwritten, and a figure that disagrees with the file becomes a question naming both.
+What it finds goes to `proposed`, with a note of where it came from. What it cannot place goes to `pending` as a question. A figure for a name already proposed is added to it, and both notes are kept.
+
+A document whose name is already in `documents` is not read at all, and the file is left alone. A figure for a fact you have confirmed becomes a question, so a second document never changes a confirmed figure on its own.
 
 `keep` prints everything processed so far. `confirm` moves one figure into the facts, and nothing else does.
 

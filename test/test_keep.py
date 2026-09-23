@@ -114,22 +114,29 @@ class TestKeep(unittest.TestCase):
   def test_a_figure_read_for_a_free_name_is_proposed_with_its_wording(self):
     text, how = noted(written(), {"other_reliefs": (Decimal(5000), "Relief claimed 5,000.00")}, {}, [])
     raw = loaded(text)
-    self.assertEqual((raw["proposed"]["other_reliefs"], raw["sources"]["other_reliefs"], how.proposed, how.known, how.asked),
-                     (Decimal(5000), "Relief claimed 5,000.00", ("other_reliefs",), (), ()))
+    self.assertEqual((raw["proposed"]["other_reliefs"], raw["sources"]["other_reliefs"], how.proposed, how.asked),
+                     (Decimal(5000), "Relief claimed 5,000.00", ("other_reliefs",), ()))
 
-  def test_a_figure_the_file_already_gives_is_not_written_again(self):
-    for name, amt in (("salary", 1107000), ("other_income", 40000)):
-      with self.subTest(name):
-        text, how = noted(written(), {name: (Decimal(amt), "a different line")}, {}, [])
-        self.assertEqual((loaded(text)["sources"].get(name, ""), how.known), (FACTS["sources"].get(name, ""), (name,)))
+  def test_a_second_document_adds_to_what_is_proposed(self):
+    was = written(sources=FACTS["sources"] | {"other_income": "Rent received 40,000.00"})
+    text, how = noted(was, {"other_income": (Decimal(15000), "2 labelled rent")}, {"q2.txt": "bank statement"}, [])
+    raw = loaded(text)
+    self.assertEqual((raw["proposed"]["other_income"], raw["sources"]["other_income"], how.proposed),
+                     (Decimal(55000), "Rent received 40,000.00, 2 labelled rent", ("other_income",)))
 
-  def test_a_figure_that_disagrees_becomes_a_question(self):
-    for name, holds in (("salary", "1,107,000"), ("other_income", "40,000")):
-      with self.subTest(name):
-        text, how = noted(written(), {name: (Decimal(9), "nine")}, {}, [])
-        self.assertEqual(loaded(text)["pending"][f"{name} read as 9 and the file says {holds}"],
-                         "which is right, nine or the figure in the file")
-        self.assertEqual((how.proposed, how.known, how.asked), ((), (), (f"{name} read as 9 and the file says {holds}",)))
+  def test_two_documents_asking_about_one_fact_do_not_collide(self):
+    one, _ = noted(written(), {"salary": (Decimal(1107000), "q1 line")}, {"q1.txt": "payslip"}, [])
+    two, how = noted(one, {"salary": (Decimal(1107000), "q2 line")}, {"q2.txt": "payslip"}, [])
+    self.assertEqual(len(how.asked), 1)
+    self.assertEqual(len([q for q in loaded(two)["pending"] if q.startswith("salary read as")]), 2)
+
+  def test_a_figure_for_a_confirmed_fact_is_asked_about(self):
+    for amt in (Decimal(9), Decimal(1107000)):
+      with self.subTest(amt):
+        text, how = noted(written(), {"salary": (amt, "a payslip line")}, {}, [])
+        asked = f"salary read as {amt:,} in a payslip line, and the file already gives 1,107,000"
+        self.assertEqual(loaded(text)["pending"][asked], "add it to the fact, or leave the fact if this is the same money read twice")
+        self.assertEqual((how.proposed, how.asked), ((), (asked,)))
 
   def test_the_same_question_worded_differently_is_refused(self):
     asked = [("cash of 1,200.00 on 12/08/2025", "a different wording")]
