@@ -2,7 +2,7 @@ import pathlib, sys
 from decimal import Decimal
 from typing import TYPE_CHECKING
 from it01.credits import Question, fed, label, spoken, totals
-from it01.keep import apart, confirm, figures, keep, loaded, noted
+from it01.keep import apart, case, confirm, dumped, figures, keep, loaded, noted
 from it01.read import read
 from it01.rows import Check, dropped, entries, is_statement
 if TYPE_CHECKING: from it01.local import Asked, Form, Sum, Told
@@ -11,7 +11,8 @@ MARKS = {Check.AGREES: "ok", Check.DIFFERS: "does not agree", Check.UNCHECKED: "
 USAGE = ("usage: it01 FACTS.json\n       it01 read DOCUMENT\n"
          "       it01 rows STATEMENT\n       it01 credits STATEMENT\n"
          "       it01 keep FACTS.json\n       it01 local DOCUMENT\n"
-         "       it01 confirm FACTS.json FACT\n       it01 add FACTS.json DOCUMENT")
+         "       it01 confirm FACTS.json FACT\n       it01 add FACTS.json DOCUMENT\n"
+         "       it01 data FACTS.json")
 
 def money(amt:Decimal|None) -> str: return f"{amt:,}" if amt is not None else ""
 
@@ -102,7 +103,9 @@ def added(here:pathlib.Path, document:str) -> list[str]:
   if how.asked: ret += ["", "questions"] + [f"  {question}" for question in how.asked]
   return ret
 
-VERBS = {"read": to_proposals, "rows": to_transactions, "credits": to_credits, "keep": keep, "local": to_local}
+def to_data(text:str) -> list[str]: return [dumped(case(text))]
+
+VERBS = {"read": to_proposals, "rows": to_transactions, "credits": to_credits, "keep": keep, "local": to_local, "data": to_data}
 EDITS = {"confirm": accepted, "add": added}
 
 def main() -> int:

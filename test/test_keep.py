@@ -1,6 +1,6 @@
 import json, unittest
 from decimal import Decimal
-from it01.keep import ASIDE, TITLES, WORDING, apart, confirm, dumped, figures, keep, loaded, noted, shown
+from it01.keep import ASIDE, TITLES, WORDING, apart, case, confirm, dumped, figures, keep, loaded, noted, shown
 
 FACTS = {"resident": True, "dependants": 1, "salary": 1107000, "paye_withheld": 71401,
          "sources": {"salary": "Total emoluments        1,107,000.00"},
@@ -149,6 +149,29 @@ class TestKeep(unittest.TestCase):
   def test_the_document_that_was_read_is_recorded(self):
     text, _ = noted(written(), {}, {"payslip.txt": "payslip"}, [])
     self.assertEqual(loaded(text)["documents"]["payslip.txt"], "payslip")
+
+  def test_the_case_comes_back_as_data(self):
+    got = case(written())
+    self.assertEqual(got["facts"]["salary"], "1107000")
+    self.assertEqual(got["proposed"], {"other_income": "40000"})
+    self.assertEqual(got["documents"], FACTS["documents"])
+    self.assertIn("income tax", [fig["rule"] for fig in got["figures"]])
+
+  def test_every_number_in_the_case_is_text(self):
+    deep = case(written(business={"gross_income": 900000, "assets": [{"kind": "computer", "cost": 80000}]}))
+    found, leaves = [deep["facts"], deep["proposed"], [fig["amount"] for fig in deep["figures"]]], []
+    while found:
+      one = found.pop()
+      if isinstance(one, dict): found += list(one.values())
+      elif isinstance(one, list): found += one
+      else: leaves.append(one)
+    for one in leaves:
+      with self.subTest(one): self.assertIsInstance(one, (str, bool))
+
+  def test_a_figure_comes_back_with_its_sections(self):
+    tax = next(fig for fig in case(written())["figures"] if fig["rule"] == "income tax")
+    self.assertEqual(tax["amount"], "49700")
+    self.assertIn({"doc": "ita", "section": "s.4", "page": 26, "url": "https://www.mra.mu/download/ITAConsolidated.pdf#page=26"}, tax["sources"])
 
   def test_the_facts_come_back_the_way_a_person_reads_them(self):
     self.assertEqual([shown(True), shown(False), shown(Decimal("1107000"))], ["yes", "no", "1,107,000"])
