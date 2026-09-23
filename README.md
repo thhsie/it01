@@ -56,6 +56,16 @@ A document whose name is already in `documents` is not read at all, and the file
 
 `keep` prints everything processed so far. `confirm` moves one figure into the facts, and nothing else does. `data` prints the same case as JSON, with every number as text.
 
+## Answer an open question
+
+```sh
+it01 answer facts.json "1,200.00 paid in on 12/08" "sold my old bicycle"
+```
+
+Give the start of the question's wording after the file. When it matches no question, or more than one, nothing changes and the command says so.
+
+The question moves from `pending` to `answers` with the words you used. No figure moves. A question already answered is refused, so your first words are kept.
+
 ## Read with a model file of your own
 
 ```sh
@@ -110,15 +120,16 @@ A folder that is not there is refused.
 ## Commands
 
 ```
-it01 FACTS.json                    compute the tax
-it01 add FACTS.json DOCUMENT.txt   read a document into the file
-it01 keep FACTS.json               print everything so far
-it01 confirm FACTS.json FACT       accept a proposed figure
-it01 read DOCUMENT.txt             propose facts through your endpoint
-it01 local DOCUMENT.txt            propose facts with your model file
-it01 rows STATEMENT.txt            read transactions
-it01 credits STATEMENT.txt         label what was paid in
-it01 data FACTS.json               print the whole case as JSON
+it01 FACTS.json                         compute the tax
+it01 add FACTS.json DOCUMENT.txt        read a document into the file
+it01 keep FACTS.json                    print everything so far
+it01 confirm FACTS.json FACT            accept a proposed figure
+it01 answer FACTS.json QUESTION ANSWER  answer an open question
+it01 read DOCUMENT.txt                  propose facts through your endpoint
+it01 local DOCUMENT.txt                 propose facts with your model file
+it01 rows STATEMENT.txt                 read transactions
+it01 credits STATEMENT.txt              label what was paid in
+it01 data FACTS.json                    print the whole case as JSON
 ```
 
 `IT01_KEY` is a bearer token if your endpoint needs one, `IT01_TIMEOUT` the seconds to wait, `IT01_DEBUG=2` prints the endpoint's reply. `IT01_DATA` is a folder holding your own copies of the JSON files in `it01/`.

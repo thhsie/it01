@@ -1,6 +1,6 @@
 import json, unittest
 from decimal import Decimal
-from it01.keep import ASIDE, TITLES, WORDING, apart, case, confirm, dumped, figures, keep, loaded, noted, shown
+from it01.keep import ASIDE, TITLES, WORDING, answer, apart, case, confirm, dumped, figures, keep, loaded, noted, shown
 
 FACTS = {"resident": True, "dependants": 1, "salary": 1107000, "paye_withheld": 71401,
          "sources": {"salary": "Total emoluments        1,107,000.00"},
@@ -212,5 +212,32 @@ class TestKeep(unittest.TestCase):
     for bad in (True, "40000", 1.555, -1):
       with self.subTest(bad):
         with self.assertRaisesRegex(ValueError, "invalid proposed other_income"): keep(written(proposed={"other_income": bad}))
+
+ASKED = "cash of 1,200.00 on 12/08/2025"
+
+class TestAnswer(unittest.TestCase):
+  def test_an_answer_moves_the_question_and_is_kept_word_for_word(self):
+    held = json.loads(answer(written(), ASKED, "sold my old bicycle"))
+    self.assertEqual(held["answers"][ASKED], "sold my old bicycle")
+    self.assertNotIn(ASKED, held.get("pending", {}))
+
+  def test_an_answer_already_given_stays_where_it_is(self):
+    was = "cash of 500.00 on 05/07/2025"
+    self.assertEqual(json.loads(answer(written(), ASKED, "a gift"))["answers"][was], FACTS["answers"][was])
+
+  def test_an_answer_leaves_every_figure_alone(self):
+    before = apart(loaded(written()))
+    after = apart(loaded(answer(written(), ASKED, "a gift")))
+    self.assertEqual((before[0], before[2]), (after[0], after[2]))
+
+  def test_a_question_that_is_not_open_is_refused(self):
+    with self.assertRaisesRegex(ValueError, "no open question where is my hat"): answer(written(), "where is my hat", "here")
+
+  def test_a_blank_answer_is_refused(self):
+    with self.assertRaisesRegex(ValueError, "is blank"): answer(written(), ASKED, "   ")
+
+  def test_a_question_that_is_open_and_already_answered_keeps_the_first_words(self):
+    both = written(answers={ASKED: "sold my old bicycle"})
+    with self.assertRaisesRegex(ValueError, f"already answered {ASKED}"): answer(both, ASKED, "a loan from my brother")
 
 if __name__ == "__main__": unittest.main()
