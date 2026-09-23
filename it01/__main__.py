@@ -1,15 +1,17 @@
 import pathlib, sys
 from decimal import Decimal
+from typing import TYPE_CHECKING
 from it01.credits import label, totals
-from it01.keep import apart, confirm, figures, keep, loaded
+from it01.keep import apart, confirm, figures, keep, loaded, noted
 from it01.read import read
 from it01.rows import Check, dropped, entries
+if TYPE_CHECKING: from it01.local import Asked, Form, Sum, Told
 
 MARKS = {Check.AGREES: "ok", Check.DIFFERS: "does not agree", Check.UNCHECKED: "not checked"}
 USAGE = ("usage: python -m it01 FACTS.json\n       python -m it01 read DOCUMENT.txt\n"
          "       python -m it01 rows STATEMENT.txt\n       python -m it01 credits STATEMENT.txt\n"
          "       python -m it01 keep FACTS.json\n       python -m it01 local DOCUMENT.txt\n"
-         "       python -m it01 confirm FACTS.json FACT")
+         "       python -m it01 confirm FACTS.json FACT\n       python -m it01 add FACTS.json DOCUMENT.txt")
 
 def money(amt:Decimal|None) -> str: return f"{amt:,}" if amt is not None else ""
 
@@ -20,10 +22,18 @@ def to_proposals(text:str) -> list[str]:
   for p in read(text): ret += [f"{p.fact:<46}{p.amt:>14,}", f"  {p.quote}"]
   return ret or ["no facts found in the document"]
 
-def to_local(text:str) -> list[str]:
+def reading(text:str) -> tuple["Form", tuple["Told", ...], tuple["Asked", ...], tuple["Sum", ...]]:
   try: from it01.local import found, tells, wanted
   except ImportError as e: raise ValueError(f"reading with a model file needs pip install 'it01[local]' ({e})") from e
-  told, asked, working = tells(wanted(), found(text))
+  form = wanted()
+  return (form, *tells(form, found(text)))
+
+def shaped(told:tuple["Told", ...], asked:tuple["Asked", ...]) -> tuple[dict[str, tuple[Decimal, str]], list[tuple[str, str]]]:
+  seen = {t.fact: (t.amt, t.quote) for t in told}
+  return seen, [(f"{q.amt:,} on the line {q.quote}", f"{q.asking}: " + "; ".join(f"{n} ({d})" for n, d in q.lines)) for q in asked]
+
+def to_local(text:str) -> list[str]:
+  _, told, asked, working = reading(text)
   ret = []
   for t in told: ret += [f"{t.fact:<32}{t.amt:>16,}", f"  {t.line}, {t.quote}"]
   if asked:
@@ -54,24 +64,39 @@ def to_credits(text:str) -> list[str]:
   if questions: ret += ["", "questions"] + [f"  {q.date:<12}{q.amt:>14,}  {q.asking:<30}{q.description}" for q in questions]
   return ret
 
-def accepted(here:pathlib.Path, name:str) -> list[str]:
+def rewritten(here:pathlib.Path, text:str) -> None:
   spare = here.with_suffix(here.suffix + ".new")
-  spare.write_text(confirm(here.read_text(), name))
+  spare.write_text(text)
   spare.replace(here)
+
+def accepted(here:pathlib.Path, name:str) -> list[str]:
+  rewritten(here, confirm(here.read_text(), name))
   return [f"{name} is now a fact in {here.name}"]
 
+def added(here:pathlib.Path, document:str) -> list[str]:
+  paper = pathlib.Path(document)
+  form, told, asked, _ = reading(paper.read_text())
+  seen, asking = shaped(told, asked)
+  text, how = noted(here.read_text(), seen, {paper.name: form.name}, asking)
+  rewritten(here, text)
+  ret = [f"{paper.name} read as {form.name}"]
+  if how.proposed: ret += ["", "proposed"] + [f"  {name:<32}{seen[name][0]:>16,}" for name in how.proposed]
+  if how.known: ret += ["", "already in the file"] + [f"  {name}" for name in how.known]
+  if how.asked: ret += ["", "questions"] + [f"  {question}" for question in how.asked]
+  return ret
+
 VERBS = {"read": to_proposals, "rows": to_transactions, "credits": to_credits, "keep": keep, "local": to_local}
+EDITS = {"confirm": accepted, "add": added}
 
 def main() -> int:
   args = sys.argv[1:]
-  edit = args[:1] == ["confirm"]
-  named = VERBS.get(args[0]) if args else None
+  named, edit = (VERBS.get(args[0]), EDITS.get(args[0])) if args else (None, None)
   rest = args[1:] if named or edit else args
   if len(rest) != (2 if edit else 1):
     print(USAGE, file=sys.stderr)
     return 2
   here = pathlib.Path(rest[0])
-  try: lines = accepted(here, rest[1]) if edit else (named or to_figures)(here.read_text())
+  try: lines = edit(here, rest[1]) if edit else (named or to_figures)(here.read_text())
   except (OSError, ValueError) as e:
     print(f"error: {e}", file=sys.stderr)
     return 1
