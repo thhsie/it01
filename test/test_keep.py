@@ -78,7 +78,7 @@ class TestKeep(unittest.TestCase):
     self.assertIn("\n      2\n", ret)
 
   def test_a_source_naming_neither_a_fact_nor_a_proposed_figure_is_refused(self):
-    with self.assertRaisesRegex(ValueError, "neither a fact nor a proposed figure"): keep(written(sources={"rent": "somewhere"}))
+    with self.assertRaisesRegex(ValueError, "neither a fact nor a proposed figure"): keep(written(sources={"not_a_fact": "somewhere"}))
 
   def test_wording_that_is_not_text_is_refused(self):
     for part in WORDING:
@@ -176,7 +176,7 @@ class TestKeep(unittest.TestCase):
     with self.assertRaisesRegex(ValueError, "object of figures"): keep(written(proposed=None))
 
   def test_a_proposed_figure_that_is_not_a_fact_name_is_refused(self):
-    with self.assertRaisesRegex(ValueError, "not facts \\['rent'\\]"): keep(written(proposed={"rent": 1}))
+    with self.assertRaisesRegex(ValueError, "not facts \\['not_a_fact'\\]"): keep(written(proposed={"not_a_fact": 1}))
 
   def test_a_proposed_figure_that_is_not_an_amount_is_refused(self):
     for bad in (True, "40000", 1.555, -1):
