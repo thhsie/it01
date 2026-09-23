@@ -1,6 +1,6 @@
 [project]
 name = "it01"
-version = "0.3.1"
+version = "0.3.2"
 description = "Local-first income tax preparation for individuals"
 authors = [{ name = "thhsie" }]
 license = "MIT"
@@ -24,7 +24,7 @@ build-backend = "setuptools.build_meta"
 packages = ["it01"]
 
 [tool.setuptools.package-data]
-it01 = ["*.json"]
+it01 = ["*.json", "py.typed"]
 
 [tool.ruff]
 preview = true
