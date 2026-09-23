@@ -1,4 +1,4 @@
-import json, subprocess, sys, tempfile, unittest
+import json, os, pathlib, subprocess, sys, tempfile, unittest
 from test.helpers import ROOT
 
 def run(*args:str) -> subprocess.CompletedProcess:
@@ -11,6 +11,10 @@ def saved(text:str, suffix:str, *args:str) -> subprocess.CompletedProcess:
     return run(*args, f.name)
 
 def statement(text:str) -> subprocess.CompletedProcess: return saved(text, ".txt", "rows")
+
+def on_disk(text:str) -> str:
+  with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f: f.write(text)
+  return f.name
 
 def assess(facts:str) -> subprocess.CompletedProcess: return saved(facts, ".json")
 
@@ -78,8 +82,26 @@ class TestCli(unittest.TestCase):
     self.assertIn(f"{'annual allowance on computer':<46}{'40,000':>14}", out)
 
   def test_usage(self):
-    for args in ((), ("read",), ("rows",), ("credits",), ("keep",), ("local",), ("read", "a", "b"), ("keep", "a", "b"), ("a", "b")):
+    for args in ((), ("read",), ("rows",), ("credits",), ("keep",), ("local",), ("read", "a", "b"), ("keep", "a", "b"), ("a", "b"),
+                 ("confirm",), ("confirm", "a"), ("confirm", "a", "b", "c")):
       self.assertEqual(run(*args).returncode, 2, args)
+
+  def test_confirming_moves_a_figure_into_the_facts(self):
+    name = on_disk(json.dumps({"resident": True, "salary": 1200000, "proposed": {"other_income": 40000},
+                               "sources": {"other_income": "Rent received 40,000.00"}}))
+    self.addCleanup(os.unlink, name)
+    ret = run("confirm", name, "other_income")
+    held = json.loads(pathlib.Path(name).read_text())
+    self.assertEqual((ret.returncode, held["other_income"], "proposed" in held), (0, 40000, False))
+    self.assertIn("other_income", ret.stdout)
+
+  def test_confirming_a_figure_that_was_not_proposed_leaves_the_file_alone(self):
+    was = json.dumps({"resident": True, "salary": 1200000})
+    name = on_disk(was)
+    self.addCleanup(os.unlink, name)
+    ret = run("confirm", name, "rent")
+    self.assertEqual((ret.returncode, ret.stderr), (1, "error: nothing is proposed for rent\n"))
+    self.assertEqual(pathlib.Path(name).read_text(), was)
 
   def test_prints_transactions_with_their_check(self):
     out = statement(STATEMENT).stdout

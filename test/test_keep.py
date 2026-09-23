@@ -1,6 +1,6 @@
 import json, unittest
 from decimal import Decimal
-from it01.keep import ASIDE, TITLES, WORDING, apart, figures, keep, loaded, shown
+from it01.keep import ASIDE, TITLES, WORDING, apart, confirm, figures, keep, loaded, shown, dumped
 
 FACTS = {"resident": True, "dependants": 1, "salary": 1107000, "paye_withheld": 71401,
          "sources": {"salary": "Total emoluments        1,107,000.00"},
@@ -90,6 +90,26 @@ class TestKeep(unittest.TestCase):
     ret = "\n".join(keep(json.dumps(plain)))
     self.assertIn("figures", ret)
     for title in TITLES.values(): self.assertNotIn(title, ret)
+
+  def test_confirming_moves_a_figure_among_the_facts(self):
+    raw = loaded(confirm(written(), "other_income"))
+    self.assertEqual((raw["other_income"], "proposed" in raw, raw["sources"]["salary"]),
+                     (Decimal(40000), False, "Total emoluments        1,107,000.00"))
+
+  def test_confirming_one_of_two_leaves_the_other_proposed(self):
+    two = written(proposed={"other_income": 40000, "other_reliefs": 5000})
+    self.assertEqual(loaded(confirm(two, "other_income"))["proposed"], {"other_reliefs": Decimal(5000)})
+
+  def test_confirming_a_figure_that_was_not_proposed_is_refused(self):
+    with self.assertRaisesRegex(ValueError, "nothing is proposed for rent"): confirm(written(), "rent")
+
+  def test_the_file_comes_back_the_way_it_went_in(self):
+    raw = {"resident": True, "salary": Decimal("1107000.00"), "business": {"assets": [], "gross_income": 900000},
+           "sources": {"salary": 'a "quoted" line'}, "proposed": {}}
+    self.assertEqual(loaded(dumped(raw)), raw)
+
+  def test_a_case_file_cannot_hold_what_json_has_no_word_for(self):
+    with self.assertRaisesRegex(ValueError, "a case file cannot hold"): dumped({"salary": None})
 
   def test_the_facts_come_back_the_way_a_person_reads_them(self):
     self.assertEqual([shown(True), shown(False), shown(Decimal("1107000"))], ["yes", "no", "1,107,000"])
