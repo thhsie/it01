@@ -1,6 +1,6 @@
 import json, unittest
 from decimal import Decimal
-from it01.keep import ASIDE, TITLES, WORDING, apart, confirm, figures, keep, loaded, shown, dumped
+from it01.keep import ASIDE, TITLES, WORDING, apart, confirm, dumped, figures, keep, loaded, noted, shown
 
 FACTS = {"resident": True, "dependants": 1, "salary": 1107000, "paye_withheld": 71401,
          "sources": {"salary": "Total emoluments        1,107,000.00"},
@@ -110,6 +110,38 @@ class TestKeep(unittest.TestCase):
 
   def test_a_case_file_cannot_hold_what_json_has_no_word_for(self):
     with self.assertRaisesRegex(ValueError, "a case file cannot hold"): dumped({"salary": None})
+
+  def test_a_figure_read_for_a_free_name_is_proposed_with_its_wording(self):
+    text, how = noted(written(), {"other_reliefs": (Decimal(5000), "Relief claimed 5,000.00")}, {}, [])
+    raw = loaded(text)
+    self.assertEqual((raw["proposed"]["other_reliefs"], raw["sources"]["other_reliefs"], how.proposed, how.known, how.asked),
+                     (Decimal(5000), "Relief claimed 5,000.00", ("other_reliefs",), (), ()))
+
+  def test_a_figure_the_file_already_gives_is_not_written_again(self):
+    for name, amt in (("salary", 1107000), ("other_income", 40000)):
+      with self.subTest(name):
+        text, how = noted(written(), {name: (Decimal(amt), "a different line")}, {}, [])
+        self.assertEqual((loaded(text)["sources"].get(name, ""), how.known), (FACTS["sources"].get(name, ""), (name,)))
+
+  def test_a_figure_that_disagrees_becomes_a_question(self):
+    for name, holds in (("salary", "1,107,000"), ("other_income", "40,000")):
+      with self.subTest(name):
+        text, how = noted(written(), {name: (Decimal(9), "nine")}, {}, [])
+        self.assertEqual(loaded(text)["pending"][f"{name} read as 9 and the file says {holds}"],
+                         "which is right, nine or the figure in the file")
+        self.assertEqual((how.proposed, how.known, how.asked), ((), (), (f"{name} read as 9 and the file says {holds}",)))
+
+  def test_the_same_question_worded_differently_is_refused(self):
+    asked = [("cash of 1,200.00 on 12/08/2025", "a different wording")]
+    with self.assertRaisesRegex(ValueError, "already open with different wording"): noted(written(), {}, {}, asked)
+
+  def test_the_same_question_worded_the_same_changes_nothing(self):
+    asked = [("cash of 1,200.00 on 12/08/2025", FACTS["pending"]["cash of 1,200.00 on 12/08/2025"])]
+    self.assertEqual(loaded(noted(written(), {}, {}, asked)[0])["pending"], FACTS["pending"])
+
+  def test_the_document_that_was_read_is_recorded(self):
+    text, _ = noted(written(), {}, {"payslip.txt": "payslip"}, [])
+    self.assertEqual(loaded(text)["documents"]["payslip.txt"], "payslip")
 
   def test_the_facts_come_back_the_way_a_person_reads_them(self):
     self.assertEqual([shown(True), shown(False), shown(Decimal("1107000"))], ["yes", "no", "1,107,000"])

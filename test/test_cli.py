@@ -1,5 +1,17 @@
 import json, os, pathlib, subprocess, sys, tempfile, unittest
+from dataclasses import dataclass
+from decimal import Decimal
+from it01.__main__ import shaped
 from test.helpers import ROOT
+
+@dataclass(frozen=True)
+class Says:
+  fact: str = ""
+  amt: Decimal = Decimal(0)
+  quote: str = ""
+  line: str = ""
+  asking: str = ""
+  lines: tuple[tuple[str, str], ...] = ()
 
 def run(*args:str) -> subprocess.CompletedProcess:
   return subprocess.run([sys.executable, "-m", "it01", *args], cwd=ROOT, capture_output=True, text=True)
@@ -71,6 +83,15 @@ class TestCli(unittest.TestCase):
     self.assertIn("2 amounts on page 1 left out", out)
     self.assertIn("Rent", out)
 
+  def test_a_reading_becomes_figures_and_questions(self):
+    told = (Says(fact="salary", amt=Decimal(1107000), quote="Total emoluments 1,107,000.00"),)
+    asked = (Says(amt=Decimal(71401), quote="PAYE 71,401.00", asking="which line is this",
+                  lines=(("tax_withheld", "tax taken off"), ("reliefs_claimed", "reliefs you claimed"))),)
+    seen, asking = shaped(told, asked)
+    self.assertEqual(seen, {"salary": (Decimal(1107000), "Total emoluments 1,107,000.00")})
+    self.assertEqual(asking, [("71,401 on the line PAYE 71,401.00",
+                               "which line is this: tax_withheld (tax taken off); reliefs_claimed (reliefs you claimed)")])
+
   def test_refuses_bad_facts(self):
     for facts, msg in REFUSED:
       with self.subTest(facts):
@@ -83,7 +104,7 @@ class TestCli(unittest.TestCase):
 
   def test_usage(self):
     for args in ((), ("read",), ("rows",), ("credits",), ("keep",), ("local",), ("read", "a", "b"), ("keep", "a", "b"), ("a", "b"),
-                 ("confirm",), ("confirm", "a"), ("confirm", "a", "b", "c")):
+                 ("confirm",), ("confirm", "a"), ("confirm", "a", "b", "c"), ("add",), ("add", "a"), ("add", "a", "b", "c")):
       self.assertEqual(run(*args).returncode, 2, args)
 
   def test_confirming_moves_a_figure_into_the_facts(self):

@@ -1,7 +1,8 @@
 import json
+from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
-from it01.tax import AMOUNTS, JSON_TYPES, Facts, assess, from_json, is_amount
+from it01.tax import AMOUNTS, JSON_TYPES, Facts, amount, assess, from_json, is_amount
 
 TITLES = {"documents": "documents you read", "answers": "questions you answered", "pending": "questions still open"}
 WORDING = ("sources", *TITLES)
@@ -54,12 +55,38 @@ def dumped(value:Any, deep:int=0) -> str:
     return "{\n" + ",\n".join(f"{pad}  {json.dumps(k)}: " + dumped(v, deep + 1) for k, v in value.items()) + f"\n{pad}}}"
   raise ValueError(f"a case file cannot hold {value}")
 
+@dataclass(frozen=True)
+class Noted:
+  proposed: tuple[str, ...]
+  known: tuple[str, ...]
+  asked: tuple[str, ...]
+
+def as_file(given:dict[str, Any], held:dict[str, dict[str, str]], proposed:dict[str, Decimal]) -> str:
+  whole:dict[str, Any] = given | ({"proposed": proposed} if proposed else {})
+  return dumped(whole | {k: v for k, v in held.items() if v}) + "\n"
+
+def noted(text:str, seen:dict[str, tuple[Decimal, str]], documents:dict[str, str], asking:list[tuple[str, str]]) -> tuple[str, Noted]:
+  assert set(seen) <= set(AMOUNTS)
+  given, held, proposed = apart(loaded(text))
+  wrote, known, ask = [], [], list(asking)
+  for name, (amt, quote) in seen.items():
+    if (had := given.get(name, proposed.get(name))) is None:
+      proposed[name], held["sources"][name] = amt, quote
+      wrote.append(name)
+    elif (was := amount(had)) != amt:
+      ask.append((f"{name} read as {amt:,} and the file says {was:,}", f"which is right, {quote} or the figure in the file"))
+    else: known.append(name)
+  for question, asks in ask:
+    if held["pending"].get(question, asks) != asks: raise ValueError(f"the same question is already open with different wording {question}")
+    held["pending"][question] = asks
+  held["documents"].update(documents)
+  return as_file(given, held, proposed), Noted(tuple(wrote), tuple(known), tuple(q for q, _ in ask))
+
 def confirm(text:str, name:str) -> str:
   given, held, proposed = apart(loaded(text))
   if name not in proposed: raise ValueError(f"nothing is proposed for {name}")
-  ret:dict[str, Any] = given | {name: proposed[name]}
-  if left := {k: v for k, v in proposed.items() if k != name}: ret["proposed"] = left
-  return dumped(ret | {k: v for k, v in held.items() if v}) + "\n"
+  given |= {name: proposed.pop(name)}
+  return as_file(given, held, proposed)
 
 def shown(value:Any) -> str:
   if isinstance(value, bool): return "yes" if value else "no"
