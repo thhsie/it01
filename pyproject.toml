@@ -8,6 +8,9 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = []
 
+[project.scripts]
+it01 = "it01.__main__:main"
+
 [project.optional-dependencies]
 linting = ["ruff==0.16.8", "mypy==2.3.1"]
 local = ["numpy>=1.24", "onnxruntime>=1.17", "tokenizers>=0.15"]

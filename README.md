@@ -17,7 +17,7 @@ A model never decides tax. Nothing it proposes reaches the computation until you
 git clone https://github.com/thhsie/it01 && cd it01
 pip install -e .
 echo '{"resident": true, "dependants": 1, "salary": 1200000}' > facts.json
-python -m it01 facts.json
+it01 facts.json
 ```
 
 It computes chargeable income, income tax, fair share contribution, total tax, the balance after tax already paid, and the losses to carry forward. Each figure prints with the sections behind it and a link to the page of the law.
@@ -28,7 +28,7 @@ A person with rental income pays tax on each of the first three quarters of the 
 
 ```sh
 echo '{"resident": true, "dependants": 1, "rent": 400000, "period": "quarter"}' > q1.json
-python -m it01 q1.json
+it01 q1.json
 ```
 
 `period` is `year` unless you say otherwise. A quarter is taxed on its own bands and takes a quarter of the deduction for dependants. It credits the tax deducted at source in that quarter and owes no fair share contribution.
@@ -39,9 +39,9 @@ A quarter takes `rent`, `losses_brought_forward` and `tax_deducted_at_source`. E
 
 ```sh
 export IT01_ENDPOINT=http://localhost:8080/v1/chat/completions IT01_MODEL=your-model
-python -m it01 add facts.json bank.txt
-python -m it01 keep facts.json
-python -m it01 confirm facts.json resident_dividends
+it01 add facts.json bank.txt
+it01 keep facts.json
+it01 confirm facts.json resident_dividends
 ```
 
 The endpoint takes OpenAI-compatible chat requests and can be on your computer or on a server.
@@ -57,7 +57,7 @@ What it finds goes to `proposed`, with a note of where it came from. What it can
 ```sh
 pip install -e '.[local]'
 export IT01_MODEL_FILE=reader.onnx IT01_TOKENISER=tokenizer.json
-python -m it01 local statement.txt
+it01 local statement.txt
 ```
 
 The `local` command takes an encoder that scores runs of words. It reads the document once and every answer points at a place in the text. The model is asked to fill one form, and the form's own sums decide between competing readings.
@@ -67,8 +67,8 @@ The `local` command takes an encoder that scores runs of words. It reads the doc
 ## Read a bank statement
 
 ```sh
-python -m it01 rows statement.txt
-python -m it01 credits statement.txt
+it01 rows statement.txt
+it01 credits statement.txt
 ```
 
 `rows` finds the columns from the arithmetic, checks each balance against the running total and marks each transaction `ok`, `does not agree` or `not checked`. An amount it cannot place is counted, per page.
@@ -94,14 +94,14 @@ Five keys are set aside before the computation and none of them reaches it: `pro
 ## Commands
 
 ```
-python -m it01 FACTS.json                    compute the tax
-python -m it01 add FACTS.json DOCUMENT.txt   read a document into the file
-python -m it01 keep FACTS.json               print everything so far
-python -m it01 confirm FACTS.json FACT       accept a proposed figure
-python -m it01 read DOCUMENT.txt             propose facts through your endpoint
-python -m it01 local DOCUMENT.txt            propose facts with your model file
-python -m it01 rows STATEMENT.txt            read transactions
-python -m it01 credits STATEMENT.txt         label what was paid in
+it01 FACTS.json                    compute the tax
+it01 add FACTS.json DOCUMENT.txt   read a document into the file
+it01 keep FACTS.json               print everything so far
+it01 confirm FACTS.json FACT       accept a proposed figure
+it01 read DOCUMENT.txt             propose facts through your endpoint
+it01 local DOCUMENT.txt            propose facts with your model file
+it01 rows STATEMENT.txt            read transactions
+it01 credits STATEMENT.txt         label what was paid in
 ```
 
 `IT01_KEY` is a bearer token if your endpoint needs one, `IT01_TIMEOUT` the seconds to wait, `IT01_DEBUG=2` prints the endpoint's reply.
