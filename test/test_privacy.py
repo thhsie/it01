@@ -6,6 +6,8 @@ NETWORK_ALLOWED = {"it01/llm.py"}
 NETWORK_REACH_ALLOWED = {"it01/llm.py", "it01/read.py", "it01/credits.py", "it01/__main__.py"}
 RUNTIME = {"numpy", "onnxruntime", "tokenizers"}
 RUNTIME_ALLOWED = {"it01/local.py"}
+PAPER = {"pypdf"}
+PAPER_ALLOWED = {"it01/paper.py"}
 
 def modules(tree:ast.Module) -> set[str]:
   names = {a.name for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names}
@@ -26,7 +28,7 @@ class TestPrivacy(unittest.TestCase):
 
   def test_stdlib_only(self):
     for fn, tree in trees("it01").items():
-      spare = RUNTIME if fn in RUNTIME_ALLOWED else set()
+      spare = (RUNTIME if fn in RUNTIME_ALLOWED else set()) | (PAPER if fn in PAPER_ALLOWED else set())
       self.assertEqual(imports(tree) - sys.stdlib_module_names - {"it01"} - spare, set(), fn)
 
   def test_runtime_only_in_local(self):
@@ -35,7 +37,12 @@ class TestPrivacy(unittest.TestCase):
 
   def test_the_runtime_is_an_extra(self):
     extras = tomllib.loads((ROOT/"pyproject.toml").read_text())["project"]["optional-dependencies"]
-    self.assertEqual({name.split(">")[0].split("=")[0] for name in extras["local"]}, RUNTIME)
+    for named, want in (("local", RUNTIME), ("pdf", PAPER)):
+      with self.subTest(named): self.assertEqual({name.split(">")[0].split("=")[0] for name in extras[named]}, want)
+
+  def test_a_document_reader_only_in_paper(self):
+    for fn, tree in trees("it01").items():
+      if fn not in PAPER_ALLOWED: self.assertEqual(imports(tree) & PAPER, set(), f"{fn} must not read a document format")
 
   def test_network_only_in_llm(self):
     for fn, tree in trees("it01").items():

@@ -20,7 +20,7 @@ jobs:
         python-version: ${{ matrix.python }}
     - run: pip install -e '.[linting]'
     - if: matrix.python == '3.12'
-      run: pip install -e '.[local]'
+      run: pip install -e '.[local,pdf]'
     - run: python -m ruff check .
     - run: python -m mypy
     - run: python -m unittest -v
