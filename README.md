@@ -91,7 +91,7 @@ medical_insurance            other_reliefs                paye_withheld
 tax_deducted_at_source       quarterly_tax_paid
 ```
 
-`salary` holds all emoluments. `rent` holds income from letting, and `other_income` holds income that is neither emoluments, rent nor business. `business` holds the accounts line by line as the return lists them, with an `assets` list for annual allowances.
+`salary` holds all emoluments. `rent` holds income from letting. `other_income` holds income that is neither emoluments, rent nor business. `business` holds the accounts line by line as the return lists them, with an `assets` list for annual allowances.
 
 Five keys are set aside before the computation and none of them reaches it: `proposed`, `sources`, `documents`, `answers`, `pending`.
 

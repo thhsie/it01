@@ -34,12 +34,12 @@ class TestCredits(unittest.TestCase):
 
   def test_a_kind_that_feeds_a_fact_totals_its_credits(self):
     found = named(received(PAID_IN), reply("rent", "rent", "cash"), KINDS)
-    self.assertEqual(fed(found, FEEDS)[0], {"other_income": (Decimal("5012.50"), "2 labelled rent")})
+    self.assertEqual(fed(found, FEEDS)[0], {"rent": (Decimal("5012.50"), "2 labelled rent")})
 
   def test_a_credit_whose_balance_does_not_agree_is_left_out_and_asked_about(self):
     found = named(received(OFF_BY), reply("rent", "rent", "rent"), KINDS)
     seen, adrift = fed(found, FEEDS)
-    self.assertEqual(seen, {"other_income": (Decimal("4000.00"), "2 labelled rent")})
+    self.assertEqual(seen, {"rent": (Decimal("4000.00"), "2 labelled rent")})
     self.assertEqual([(q.amt, q.description, q.asking) for q in adrift], [(Decimal("2000.00"), "RENT SEPTEMBER", ADRIFT)])
 
   def test_a_kind_that_feeds_nothing_proposes_nothing(self):
