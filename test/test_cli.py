@@ -118,6 +118,11 @@ class TestCli(unittest.TestCase):
     where, name = spec.split(":")
     self.assertTrue(callable(getattr(importlib.import_module(where), name)))
 
+  def test_the_types_are_shipped(self):
+    shipped = tomllib.loads((ROOT/"pyproject.toml").read_text())["tool"]["setuptools"]["package-data"]["it01"]
+    self.assertIn("py.typed", shipped)
+    self.assertTrue((ROOT/"it01"/"py.typed").exists())
+
   def test_usage(self):
     for args in ((), ("read",), ("rows",), ("credits",), ("keep",), ("local",), ("read", "a", "b"), ("keep", "a", "b"), ("a", "b"),
                  ("confirm",), ("confirm", "a"), ("confirm", "a", "b", "c"), ("add",), ("add", "a"), ("add", "a", "b", "c"),
