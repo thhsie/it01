@@ -114,6 +114,8 @@ it01 credits STATEMENT.txt         label what was paid in
 
 Reading through an endpoint does not read the business accounts or the number of dependants. It does not handle an exempt activity inside the business accounts. It does not handle the extra deductions for special categories of employees, nor the artist and fast charger deductions. It does not handle a balancing charge when an asset is sold.
 
+It does not hold dividends that a body you belong to received and did not pay out, which the fair share contribution counts as yours.
+
 ## Development
 
 ```sh
