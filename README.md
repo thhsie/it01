@@ -66,7 +66,7 @@ it01 local statement.txt
 
 The `local` command takes an encoder that scores runs of words. It reads the document once and every answer points at a place in the text. The model is asked to fill one form, and the form's own sums decide between competing readings.
 
-`it01/model.json` says what your file calls the nine things the package needs, along with the wording it expects. `it01/reading.json` holds the form, and the instruction the endpoint reader sends. Both are yours to change.
+`it01/model.json` says what your file calls the nine things the package needs, along with the wording it expects. `it01/reading.json` holds the form, and the instruction the endpoint reader sends.
 
 ## Read a bank statement
 
@@ -95,6 +95,18 @@ tax_deducted_at_source       quarterly_tax_paid
 
 Five keys are set aside before the computation and none of them reaches it: `proposed`, `sources`, `documents`, `answers`, `pending`.
 
+## Keep your own copies
+
+`it01/model.json`, `it01/reading.json` and `it01/labelling.json` ship as defaults and are meant to be changed. Set `IT01_DATA` to a folder of your own and a file found there is used instead of the one in the package. A name you do not put there still comes from the package.
+
+```sh
+mkdir -p ~/it01
+cp "$(python -c 'import it01, pathlib; print(pathlib.Path(it01.__file__).parent)')/model.json" ~/it01/
+export IT01_DATA=~/it01
+```
+
+A folder that is not there is refused.
+
 ## Commands
 
 ```
@@ -108,7 +120,7 @@ it01 rows STATEMENT.txt            read transactions
 it01 credits STATEMENT.txt         label what was paid in
 ```
 
-`IT01_KEY` is a bearer token if your endpoint needs one, `IT01_TIMEOUT` the seconds to wait, `IT01_DEBUG=2` prints the endpoint's reply.
+`IT01_KEY` is a bearer token if your endpoint needs one, `IT01_TIMEOUT` the seconds to wait, `IT01_DEBUG=2` prints the endpoint's reply. `IT01_DATA` is a folder holding your own copies of the JSON files in `it01/`.
 
 ## What it does not do yet
 
