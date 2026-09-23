@@ -108,7 +108,7 @@ Several things are refused rather than guessed, each naming what is wrong.
 
 - A model file or tokeniser that is not named, or named and not there.
 - A model file whose inputs or outputs are not the nine names in `it01/model.json`.
-- A model file at no fixed size, or with an input that is not two-dimensional.
+- A model file whose inputs are not two-dimensional, or not of fixed size.
 - A model file that answers in a shape this does not read.
 - A tokeniser that does not know the marks your wording uses.
 - A tokeniser that splits the document into words `word_start` does not match.
@@ -163,7 +163,7 @@ An amount is read only when it is printed with two decimal places and is not fol
 
 In a money column such an amount is reported in that column's direction, without its sign. Its balance will not follow, and the transaction is marked `does not agree` when there is a running total. An amount in a column that explains no balance change is left out. A transaction that owned such an amount then fails its balance check, when there is a running total.
 
-A statement with no amounts at all is refused. So is one with no running balance column anywhere. On a statement that has one, the amounts of a page standing under no running balance are left out. For each page, the count of amounts left out is printed.
+A statement with no amounts at all is refused. So is one with no running balance column anywhere. On a statement that has one, a page with no running balance column loses all of its amounts. An amount that fits no column is left out, and each page reports how many it lost.
 
 ## Labelling what was paid in
 
