@@ -303,13 +303,15 @@ Those four hold text against text. A blank key or a blank value is refused in an
 
 The command that computes the tax reads the same file. All five keys are set aside before the facts are computed.
 
-Reading a document into the file needs the model file above.
+Reading a document into the file writes what was found.
 
 ```sh
 python -m it01 add facts.json statement.txt
 ```
 
-The document is recorded under `documents` with the form it was read as. Each figure the reader settles is written to `proposed`, with the line it came from written to `sources`. Each figure it cannot settle is written to `pending` as a question.
+A document with a running balance column is read as a bank statement and labelled through your endpoint. The credits only you can explain are written to `pending` as questions. Any other document is read with the model file above.
+
+The document is recorded under `documents` with what it was read as. Each figure the reader settles is written to `proposed`, with the line it came from written to `sources`. Each figure it cannot settle is written to `pending` as a question.
 
 A figure the file already gives, as a fact or as a proposal, is not written again. A figure that disagrees with one the file gives becomes a question naming both. Nothing already in the file is overwritten. Reading the same question again with different wording is refused.
 
