@@ -1,12 +1,13 @@
 import json, unittest
 from decimal import Decimal
-from it01.keep import ASIDE, TITLES, apart, figures, keep, loaded, shown
+from it01.keep import ASIDE, TITLES, WORDING, apart, figures, keep, loaded, shown
 
 FACTS = {"resident": True, "dependants": 1, "salary": 1107000, "paye_withheld": 71401,
          "sources": {"salary": "Total emoluments        1,107,000.00"},
          "answers": {"cash of 500.00 on 05/07/2025": "sold my old bicycle"},
          "documents": {"statement.txt": "statement of emoluments"},
-         "pending": {"cash of 1,200.00 on 12/08/2025": "where did this come from"}}
+         "pending": {"cash of 1,200.00 on 12/08/2025": "where did this come from"},
+         "proposed": {"other_income": 40000}}
 
 def written(**changes:object) -> str: return json.dumps(FACTS | changes)
 
@@ -76,11 +77,11 @@ class TestKeep(unittest.TestCase):
     self.assertIn("\n      1\n", ret)
     self.assertIn("\n      2\n", ret)
 
-  def test_a_source_for_a_fact_that_was_not_given_is_refused(self):
-    with self.assertRaisesRegex(ValueError, "not given"): keep(written(sources={"rent": "somewhere"}))
+  def test_a_source_naming_neither_a_fact_nor_a_proposed_figure_is_refused(self):
+    with self.assertRaisesRegex(ValueError, "neither a fact nor a proposed figure"): keep(written(sources={"rent": "somewhere"}))
 
   def test_wording_that_is_not_text_is_refused(self):
-    for part in ASIDE:
+    for part in WORDING:
       with self.subTest(part):
         with self.assertRaisesRegex(ValueError, "object of text"): keep(written(**{part: {"salary": 1}}))
 
@@ -102,8 +103,32 @@ class TestKeep(unittest.TestCase):
     with self.assertRaisesRegex(ValueError, "must be a JSON object"): keep("[]")
 
   def test_the_split_keeps_every_aside_part_out_of_the_facts(self):
-    given, held = apart(json.loads(written()))
-    self.assertEqual((set(given) & set(ASIDE), sorted(held), list(held["documents"])),
-                     (set(), sorted(ASIDE), ["statement.txt"]))
+    given, held, proposed = apart(json.loads(written()))
+    self.assertEqual((set(given) & set(ASIDE), sorted(held), list(held["documents"]), proposed),
+                     (set(), sorted(WORDING), ["statement.txt"], {"other_income": Decimal(40000)}))
+
+  def test_a_proposed_figure_is_shown_apart_from_the_facts(self):
+    ret = keep(written(sources={"other_income": "Rent received 40,000.00"}))
+    at = ret.index("figures proposed, not confirmed")
+    self.assertEqual(ret[at + 1], "  other_income                                        40,000")
+    self.assertEqual(ret[at + 2], "      Rent received 40,000.00")
+
+  def test_a_file_with_nothing_proposed_shows_no_such_heading(self):
+    plain = {k: v for k, v in FACTS.items() if k != "proposed"}
+    self.assertNotIn("figures proposed, not confirmed", "\n".join(keep(json.dumps(plain))))
+
+  def test_a_proposed_figure_that_is_already_a_fact_is_refused(self):
+    with self.assertRaisesRegex(ValueError, "repeats facts already given \\['salary'\\]"): keep(written(proposed={"salary": 2000000}))
+
+  def test_proposed_written_as_null_is_refused(self):
+    with self.assertRaisesRegex(ValueError, "object of figures"): keep(written(proposed=None))
+
+  def test_a_proposed_figure_that_is_not_a_fact_name_is_refused(self):
+    with self.assertRaisesRegex(ValueError, "not facts \\['rent'\\]"): keep(written(proposed={"rent": 1}))
+
+  def test_a_proposed_figure_that_is_not_an_amount_is_refused(self):
+    for bad in (True, "40000", 1.555, -1):
+      with self.subTest(bad):
+        with self.assertRaisesRegex(ValueError, "invalid proposed other_income"): keep(written(proposed={"other_income": bad}))
 
 if __name__ == "__main__": unittest.main()

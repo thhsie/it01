@@ -277,28 +277,31 @@ When the return is filed, print what you confirmed and keep it.
 python -m it01 keep facts.json
 ```
 
-It prints the facts you confirmed and the wording each came from. It prints every figure with the rule and the section of law behind it. It prints the documents you read, the questions you answered and the questions still open.
+It prints the facts you confirmed and the wording each came from. It prints every figure with the rule and the section of law behind it. It prints the figures proposed, the documents you read, the questions you answered and the questions still open.
 
-Four optional keys in the facts file carry wording. None reaches the computation, so adding them cannot change a figure.
+Five optional keys in the file are set aside before the computation. None of them reaches it, so adding them cannot change a figure.
 
 ```json
 {
   "resident": true,
   "salary": 1107000,
-  "sources": {"salary": "Total emoluments        1,107,000.00"},
+  "proposed": {"other_income": 40000},
+  "sources": {"salary": "Total emoluments        1,107,000.00", "other_income": "Rent received 40,000.00"},
   "documents": {"statement.txt": "statement of emoluments"},
   "answers": {"05/07/2025 500.00 where did this cash come from": "sold my old bicycle"},
   "pending": {"12/08/2025 1,200.00 where did this cash come from": "ask the bank for the payer"}
 }
 ```
 
-`sources` maps a fact to the line it was read from. Naming a fact that is not in the file is refused. So is naming the business, since a business line carries no wording of its own.
+`proposed` holds a figure read from a document that you have not yet accepted. It is printed under its own heading, apart from the facts. A name that is not a fact is refused. So is a figure that would be refused as a fact, and a name the file already gives as a fact.
+
+`sources` maps a fact to the line it was read from. It may name a proposed figure instead. A name that is neither is refused. So is naming the business, since a business line carries no wording of its own.
 
 `documents` maps a document you have read to what it was. `answers` maps a question you were asked to what you replied. `pending` maps a question still open to what to do about it.
 
-Each of the four holds text against text. A blank key or a blank value is refused in any of them. The same key written twice is refused anywhere in the file.
+Those four hold text against text. A blank key or a blank value is refused in any of them. The same key written twice is refused anywhere in the file.
 
-The command that computes the tax reads the same file. All four keys are set aside before the facts are computed.
+The command that computes the tax reads the same file. All five keys are set aside before the facts are computed.
 
 ## Development
 
