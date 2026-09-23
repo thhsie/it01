@@ -42,6 +42,16 @@ class Period(Enum):
 
 RATES = {Period.YEAR: (BANDS, BANDS_SRC), Period.QUARTER: (QUARTER_BANDS, QUARTER_BANDS_SRC)}
 
+@dataclass(frozen=True)
+class AllowanceRule:
+  wording: str
+  part: Decimal
+  src: tuple[Source, ...]
+
+ALLOWANCE_RULES = {Period.YEAR: AllowanceRule("annual allowance on", Decimal(1), ()),
+                   Period.QUARTER: AllowanceRule("a quarter of the annual allowance on", Decimal("0.25"),
+                                             (Source("cps", "7. Annual allowance", 3),))}
+
 class Basis(Enum):
   COST = auto()
   BASE_VALUE = auto()

@@ -33,7 +33,7 @@ it01 q1.json
 
 `period` is `year` unless you say otherwise. A quarter is taxed on its own bands and takes a quarter of the deduction for dependants. It credits the tax deducted at source in that quarter and owes no fair share contribution.
 
-A quarter takes `rent`, `losses_brought_forward` and `tax_deducted_at_source`. Every other fact is refused by name, and a business in a quarter is not supported yet.
+A quarter takes `rent`, `losses_brought_forward`, `tax_deducted_at_source` and `business`. Every other fact is refused by name. In a quarter, the allowance on an asset is a quarter of the annual allowance, and the figure is named that way.
 
 ## Drop a document in
 
