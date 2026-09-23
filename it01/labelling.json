@@ -1,5 +1,6 @@
 {
   "instruction": "You are given money paid into a taxpayer's bank account, one credit per line, numbered. Say which kind each one is, using only the names listed below. Answer with a JSON object and nothing else, whose keys are the numbers as they appear and whose values are the names. Give a name only if the wording of the credit supports it. Where the wording does not say where the money came from, answer unclear.",
+  "name": "bank statement",
   "kinds": {
     "pay": "Wages, salary, a bonus or any other payment from an employer.",
     "business": "Money from a customer or a client for work done or goods sold, including a settlement from a payment platform.",

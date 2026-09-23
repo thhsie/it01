@@ -20,8 +20,9 @@ class Question:
   description: str
   asking: str
 
-def spoken(name:str) -> tuple[dict[str, str], dict[str, str]]:
+def spoken(name:str) -> tuple[str, dict[str, str], dict[str, str]]:
   held = data(name)
+  if not isinstance(called := held.get("name"), str) or not called.strip(): raise ValueError(f"{name}.json must say what it reads")
   ret = []
   for field in ("kinds", "asking"):
     part = held.get(field)
@@ -29,7 +30,7 @@ def spoken(name:str) -> tuple[dict[str, str], dict[str, str]]:
       raise ValueError(f"{name}.json must hold {field} as an object of names")
     ret.append({str(k): v for k, v in part.items()})
   if unknown := sorted(set(ret[1]) - set(ret[0])): raise ValueError(f"{name}.json asks about unknown kinds {unknown}")
-  return ret[0], ret[1]
+  return called, ret[0], ret[1]
 
 def received(text:str) -> tuple[Entry, ...]: return tuple(e for e in entries(text) if e.paid_in is not None)
 
@@ -58,7 +59,7 @@ def totals(found:tuple[Credit, ...]) -> dict[str, Decimal]:
   return ret
 
 def label(text:str) -> tuple[tuple[Credit, ...], tuple[Question, ...]]:
-  kinds, asking = spoken("labelling")
+  _, kinds, asking = spoken("labelling")
   if not (paid := received(text)): return (), ()
   said = "\n".join(f"{kind}: {means}" for kind, means in kinds.items())
   return (found := named(paid, ask(instruction("labelling") + "\n" + said, listed(paid)), kinds)), asked(found, asking)

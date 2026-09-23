@@ -12,11 +12,14 @@ Date        Description                    Debit       Credit      Balance
 05/07/2025  CASH DEPOSIT                               500.00      5,012.50
 """
 
-KINDS, ASKING = spoken("labelling")
+CALLED, KINDS, ASKING = spoken("labelling")
 
 def reply(*names:str) -> str: return json.dumps({str(n): name for n, name in enumerate(names, 1)})
 
 class TestCredits(unittest.TestCase):
+  def test_a_labelling_file_says_what_it_reads(self):
+    self.assertEqual(CALLED, "bank statement")
+
   def test_only_money_paid_in_is_labelled(self):
     self.assertEqual([e.paid_in for e in received(PAID_IN)], [Decimal("5000.00"), Decimal("12.50"), Decimal("500.00")])
 

@@ -1,6 +1,6 @@
 import unittest
 from decimal import Decimal
-from it01.rows import Check, dropped, entries
+from it01.rows import Check, dropped, entries, is_statement
 
 SIDE_BY_SIDE = """\
 Date        Description                    Debit       Credit      Balance
@@ -244,6 +244,13 @@ class TestRows(unittest.TestCase):
   def test_a_page_that_does_not_repeat_its_headings_is_counted_too(self):
     bare = SIDE_BY_SIDE + "\f" + "\n".join(NO_BALANCE_PAGE.split("\n")[1:])
     self.assertEqual(dropped(bare), {2: 2})
+
+  def test_a_statement_is_told_by_its_running_balance(self):
+    bare = "Date        Description\n" + "\n".join(SIDE_BY_SIDE.split("\n")[1:])
+    for name, text, holds in (("side by side", SIDE_BY_SIDE, True), ("two lines", TWO_LINES, True), ("no headings", bare, True),
+                              ("a form", "Total emoluments        1,107,000.00\nTax withheld  71,401.00\n", False),
+                              ("nothing", "Nothing here at all\n", False)):
+      with self.subTest(name): self.assertEqual(is_statement(text), holds)
 
   def test_a_statement_that_reads_whole_loses_no_amount(self):
     for name, text in (("side by side", SIDE_BY_SIDE), ("two lines", TWO_LINES), ("second page", SECOND_PAGE)):

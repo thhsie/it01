@@ -1,10 +1,10 @@
 import pathlib, sys
 from decimal import Decimal
 from typing import TYPE_CHECKING
-from it01.credits import label, totals
+from it01.credits import Question, label, spoken, totals
 from it01.keep import apart, confirm, figures, keep, loaded, noted
 from it01.read import read
-from it01.rows import Check, dropped, entries
+from it01.rows import Check, dropped, entries, is_statement
 if TYPE_CHECKING: from it01.local import Asked, Form, Sum, Told
 
 MARKS = {Check.AGREES: "ok", Check.DIFFERS: "does not agree", Check.UNCHECKED: "not checked"}
@@ -73,13 +73,23 @@ def accepted(here:pathlib.Path, name:str) -> list[str]:
   rewritten(here, confirm(here.read_text(), name))
   return [f"{name} is now a fact in {here.name}"]
 
+def questioned(questions:tuple[Question, ...]) -> list[tuple[str, str]]:
+  return [(f"{q.amt:,} paid in on {q.date}", f"{q.asking}: {q.description}") for q in questions]
+
 def added(here:pathlib.Path, document:str) -> list[str]:
   paper = pathlib.Path(document)
-  form, told, asked, _ = reading(paper.read_text())
-  seen, asking = shaped(told, asked)
-  text, how = noted(here.read_text(), seen, {paper.name: form.name}, asking)
+  src = paper.read_text()
+  seen:dict[str, tuple[Decimal, str]] = {}
+  if is_statement(src):
+    was, _, _ = spoken("labelling")
+    _, questions = label(src)
+    asking = questioned(questions)
+  else:
+    form, told, asked, _ = reading(src)
+    was, seen, asking = form.name, *shaped(told, asked)
+  text, how = noted(here.read_text(), seen, {paper.name: was}, asking)
   rewritten(here, text)
-  ret = [f"{paper.name} read as {form.name}"]
+  ret = [f"{paper.name} read as {was}"]
   if how.proposed: ret += ["", "proposed"] + [f"  {name:<32}{seen[name][0]:>16,}" for name in how.proposed]
   if how.known: ret += ["", "already in the file"] + [f"  {name}" for name in how.known]
   if how.asked: ret += ["", "questions"] + [f"  {question}" for question in how.asked]

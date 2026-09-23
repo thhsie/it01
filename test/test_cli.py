@@ -1,7 +1,7 @@
 import json, os, pathlib, subprocess, sys, tempfile, unittest
 from dataclasses import dataclass
 from decimal import Decimal
-from it01.__main__ import shaped
+from it01.__main__ import questioned, shaped
 from test.helpers import ROOT
 
 @dataclass(frozen=True)
@@ -12,6 +12,8 @@ class Says:
   line: str = ""
   asking: str = ""
   lines: tuple[tuple[str, str], ...] = ()
+  date: str = ""
+  description: str = ""
 
 def run(*args:str) -> subprocess.CompletedProcess:
   return subprocess.run([sys.executable, "-m", "it01", *args], cwd=ROOT, capture_output=True, text=True)
@@ -82,6 +84,10 @@ class TestCli(unittest.TestCase):
     out = statement("Your statement\nOpening balance 1,000.00\nClosing balance 4,500.00\n\f" + STATEMENT).stdout
     self.assertIn("2 amounts on page 1 left out", out)
     self.assertIn("Rent", out)
+
+  def test_a_credit_only_the_taxpayer_can_explain_becomes_a_question(self):
+    questions = (Says(date="12/08/2025", amt=Decimal("1200.00"), description="CASH DEPOSIT", asking="where did this come from"),)
+    self.assertEqual(questioned(questions), [("1,200.00 paid in on 12/08/2025", "where did this come from: CASH DEPOSIT")])
 
   def test_a_reading_becomes_figures_and_questions(self):
     told = (Says(fact="salary", amt=Decimal(1107000), quote="Total emoluments 1,107,000.00"),)
