@@ -4,6 +4,9 @@ from decimal import Decimal
 from it01.helpers import data, instruction
 from it01.llm import ask
 from it01.rows import Check, Entry, entries
+from it01.tax import AMOUNTS
+
+ADRIFT = "the balance after this does not agree, so it is left out"
 
 @dataclass(frozen=True)
 class Credit:
@@ -20,7 +23,7 @@ class Question:
   description: str
   asking: str
 
-def spoken(name:str) -> tuple[str, dict[str, str], dict[str, str]]:
+def spoken(name:str) -> tuple[str, dict[str, str], dict[str, str], dict[str, str]]:
   held = data(name)
   if not isinstance(called := held.get("name"), str) or not called.strip(): raise ValueError(f"{name}.json must say what it reads")
   ret = []
@@ -29,8 +32,17 @@ def spoken(name:str) -> tuple[str, dict[str, str], dict[str, str]]:
     if not isinstance(part, dict) or not part or not all(isinstance(v, str) for v in part.values()):
       raise ValueError(f"{name}.json must hold {field} as an object of names")
     ret.append({str(k): v for k, v in part.items()})
-  if unknown := sorted(set(ret[1]) - set(ret[0])): raise ValueError(f"{name}.json asks about unknown kinds {unknown}")
-  return called, ret[0], ret[1]
+  kinds, asking = ret
+  if not isinstance(given := held.get("feeds", {}), dict) or not all(isinstance(v, str) for v in given.values()):
+    raise ValueError(f"{name}.json must hold feeds as an object of names")
+  feeds = {str(k): v for k, v in given.items()}
+  for part, what in ((feeds, "feeds from"), (asking, "asks about")):
+    if unknown := sorted(set(part) - set(kinds)): raise ValueError(f"{name}.json {what} unknown kinds {unknown}")
+  if unknown := sorted(set(feeds.values()) - set(AMOUNTS)): raise ValueError(f"{name}.json feeds unknown facts {unknown}")
+  if both := sorted(set(feeds) & set(asking)): raise ValueError(f"{name}.json both feeds and asks about {both}")
+  fills = list(feeds.values())
+  if twice := sorted({f for f in fills if fills.count(f) > 1}): raise ValueError(f"{name}.json feeds {twice} from more than one kind")
+  return called, kinds, feeds, asking
 
 def received(text:str) -> tuple[Entry, ...]: return tuple(e for e in entries(text) if e.paid_in is not None)
 
@@ -53,13 +65,22 @@ def named(paid:tuple[Entry, ...], reply:str, kinds:dict[str, str]) -> tuple[Cred
 def asked(found:tuple[Credit, ...], asking:dict[str, str]) -> tuple[Question, ...]:
   return tuple(Question(c.date, c.amt, c.description, asking[c.kind]) for c in found if c.kind in asking)
 
+def fed(found:tuple[Credit, ...], feeds:dict[str, str]) -> tuple[dict[str, tuple[Decimal, str]], tuple[Question, ...]]:
+  ret:dict[str, tuple[Decimal, str]] = {}
+  for kind, fact in feeds.items():
+    if not (same := [c for c in found if c.kind == kind and c.check is not Check.DIFFERS]): continue
+    unsure = sum(1 for c in same if c.check is Check.UNCHECKED)
+    ret[fact] = (sum((c.amt for c in same), Decimal(0)), f"{len(same)} labelled {kind}" + (f", {unsure} unchecked" if unsure else ""))
+  adrift = tuple(Question(c.date, c.amt, c.description, ADRIFT) for c in found if c.kind in feeds and c.check is Check.DIFFERS)
+  return ret, adrift
+
 def totals(found:tuple[Credit, ...]) -> dict[str, Decimal]:
   ret:dict[str, Decimal] = {}
   for c in found: ret[c.kind] = ret.get(c.kind, Decimal(0)) + c.amt
   return ret
 
 def label(text:str) -> tuple[tuple[Credit, ...], tuple[Question, ...]]:
-  _, kinds, asking = spoken("labelling")
+  _, kinds, _, asking = spoken("labelling")
   if not (paid := received(text)): return (), ()
   said = "\n".join(f"{kind}: {means}" for kind, means in kinds.items())
   return (found := named(paid, ask(instruction("labelling") + "\n" + said, listed(paid)), kinds)), asked(found, asking)

@@ -1,7 +1,7 @@
 import pathlib, sys
 from decimal import Decimal
 from typing import TYPE_CHECKING
-from it01.credits import Question, label, spoken, totals
+from it01.credits import Question, fed, label, spoken, totals
 from it01.keep import apart, confirm, figures, keep, loaded, noted
 from it01.read import read
 from it01.rows import Check, dropped, entries, is_statement
@@ -74,16 +74,17 @@ def accepted(here:pathlib.Path, name:str) -> list[str]:
   return [f"{name} is now a fact in {here.name}"]
 
 def questioned(questions:tuple[Question, ...]) -> list[tuple[str, str]]:
-  return [(f"{q.amt:,} paid in on {q.date}", f"{q.asking}: {q.description}") for q in questions]
+  return [(f"{q.amt:,} paid in on {q.date}, {q.description}", q.asking) for q in questions]
 
 def added(here:pathlib.Path, document:str) -> list[str]:
   paper = pathlib.Path(document)
   src = paper.read_text()
   seen:dict[str, tuple[Decimal, str]] = {}
   if is_statement(src):
-    was, _, _ = spoken("labelling")
-    _, questions = label(src)
-    asking = questioned(questions)
+    was, _, feeds, _ = spoken("labelling")
+    found, questions = label(src)
+    seen, adrift = fed(found, feeds)
+    asking = questioned(questions + adrift)
   else:
     form, told, asked, _ = reading(src)
     was, seen, asking = form.name, *shaped(told, asked)

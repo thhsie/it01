@@ -175,7 +175,7 @@ python -m it01 credits statement.txt
 
 Only money paid in is sent. Each credit goes with its date, its amount and its description, numbered. The model answers with a kind for each number.
 
-The kinds and what they mean are in `it01/labelling.json`. Change them to suit your affairs.
+The kinds and what they mean are in `it01/labelling.json`. Change them to suit your affairs. `feeds` says which fact each kind adds to, and a kind named there is never asked about. Leave it out and nothing is proposed.
 
 The totals for each kind are printed, and the number of credits in each. A kind holding a credit with no balance that agrees says how many. Nothing is computed from them. Copy the ones you accept into your facts file.
 
@@ -295,7 +295,7 @@ Five optional keys in the file are set aside before the computation. None of the
 
 `proposed` holds a figure read from a document that you have not yet accepted. It is printed under its own heading, apart from the facts. A name that is not a fact is refused. So is a figure that would be refused as a fact, and a name the file already gives as a fact.
 
-`sources` maps a fact to the line it was read from. It may name a proposed figure instead. A name that is neither is refused. So is naming the business, since a business line carries no wording of its own.
+`sources` maps a fact to the line it was read from, or to how it was worked out. It may name a proposed figure instead. A name that is neither is refused. So is naming the business, since a business line carries no wording of its own.
 
 `documents` maps a document you have read to what it was. `answers` maps a question you were asked to what you replied. `pending` maps a question still open to what to do about it.
 
@@ -309,7 +309,9 @@ Reading a document into the file writes what was found.
 python -m it01 add facts.json statement.txt
 ```
 
-A document with a running balance column is read as a bank statement and labelled through your endpoint. The credits only you can explain are written to `pending` as questions. Any other document is read with the model file above.
+A document with a running balance column is read as a bank statement and labelled through your endpoint. Each kind that feeds a fact is totalled and written to `proposed`. The credits only you can explain are written to `pending` as questions. Any other document is read with the model file above.
+
+A credit whose balance does not agree is left out of that total and asked about instead.
 
 The document is recorded under `documents` with what it was read as. Each figure the reader settles is written to `proposed`, with the line it came from written to `sources`. Each figure it cannot settle is written to `pending` as a question.
 

@@ -87,7 +87,12 @@ class TestCli(unittest.TestCase):
 
   def test_a_credit_only_the_taxpayer_can_explain_becomes_a_question(self):
     questions = (Says(date="12/08/2025", amt=Decimal("1200.00"), description="CASH DEPOSIT", asking="where did this come from"),)
-    self.assertEqual(questioned(questions), [("1,200.00 paid in on 12/08/2025", "where did this come from: CASH DEPOSIT")])
+    self.assertEqual(questioned(questions), [("1,200.00 paid in on 12/08/2025, CASH DEPOSIT", "where did this come from")])
+
+  def test_two_credits_alike_but_for_the_wording_ask_two_questions(self):
+    both = (Says(date="12/08/2025", amt=Decimal("500.00"), description="CASH ONE", asking="where did this come from"),
+            Says(date="12/08/2025", amt=Decimal("500.00"), description="CASH TWO", asking="where did this come from"))
+    self.assertEqual(len(dict(questioned(both))), 2)
 
   def test_a_reading_becomes_figures_and_questions(self):
     told = (Says(fact="salary", amt=Decimal(1107000), quote="Total emoluments 1,107,000.00"),)
