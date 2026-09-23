@@ -84,6 +84,7 @@ def questioned(questions:tuple[Question, ...]) -> list[tuple[str, str]]:
 
 def added(here:pathlib.Path, document:str) -> list[str]:
   paper = pathlib.Path(document)
+  if paper.name in apart(loaded(here.read_text()))[1]["documents"]: return [f"{paper.name} was read before, so nothing changed"]
   src = source(paper)
   seen:dict[str, tuple[Decimal, str]] = {}
   if is_statement(src):
@@ -98,7 +99,6 @@ def added(here:pathlib.Path, document:str) -> list[str]:
   rewritten(here, text)
   ret = [f"{paper.name} read as {was}"]
   if how.proposed: ret += ["", "proposed"] + [f"  {name:<32}{seen[name][0]:>16,}" for name in how.proposed]
-  if how.known: ret += ["", "already in the file"] + [f"  {name}" for name in how.known]
   if how.asked: ret += ["", "questions"] + [f"  {question}" for question in how.asked]
   return ret
 
