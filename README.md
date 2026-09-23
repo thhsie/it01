@@ -33,7 +33,7 @@ it01 q1.json
 
 `period` is `year` unless you say otherwise. A quarter is taxed on its own bands and takes a quarter of the deduction for dependants. It credits the tax deducted at source in that quarter and owes no fair share contribution.
 
-A quarter takes `rent`, `losses_brought_forward` and `tax_deducted_at_source`. Every other fact is refused by name, and a business in a quarter is not supported yet.
+A quarter takes `rent`, `losses_brought_forward`, `tax_deducted_at_source` and `business`. Every other fact is refused by name. In a quarter, the allowance on an asset is a quarter of the annual allowance, and the figure is named that way.
 
 ## Drop a document in
 
@@ -46,9 +46,13 @@ it01 confirm facts.json resident_dividends
 
 The endpoint takes OpenAI-compatible chat requests and can be on your computer or on a server.
 
+A document is read as text. Installing `it01[pdf]` lets a PDF be given instead, and its text layer is taken page by page. A page with no text is refused, and the message names the page. Read a scan off the page first, with a tool of your own.
+
 `add` works out what the document is. A running balance column means a bank statement, which is labelled through your endpoint. Anything else is read with a model file of your own.
 
-What it finds goes to `proposed`, with a note of where it came from. What it cannot place goes to `pending` as a question. Nothing is overwritten, and a figure that disagrees with the file becomes a question naming both.
+What it finds goes to `proposed`, with a note of where it came from. What it cannot place goes to `pending` as a question. A figure for a name already proposed is added to it, and both notes are kept.
+
+A document whose name is already in `documents` is not read at all, and the file is left alone. A figure for a fact you have confirmed becomes a question, so a second document never changes a confirmed figure on its own.
 
 `keep` prints everything processed so far. `confirm` moves one figure into the facts, and nothing else does.
 
@@ -87,7 +91,7 @@ medical_insurance            other_reliefs                paye_withheld
 tax_deducted_at_source       quarterly_tax_paid
 ```
 
-`salary` holds all emoluments. `rent` holds income from letting, and `other_income` holds income that is neither emoluments, rent nor business. `business` holds the accounts line by line as the return lists them, with an `assets` list for annual allowances.
+`salary` holds all emoluments. `rent` holds income from letting. `other_income` holds income that is neither emoluments, rent nor business. `business` holds the accounts line by line as the return lists them, with an `assets` list for annual allowances.
 
 Five keys are set aside before the computation and none of them reaches it: `proposed`, `sources`, `documents`, `answers`, `pending`.
 

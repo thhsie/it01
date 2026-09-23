@@ -13,7 +13,7 @@
   },
   "feeds": {
     "dividend": "resident_dividends",
-    "rent": "other_income"
+    "rent": "rent"
   },
   "asking": {
     "cash": "where did this cash come from",
