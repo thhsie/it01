@@ -2,7 +2,7 @@ import json
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
-from it01.tax import AMOUNTS, JSON_TYPES, ZERO, Facts, amount, assess, from_json, is_amount
+from it01.tax import AMOUNTS, JSON_TYPES, ZERO, Facts, Figure, amount, assess, from_json, is_amount
 
 TITLES = {"documents": "documents you read", "answers": "questions you answered", "pending": "questions still open"}
 WORDING = ("sources", *TITLES)
@@ -93,9 +93,11 @@ def shown(value:Any) -> str:
   if isinstance(value, str): return value
   return f"{value:,}"
 
+def assessed(given:dict[str, Any]) -> tuple[Figure, ...]: return assess(from_json(Facts, given))
+
 def figures(given:dict[str, Any]) -> list[str]:
   ret = []
-  for fig in assess(from_json(Facts, given)):
+  for fig in assessed(given):
     ret += [f"{fig.rule:<46}{fig.amt:>14,}"] + [f"  {s.section:<42}{s.url}" for s in fig.src]
   return ret
 
@@ -115,6 +117,20 @@ def with_wording(given:dict[str, Any], sources:dict[str, str]) -> list[str]:
     ret += stated(name, value, 1)
     if said := sources.get(name): ret.append(f"      {said}")
   return ret
+
+def texted(value:Any) -> Any:
+  if isinstance(value, (bool, str)): return value
+  if isinstance(value, (int, Decimal)): return str(value)
+  if isinstance(value, list): return [texted(one) for one in value]
+  if isinstance(value, dict): return {name: texted(one) for name, one in value.items()}
+  raise ValueError(f"a case holds no {type(value).__name__} {value}")
+
+def case(text:str) -> dict[str, Any]:
+  given, held, proposed = apart(loaded(text))
+  worked = [{"rule": fig.rule, "amount": str(fig.amt),
+             "sources": [{"doc": s.doc, "section": s.section, "page": s.page, "url": s.url} for s in fig.src]}
+            for fig in assessed(given)]
+  return {"facts": texted(given), "proposed": texted(proposed)} | held | {"figures": worked}
 
 def keep(text:str) -> list[str]:
   given, held, proposed = apart(loaded(text))

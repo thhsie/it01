@@ -54,7 +54,7 @@ What it finds goes to `proposed`, with a note of where it came from. What it can
 
 A document whose name is already in `documents` is not read at all, and the file is left alone. A figure for a fact you have confirmed becomes a question, so a second document never changes a confirmed figure on its own.
 
-`keep` prints everything processed so far. `confirm` moves one figure into the facts, and nothing else does.
+`keep` prints everything processed so far. `confirm` moves one figure into the facts, and nothing else does. `data` prints the same case as JSON, with every number as text.
 
 ## Read with a model file of your own
 
@@ -118,6 +118,7 @@ it01 read DOCUMENT.txt             propose facts through your endpoint
 it01 local DOCUMENT.txt            propose facts with your model file
 it01 rows STATEMENT.txt            read transactions
 it01 credits STATEMENT.txt         label what was paid in
+it01 data FACTS.json               print the whole case as JSON
 ```
 
 `IT01_KEY` is a bearer token if your endpoint needs one, `IT01_TIMEOUT` the seconds to wait, `IT01_DEBUG=2` prints the endpoint's reply. `IT01_DATA` is a folder holding your own copies of the JSON files in `it01/`.
