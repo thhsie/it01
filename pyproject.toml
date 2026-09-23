@@ -62,5 +62,5 @@ warn_unused_ignores = true
 warn_unused_configs = true
 
 [[tool.mypy.overrides]]
-module = ["numpy.*", "onnxruntime.*", "tokenizers.*"]
+module = ["numpy.*", "onnxruntime.*", "tokenizers.*", "pypdf.*"]
 ignore_missing_imports = true
