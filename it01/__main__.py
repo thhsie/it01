@@ -8,10 +8,10 @@ from it01.rows import Check, dropped, entries, is_statement
 if TYPE_CHECKING: from it01.local import Asked, Form, Sum, Told
 
 MARKS = {Check.AGREES: "ok", Check.DIFFERS: "does not agree", Check.UNCHECKED: "not checked"}
-USAGE = ("usage: python -m it01 FACTS.json\n       python -m it01 read DOCUMENT.txt\n"
-         "       python -m it01 rows STATEMENT.txt\n       python -m it01 credits STATEMENT.txt\n"
-         "       python -m it01 keep FACTS.json\n       python -m it01 local DOCUMENT.txt\n"
-         "       python -m it01 confirm FACTS.json FACT\n       python -m it01 add FACTS.json DOCUMENT.txt")
+USAGE = ("usage: it01 FACTS.json\n       it01 read DOCUMENT.txt\n"
+         "       it01 rows STATEMENT.txt\n       it01 credits STATEMENT.txt\n"
+         "       it01 keep FACTS.json\n       it01 local DOCUMENT.txt\n"
+         "       it01 confirm FACTS.json FACT\n       it01 add FACTS.json DOCUMENT.txt")
 
 def money(amt:Decimal|None) -> str: return f"{amt:,}" if amt is not None else ""
 

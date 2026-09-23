@@ -1,4 +1,4 @@
-import json, os, pathlib, subprocess, sys, tempfile, unittest
+import importlib, json, os, pathlib, subprocess, sys, tempfile, tomllib, unittest
 from dataclasses import dataclass
 from decimal import Decimal
 from it01.__main__ import questioned, shaped
@@ -112,6 +112,11 @@ class TestCli(unittest.TestCase):
   def test_reads_assets(self):
     out = assess(json.dumps({"resident": True, "business": {"gross_income": 100000, "assets": [{"kind": "computer", "cost": 80000}]}})).stdout
     self.assertIn(f"{'annual allowance on computer':<46}{'40,000':>14}", out)
+
+  def test_entry_point_resolves(self):
+    spec = tomllib.loads((ROOT/"pyproject.toml").read_text())["project"]["scripts"]["it01"]
+    where, name = spec.split(":")
+    self.assertTrue(callable(getattr(importlib.import_module(where), name)))
 
   def test_usage(self):
     for args in ((), ("read",), ("rows",), ("credits",), ("keep",), ("local",), ("read", "a", "b"), ("keep", "a", "b"), ("a", "b"),
