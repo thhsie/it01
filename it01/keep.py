@@ -51,7 +51,7 @@ def stated(name:str, value:Any, deep:int) -> list[str]:
 def states(given:dict[str, Any], deep:int) -> list[str]:
   return [line for name, value in given.items() for line in stated(name, value, deep)]
 
-def confirmed(given:dict[str, Any], sources:dict[str, str]) -> list[str]:
+def with_wording(given:dict[str, Any], sources:dict[str, str]) -> list[str]:
   ret = []
   for name, value in given.items():
     ret += stated(name, value, 1)
@@ -61,7 +61,7 @@ def confirmed(given:dict[str, Any], sources:dict[str, str]) -> list[str]:
 def keep(text:str) -> list[str]:
   given, held = apart(loaded(text))
   worked = figures(given)
-  ret = ["facts you confirmed"] + confirmed(given, held["sources"]) + ["", "figures"] + ["  " + line for line in worked]
+  ret = ["facts you confirmed"] + with_wording(given, held["sources"]) + ["", "figures"] + ["  " + line for line in worked]
   for name, title in TITLES.items():
     if not held[name]: continue
     ret += ["", title]
