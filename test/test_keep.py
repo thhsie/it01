@@ -146,6 +146,12 @@ class TestKeep(unittest.TestCase):
     asked = [("cash of 1,200.00 on 12/08/2025", FACTS["pending"]["cash of 1,200.00 on 12/08/2025"])]
     self.assertEqual(loaded(noted(written(), {}, {}, asked)[0])["pending"], FACTS["pending"])
 
+  def test_a_question_already_answered_is_not_asked_again(self):
+    was = "cash of 500.00 on 05/07/2025"
+    text, how = noted(written(), {}, {}, [(was, "what is this money")])
+    self.assertEqual(loaded(text).get("pending"), FACTS["pending"])
+    self.assertEqual((how.asked, how.answered), ((), (was,)))
+
   def test_the_document_that_was_read_is_recorded(self):
     text, _ = noted(written(), {}, {"payslip.txt": "payslip"}, [])
     self.assertEqual(loaded(text)["documents"]["payslip.txt"], "payslip")

@@ -111,6 +111,7 @@ def added(here:pathlib.Path, document:str) -> list[str]:
   ret = [f"{paper.name} read as {was}"]
   if how.proposed: ret += ["", "proposed"] + [f"  {name:<32}{seen[name][0]:>16,}" for name in how.proposed]
   if how.asked: ret += ["", "questions"] + [f"  {question}" for question in how.asked]
+  if how.answered: ret += ["", "asked before and answered"] + [f"  {question}" for question in how.answered]
   return ret
 
 def to_data(text:str) -> list[str]: return [dumped(case(text))]
