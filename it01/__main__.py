@@ -1,14 +1,15 @@
 import pathlib, sys
 from decimal import Decimal
 from it01.credits import label, totals
-from it01.keep import apart, figures, keep, loaded
+from it01.keep import apart, confirm, figures, keep, loaded
 from it01.read import read
 from it01.rows import Check, dropped, entries
 
 MARKS = {Check.AGREES: "ok", Check.DIFFERS: "does not agree", Check.UNCHECKED: "not checked"}
 USAGE = ("usage: python -m it01 FACTS.json\n       python -m it01 read DOCUMENT.txt\n"
          "       python -m it01 rows STATEMENT.txt\n       python -m it01 credits STATEMENT.txt\n"
-         "       python -m it01 keep FACTS.json\n       python -m it01 local DOCUMENT.txt")
+         "       python -m it01 keep FACTS.json\n       python -m it01 local DOCUMENT.txt\n"
+         "       python -m it01 confirm FACTS.json FACT")
 
 def money(amt:Decimal|None) -> str: return f"{amt:,}" if amt is not None else ""
 
@@ -53,16 +54,24 @@ def to_credits(text:str) -> list[str]:
   if questions: ret += ["", "questions"] + [f"  {q.date:<12}{q.amt:>14,}  {q.asking:<30}{q.description}" for q in questions]
   return ret
 
+def accepted(here:pathlib.Path, name:str) -> list[str]:
+  spare = here.with_suffix(here.suffix + ".new")
+  spare.write_text(confirm(here.read_text(), name))
+  spare.replace(here)
+  return [f"{name} is now a fact in {here.name}"]
+
 VERBS = {"read": to_proposals, "rows": to_transactions, "credits": to_credits, "keep": keep, "local": to_local}
 
 def main() -> int:
   args = sys.argv[1:]
+  edit = args[:1] == ["confirm"]
   named = VERBS.get(args[0]) if args else None
-  shape, rest = (named, args[1:]) if named else (to_figures, args)
-  if len(rest) != 1:
+  rest = args[1:] if named or edit else args
+  if len(rest) != (2 if edit else 1):
     print(USAGE, file=sys.stderr)
     return 2
-  try: lines = shape(pathlib.Path(rest[0]).read_text())
+  here = pathlib.Path(rest[0])
+  try: lines = accepted(here, rest[1]) if edit else (named or to_figures)(here.read_text())
   except (OSError, ValueError) as e:
     print(f"error: {e}", file=sys.stderr)
     return 1

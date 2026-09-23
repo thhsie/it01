@@ -303,6 +303,16 @@ Those four hold text against text. A blank key or a blank value is refused in an
 
 The command that computes the tax reads the same file. All five keys are set aside before the facts are computed.
 
+Accepting a proposed figure moves it among the facts.
+
+```sh
+python -m it01 confirm facts.json other_income
+```
+
+The figure leaves `proposed` and becomes a fact under the same name. Its wording stays where it was. A name that is not proposed is refused. No other command moves a figure into the facts.
+
+The file is rewritten in place, with the facts first and the five keys after them. Amounts keep the digits you wrote. Your spacing and key order are not kept, and a key holding nothing is dropped. A write that fails leaves the original beside a file named for it, ending in `.new`.
+
 ## Development
 
 ```sh

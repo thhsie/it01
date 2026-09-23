@@ -42,6 +42,25 @@ def apart(raw:Any) -> tuple[dict[str, Any], dict[str, dict[str, str]], dict[str,
   if nested := sorted(k for k in held["sources"] if isinstance(given.get(k), (dict, list))): raise ValueError(f"sources cannot name {nested}")
   return given, held, proposed
 
+def dumped(value:Any, deep:int=0) -> str:
+  pad = "  " * deep
+  if isinstance(value, bool): return "true" if value else "false"
+  if isinstance(value, (int, Decimal)): return str(value)
+  if isinstance(value, str): return json.dumps(value)
+  if isinstance(value, list) and not value: return "[]"
+  if isinstance(value, dict) and not value: return "{}"
+  if isinstance(value, list): return "[\n" + ",\n".join(f"{pad}  " + dumped(item, deep + 1) for item in value) + f"\n{pad}]"
+  if isinstance(value, dict):
+    return "{\n" + ",\n".join(f"{pad}  {json.dumps(k)}: " + dumped(v, deep + 1) for k, v in value.items()) + f"\n{pad}}}"
+  raise ValueError(f"a case file cannot hold {value}")
+
+def confirm(text:str, name:str) -> str:
+  given, held, proposed = apart(loaded(text))
+  if name not in proposed: raise ValueError(f"nothing is proposed for {name}")
+  ret:dict[str, Any] = given | {name: proposed[name]}
+  if left := {k: v for k, v in proposed.items() if k != name}: ret["proposed"] = left
+  return dumped(ret | {k: v for k, v in held.items() if v}) + "\n"
+
 def shown(value:Any) -> str:
   if isinstance(value, bool): return "yes" if value else "no"
   if isinstance(value, str): return value
