@@ -120,7 +120,8 @@ class TestCli(unittest.TestCase):
 
   def test_usage(self):
     for args in ((), ("read",), ("rows",), ("credits",), ("keep",), ("local",), ("read", "a", "b"), ("keep", "a", "b"), ("a", "b"),
-                 ("confirm",), ("confirm", "a"), ("confirm", "a", "b", "c"), ("add",), ("add", "a"), ("add", "a", "b", "c")):
+                 ("confirm",), ("confirm", "a"), ("confirm", "a", "b", "c"), ("add",), ("add", "a"), ("add", "a", "b", "c"),
+                 ("answer",), ("answer", "a"), ("answer", "a", "b"), ("answer", "a", "b", "c", "d")):
       self.assertEqual(run(*args).returncode, 2, args)
 
   def test_a_document_already_read_is_not_read_again(self):
@@ -146,6 +147,41 @@ class TestCli(unittest.TestCase):
     self.addCleanup(os.unlink, name)
     ret = run("confirm", name, "rent")
     self.assertEqual((ret.returncode, ret.stderr), (1, "error: nothing is proposed for rent\n"))
+    self.assertEqual(pathlib.Path(name).read_text(), was)
+
+  def test_answering_a_question_by_the_start_of_its_wording(self):
+    asked = "1,200.00 paid in on 12/08/2025, CASH"
+    name = on_disk(json.dumps({"resident": True, "salary": 1200000, "pending": {asked: "what is this money"}}))
+    self.addCleanup(os.unlink, name)
+    ret = run("answer", name, "1,200.00 PAID in", "sold my old bicycle")
+    held = json.loads(pathlib.Path(name).read_text())
+    self.assertEqual((ret.returncode, held["answers"][asked], "pending" in held), (0, "sold my old bicycle", False))
+    self.assertIn("sold my old bicycle", ret.stdout)
+
+  def test_a_wording_that_matches_no_question_or_two_leaves_the_file_alone(self):
+    was = json.dumps({"resident": True, "pending": {"1,200.00 paid in, CASH": "what is this", "1,200.00 paid in, ATM": "what is this"}})
+    for which, cnt in (("1,200.00", 2), ("900.00", 0), ("200", 0)):
+      name = on_disk(was)
+      self.addCleanup(os.unlink, name)
+      with self.subTest(which):
+        ret = run("answer", name, which, "a gift")
+        self.assertEqual((ret.returncode, ret.stderr), (1, f"error: {cnt} open questions match {which}\n"))
+        self.assertEqual(pathlib.Path(name).read_text(), was)
+
+  def test_the_whole_wording_picks_the_question_it_is_the_start_of(self):
+    short, long = "cash of 1,200.00", "cash of 1,200.00 on 12/08/2025"
+    name = on_disk(json.dumps({"resident": True, "pending": {short: "what is this", long: "what is this"}}))
+    self.addCleanup(os.unlink, name)
+    ret = run("answer", name, short, "a gift")
+    held = json.loads(pathlib.Path(name).read_text())
+    self.assertEqual((ret.returncode, held["answers"], held["pending"]), (0, {short: "a gift"}, {long: "what is this"}))
+
+  def test_a_blank_question_answers_nothing(self):
+    was = json.dumps({"resident": True, "pending": {"1,200.00 paid in, CASH": "what is this"}})
+    name = on_disk(was)
+    self.addCleanup(os.unlink, name)
+    ret = run("answer", name, "", "a gift")
+    self.assertEqual((ret.returncode, ret.stderr), (1, "error: the question to answer is blank\n"))
     self.assertEqual(pathlib.Path(name).read_text(), was)
 
   def test_prints_transactions_with_their_check(self):

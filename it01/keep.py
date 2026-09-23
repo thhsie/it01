@@ -88,6 +88,15 @@ def confirm(text:str, name:str) -> str:
   given |= {name: proposed.pop(name)}
   return as_file(given, held, proposed)
 
+def answer(text:str, question:str, said:str) -> str:
+  given, held, proposed = apart(loaded(text))
+  if question not in held["pending"]: raise ValueError(f"no open question {question}")
+  if question in held["answers"]: raise ValueError(f"already answered {question}")
+  if not said.strip(): raise ValueError(f"the answer to {question} is blank")
+  held["answers"][question] = said
+  del held["pending"][question]
+  return as_file(given, held, proposed)
+
 def shown(value:Any) -> str:
   if isinstance(value, bool): return "yes" if value else "no"
   if isinstance(value, str): return value

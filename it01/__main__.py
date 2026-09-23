@@ -1,8 +1,9 @@
 import pathlib, sys
+from collections.abc import Callable
 from decimal import Decimal
 from typing import TYPE_CHECKING
 from it01.credits import Question, fed, label, spoken, totals
-from it01.keep import apart, case, confirm, dumped, figures, keep, loaded, noted
+from it01.keep import answer, apart, case, confirm, dumped, figures, keep, loaded, noted
 from it01.read import read
 from it01.rows import Check, dropped, entries, is_statement
 if TYPE_CHECKING: from it01.local import Asked, Form, Sum, Told
@@ -12,7 +13,7 @@ USAGE = ("usage: it01 FACTS.json\n       it01 read DOCUMENT\n"
          "       it01 rows STATEMENT\n       it01 credits STATEMENT\n"
          "       it01 keep FACTS.json\n       it01 local DOCUMENT\n"
          "       it01 confirm FACTS.json FACT\n       it01 add FACTS.json DOCUMENT\n"
-         "       it01 data FACTS.json")
+         "       it01 answer FACTS.json QUESTION ANSWER\n       it01 data FACTS.json")
 
 def money(amt:Decimal|None) -> str: return f"{amt:,}" if amt is not None else ""
 
@@ -80,6 +81,15 @@ def accepted(here:pathlib.Path, name:str) -> list[str]:
   rewritten(here, confirm(here.read_text(), name))
   return [f"{name} is now a fact in {here.name}"]
 
+def responded(here:pathlib.Path, asked:str, said:str) -> list[str]:
+  if not (asked := asked.strip()): raise ValueError("the question to answer is blank")
+  text = here.read_text()
+  pending = list(apart(loaded(text))[1]["pending"])
+  hit = [asked] if asked in pending else [q for q in pending if q.lower().startswith(asked.lower())]
+  if len(hit) != 1: raise ValueError(f"{len(hit)} open questions match {asked}")
+  rewritten(here, answer(text, hit[0], said))
+  return [f"answered {hit[0]}", f"  {said}"]
+
 def questioned(questions:tuple[Question, ...]) -> list[tuple[str, str]]:
   return [(f"{q.amt:,} paid in on {q.date}, {q.description}", q.asking) for q in questions]
 
@@ -106,17 +116,17 @@ def added(here:pathlib.Path, document:str) -> list[str]:
 def to_data(text:str) -> list[str]: return [dumped(case(text))]
 
 VERBS = {"read": to_proposals, "rows": to_transactions, "credits": to_credits, "keep": keep, "local": to_local, "data": to_data}
-EDITS = {"confirm": accepted, "add": added}
+EDITS:dict[str, tuple[Callable[..., list[str]], int]] = {"confirm": (accepted, 2), "add": (added, 2), "answer": (responded, 3)}
 
 def main() -> int:
   args = sys.argv[1:]
   named, edit = (VERBS.get(args[0]), EDITS.get(args[0])) if args else (None, None)
   rest = args[1:] if named or edit else args
-  if len(rest) != (2 if edit else 1):
+  if len(rest) != (edit[1] if edit else 1):
     print(USAGE, file=sys.stderr)
     return 2
   here = pathlib.Path(rest[0])
-  try: lines = edit(here, rest[1]) if edit else (named or to_figures)(source(here))
+  try: lines = edit[0](here, *rest[1:]) if edit else (named or to_figures)(source(here))
   except (OSError, ValueError) as e:
     print(f"error: {e}", file=sys.stderr)
     return 1
