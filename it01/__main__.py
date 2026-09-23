@@ -8,10 +8,10 @@ from it01.rows import Check, dropped, entries, is_statement
 if TYPE_CHECKING: from it01.local import Asked, Form, Sum, Told
 
 MARKS = {Check.AGREES: "ok", Check.DIFFERS: "does not agree", Check.UNCHECKED: "not checked"}
-USAGE = ("usage: it01 FACTS.json\n       it01 read DOCUMENT.txt\n"
-         "       it01 rows STATEMENT.txt\n       it01 credits STATEMENT.txt\n"
-         "       it01 keep FACTS.json\n       it01 local DOCUMENT.txt\n"
-         "       it01 confirm FACTS.json FACT\n       it01 add FACTS.json DOCUMENT.txt")
+USAGE = ("usage: it01 FACTS.json\n       it01 read DOCUMENT\n"
+         "       it01 rows STATEMENT\n       it01 credits STATEMENT\n"
+         "       it01 keep FACTS.json\n       it01 local DOCUMENT\n"
+         "       it01 confirm FACTS.json FACT\n       it01 add FACTS.json DOCUMENT")
 
 def money(amt:Decimal|None) -> str: return f"{amt:,}" if amt is not None else ""
 
@@ -21,6 +21,12 @@ def to_proposals(text:str) -> list[str]:
   ret = []
   for p in read(text): ret += [f"{p.fact:<46}{p.amt:>14,}", f"  {p.quote}"]
   return ret or ["no facts found in the document"]
+
+def source(here:pathlib.Path) -> str:
+  if here.suffix.lower() != ".pdf": return here.read_text()
+  try: from it01.paper import to_text
+  except ImportError as e: raise ValueError(f"reading a PDF needs pip install 'it01[pdf]' ({e})") from e
+  return to_text(here)
 
 def reading(text:str) -> tuple["Form", tuple["Told", ...], tuple["Asked", ...], tuple["Sum", ...]]:
   try: from it01.local import found, tells, wanted
@@ -78,7 +84,7 @@ def questioned(questions:tuple[Question, ...]) -> list[tuple[str, str]]:
 
 def added(here:pathlib.Path, document:str) -> list[str]:
   paper = pathlib.Path(document)
-  src = paper.read_text()
+  src = source(paper)
   seen:dict[str, tuple[Decimal, str]] = {}
   if is_statement(src):
     was, _, feeds, _ = spoken("labelling")
@@ -107,7 +113,7 @@ def main() -> int:
     print(USAGE, file=sys.stderr)
     return 2
   here = pathlib.Path(rest[0])
-  try: lines = edit(here, rest[1]) if edit else (named or to_figures)(here.read_text())
+  try: lines = edit(here, rest[1]) if edit else (named or to_figures)(source(here))
   except (OSError, ValueError) as e:
     print(f"error: {e}", file=sys.stderr)
     return 1
