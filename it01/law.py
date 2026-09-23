@@ -2,7 +2,8 @@ from dataclasses import dataclass
 from decimal import Decimal
 from enum import Enum, auto
 
-DOCS = {"ita": "https://www.mra.mu/download/ITAConsolidated.pdf", "regs": "https://www.mra.mu/download/ITaxRegulationsGN78of1996.pdf"}
+DOCS = {"ita": "https://www.mra.mu/download/ITAConsolidated.pdf", "regs": "https://www.mra.mu/download/ITaxRegulationsGN78of1996.pdf",
+        "cps": "https://www.mra.mu/download/GuidelinesCPS.pdf"}
 
 @dataclass(frozen=True)
 class Source:
@@ -29,6 +30,17 @@ FAIR_SHARE_SRC = (Source("ita", "s.16B", 35), Source("ita", "s.16C", 37))
 CREDITS_SRC = (Source("ita", "s.93(1)", 115), Source("ita", "s.103", 121), Source("ita", "s.111(2)", 123), Source("ita", "s.111G", 129),
                Source("ita", "s.152(1)", 222))
 LOSSES_SRC = (Source("ita", "s.20", 40),)
+QUARTER_BANDS = ((Decimal(125000), Decimal(0)), (Decimal(125000), Decimal("0.10")), (Decimal("Infinity"), Decimal("0.20")))
+QUARTER_BANDS_SRC = (Source("ita", "s.108", 123), Source("cps", "9. Calculation of Tax", 6))
+QUARTER_INCOME_SRC = (Source("ita", "s.105", 121), Source("ita", "s.107(2)", 122))
+QUARTER_CREDIT_SRC = (Source("ita", "s.111G", 129), Source("cps", "10. Tax Deducted at Source", 7))
+QUARTER_RELIEF = Decimal("0.25")
+
+class Period(Enum):
+  YEAR = auto()
+  QUARTER = auto()
+
+RATES = {Period.YEAR: (BANDS, BANDS_SRC), Period.QUARTER: (QUARTER_BANDS, QUARTER_BANDS_SRC)}
 
 class Basis(Enum):
   COST = auto()

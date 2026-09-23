@@ -22,6 +22,19 @@ python -m it01 facts.json
 
 It computes chargeable income, income tax, fair share contribution, total tax, the balance after tax already paid, and the losses to carry forward. Each figure prints with the sections behind it and a link to the page of the law.
 
+## Pay the tax on a quarter
+
+A person with rental income pays tax on each of the first three quarters of the year.
+
+```sh
+echo '{"resident": true, "dependants": 1, "rent": 400000, "period": "quarter"}' > q1.json
+python -m it01 q1.json
+```
+
+`period` is `year` unless you say otherwise. A quarter is taxed on its own bands and takes a quarter of the deduction for dependants. It credits the tax deducted at source in that quarter and owes no fair share contribution.
+
+A quarter takes `rent`, `losses_brought_forward` and `tax_deducted_at_source`. Every other fact is refused by name, and a business in a quarter is not supported yet.
+
 ## Drop a document in
 
 ```sh
@@ -68,13 +81,13 @@ Only `resident` is required. `dependants` is a count and `business` is an object
 
 ```
 salary                       taxable_transport_allowance  performance_bonus
-statutory_bonus              other_income                 losses_brought_forward
-resident_dividends           housing_loan_interest        medical_insurance
-other_reliefs                paye_withheld                tax_deducted_at_source
-quarterly_tax_paid
+statutory_bonus              other_income                 rent
+losses_brought_forward       resident_dividends           housing_loan_interest
+medical_insurance            other_reliefs                paye_withheld
+tax_deducted_at_source       quarterly_tax_paid
 ```
 
-`salary` holds all emoluments. `business` holds the accounts line by line as the return lists them, with an `assets` list for annual allowances.
+`salary` holds all emoluments. `rent` holds income from letting, and `other_income` holds income that is neither emoluments, rent nor business. `business` holds the accounts line by line as the return lists them, with an `assets` list for annual allowances.
 
 Five keys are set aside before the computation and none of them reaches it: `proposed`, `sources`, `documents`, `answers`, `pending`.
 

@@ -3,8 +3,9 @@ from dataclasses import MISSING, dataclass, fields
 from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
 from enum import Enum
 from typing import Any, get_args, get_origin
-from it01.law import (BANDS, BANDS_SRC, CHARGEABLE_SRC, DEPENDANTS, DEPENDANTS_SRC, INTEREST_BAR, INTEREST_SRC, MEDICAL, MEDICAL_SRC, RESIDENT_SRC,
+from it01.law import (CHARGEABLE_SRC, DEPENDANTS, DEPENDANTS_SRC, INTEREST_BAR, INTEREST_SRC, MEDICAL, MEDICAL_SRC, RESIDENT_SRC,
                       Source, CREDITS_SRC, FAIR_SHARE_RATE, FAIR_SHARE_SRC, FAIR_SHARE_THRESHOLD, LOSSES_SRC, ALLOWANCE_SRC, ALLOWANCES,
+                      Period, QUARTER_CREDIT_SRC, QUARTER_INCOME_SRC, QUARTER_RELIEF, RATES,
                       MOTOR_VEHICLE_CAP, SMALL_PLANT, AssetKind, Basis, BUSINESS_SRC, DISALLOWED, DISALLOWED_SRC)
 
 ZERO = Decimal(0)
@@ -101,6 +102,7 @@ class Facts:
   performance_bonus: Decimal = ZERO
   statutory_bonus: Decimal = ZERO
   other_income: Decimal = ZERO
+  rent: Decimal = ZERO
   losses_brought_forward: Decimal = ZERO
   resident_dividends: Decimal = ZERO
   housing_loan_interest: Decimal = ZERO
@@ -110,15 +112,20 @@ class Facts:
   tax_deducted_at_source: Decimal = ZERO
   quarterly_tax_paid: Decimal = ZERO
   business: Business = Business()
+  period: Period = Period.YEAR
 
   def __post_init__(self) -> None:
     if self.dependants < 0: raise ValueError(f"invalid dependants {self.dependants}")
     check_amounts(self)
+    if self.period is Period.YEAR: return
+    if self.business != Business(): raise ValueError("a business in a quarter is not supported yet")
+    if held := sorted(n for n in AMOUNTS if n not in QUARTERLY and getattr(self, n)): raise ValueError(f"a quarter does not take {held}")
 
   @property
   def emoluments(self) -> Decimal: return self.salary + self.taxable_transport_allowance + self.performance_bonus + self.statutory_bonus
 
 AMOUNTS = amount_names(Facts)
+QUARTERLY = ("rent", "losses_brought_forward", "tax_deducted_at_source")
 
 def from_json[T:(Facts, Business, Asset)](cls:type[T], raw:Any) -> T:
   name = cls.__name__.lower()
@@ -143,34 +150,41 @@ def rupees(x:Decimal) -> Decimal: return x.quantize(Decimal(1), ROUND_HALF_UP)
 
 def net_income_and_losses(f:Facts) -> tuple[Decimal, Decimal]:
   business = f.business.net_income
-  other = f.other_income + max(ZERO, business)
+  other = f.other_income + f.rent + max(ZERO, business)
   used = min(other, losses := f.losses_brought_forward + max(ZERO, -business))
   return f.emoluments + other - used, losses - used
 
 def chargeable_income(f:Facts) -> Figure:
   amt, src = net_income_and_losses(f)[0], list(CHARGEABLE_SRC + RESIDENT_SRC + LOSSES_SRC)
+  if f.period is Period.QUARTER: src += QUARTER_INCOME_SRC
   if f.resident:
     cnt = min(f.dependants, len(DEPENDANTS) - 1)
-    interest = f.housing_loan_interest if amt + f.resident_dividends <= INTEREST_BAR else ZERO
-    amt -= DEPENDANTS[cnt] + min(f.medical_insurance, MEDICAL[cnt]) + interest + f.other_reliefs
-    src += DEPENDANTS_SRC + MEDICAL_SRC + INTEREST_SRC
+    if f.period is Period.QUARTER: amt, src = amt - DEPENDANTS[cnt] * QUARTER_RELIEF, src + list(DEPENDANTS_SRC)
+    else:
+      interest = f.housing_loan_interest if amt + f.resident_dividends <= INTEREST_BAR else ZERO
+      amt -= DEPENDANTS[cnt] + min(f.medical_insurance, MEDICAL[cnt]) + interest + f.other_reliefs
+      src += DEPENDANTS_SRC + MEDICAL_SRC + INTEREST_SRC
   return Figure("chargeable income", rupees(max(ZERO, amt)), tuple(src))
 
-def income_tax(chargeable:Decimal) -> Figure:
+def income_tax(chargeable:Decimal, period:Period) -> Figure:
   whole = chargeable.is_finite() and chargeable >= 0 and chargeable == chargeable.to_integral_value()
   if not whole: raise ValueError(f"invalid chargeable income {chargeable}")
+  bands, src = RATES[period]
   ret, lo = ZERO, ZERO
-  for width, rate in BANDS: ret, lo = ret + (max(ZERO, min(chargeable - lo, width)) * rate).quantize(Decimal(1), ROUND_DOWN), lo + width
-  return Figure("income tax", ret, BANDS_SRC)
+  for width, rate in bands: ret, lo = ret + (max(ZERO, min(chargeable - lo, width)) * rate).quantize(Decimal(1), ROUND_DOWN), lo + width
+  return Figure("income tax", ret, src)
 
 def assess(f:Facts) -> tuple[Figure, ...]:
   ci = chargeable_income(f)
-  tax = income_tax(ci.amt)
+  tax = income_tax(ci.amt, f.period)
+  losses = Figure("losses carried forward", net_income_and_losses(f)[1], LOSSES_SRC)
+  if f.period is Period.QUARTER:
+    return (ci, tax, Figure("balance of tax", tax.amt - f.tax_deducted_at_source, tax.src + QUARTER_CREDIT_SRC), losses)
   share = Figure("fair share contribution", rupees(max(ZERO, ci.amt + f.resident_dividends - FAIR_SHARE_THRESHOLD) * FAIR_SHARE_RATE), FAIR_SHARE_SRC)
   total = Figure("total tax", tax.amt + share.amt, tax.src + share.src)
   paid = f.paye_withheld + f.tax_deducted_at_source + f.quarterly_tax_paid
   balance = Figure("balance of tax", total.amt - paid, total.src + CREDITS_SRC)
-  ret = (ci, tax, share, total, balance, Figure("losses carried forward", net_income_and_losses(f)[1], LOSSES_SRC))
+  ret = (ci, tax, share, total, balance, losses)
   if (b := f.business) == Business(): return ret
   allowances = tuple(Figure(f"annual allowance on {a.kind.name.lower().replace('_', ' ')}", a.allowance, ALLOWANCE_SRC) for a in b.assets)
   return (*ret, Figure("gross profit", b.gross_profit, BUSINESS_SRC), Figure("net profit per accounts", b.net_profit, BUSINESS_SRC),

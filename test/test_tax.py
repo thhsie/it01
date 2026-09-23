@@ -1,7 +1,7 @@
 import json, unittest
 from decimal import Decimal
-from it01.law import AssetKind, Source
-from it01.tax import Asset, Business, Facts, Figure, assess, chargeable_income, from_json, income_tax
+from it01.law import AssetKind, Period, Source
+from it01.tax import AMOUNTS, Asset, Business, Facts, Figure, assess, chargeable_income, from_json, income_tax
 from test.helpers import ROOT
 
 CASES = json.loads((ROOT/"test"/"cases"/"calculator.json").read_text(), parse_float=Decimal)
@@ -19,22 +19,57 @@ def net(**kw) -> tuple[Decimal, Decimal]:
 
 def ci(dependants:int=0, **kw) -> Decimal: return chargeable_income(Facts(True, dependants, **amounts(kw))).amt
 
+class TestQuarter(unittest.TestCase):
+  def test_quarter_bands(self):
+    for amt, tax in ((Decimal(125000), 0), (Decimal(250000), 12500), (Decimal(400000), 42500),
+                     (Decimal(125019), 1), (Decimal(250019), 12503)):
+      with self.subTest(amt): self.assertEqual(income_tax(amt, Period.QUARTER).amt, tax)
+
+  def test_quarter_reliefs(self):
+    held = Facts(True, 1, rent=Decimal(400000), period=Period.QUARTER)
+    self.assertEqual(chargeable_income(held).amt, Decimal(372500))
+
+  def test_quarter_sources(self):
+    for resident in (True, False):
+      with self.subTest(resident):
+        figs = assess(Facts(resident, rent=Decimal(400000), period=Period.QUARTER))
+        self.assertIn(Source("ita", "s.107(2)", 122), fig(figs, "chargeable income").src)
+        self.assertIn(Source("cps", "9. Calculation of Tax", 6), fig(figs, "income tax").src)
+
+  def test_quarter_figures(self):
+    figs = assess(Facts(True, rent=Decimal(400000), period=Period.QUARTER))
+    self.assertEqual([x.rule for x in figs], ["chargeable income", "income tax", "balance of tax", "losses carried forward"])
+
+  def test_quarter_credit(self):
+    held = Facts(True, rent=Decimal(400000), tax_deducted_at_source=Decimal(1000), period=Period.QUARTER)
+    self.assertEqual(fig(assess(held), "balance of tax").amt, Decimal(41500))
+
+  def test_quarter_refuses_the_year(self):
+    for name in AMOUNTS:
+      if name in ("rent", "losses_brought_forward", "tax_deducted_at_source"): continue
+      with self.subTest(name), self.assertRaisesRegex(ValueError, f"quarter does not take \\['{name}'\\]"):
+        Facts(True, period=Period.QUARTER, **{name: Decimal(1)})
+
+  def test_quarter_refuses_a_business(self):
+    with self.assertRaisesRegex(ValueError, "business in a quarter"):
+      Facts(True, business=biz(gross_income=900000), period=Period.QUARTER)
+
 class TestIncomeTax(unittest.TestCase):
   def test_calculator_cases(self):
     for c in CASES:
-      with self.subTest(c["case"]): self.assertIn(c["income_tax"] - income_tax(Decimal(c["chargeable_income"])).amt, (0, 1))
+      with self.subTest(c["case"]): self.assertIn(c["income_tax"] - income_tax(Decimal(c["chargeable_income"]), Period.YEAR).amt, (0, 1))
 
   def test_drops_the_fraction_in_each_band(self):
     for amt, tax in ((500005, 0), (500019, 1), (999999, 49999), (1000009, 50001)):
-      with self.subTest(amt): self.assertEqual(income_tax(Decimal(amt)).amt, tax)
+      with self.subTest(amt): self.assertEqual(income_tax(Decimal(amt), Period.YEAR).amt, tax)
 
   def test_names_rule_and_sources(self):
-    fig = income_tax(Decimal(1))
+    fig = income_tax(Decimal(1), Period.YEAR)
     self.assertEqual((fig.rule, fig.src), ("income tax", (Source("ita", "s.4", 26), Source("ita", "First Schedule Part I", 262))))
 
   def test_refuses_invalid_income(self):
     for bad in ("-1", "0.5", "Infinity", "NaN"):
-      with self.subTest(bad), self.assertRaises(ValueError): income_tax(Decimal(bad))
+      with self.subTest(bad), self.assertRaises(ValueError): income_tax(Decimal(bad), Period.YEAR)
 
 class TestChargeableIncome(unittest.TestCase):
   def test_calculator_cases(self):
