@@ -5,7 +5,7 @@ from enum import Enum
 from typing import Any, get_args, get_origin
 from it01.law import (CHARGEABLE_SRC, DEPENDANTS, DEPENDANTS_SRC, INTEREST_BAR, INTEREST_SRC, MEDICAL, MEDICAL_SRC, RESIDENT_SRC,
                       Source, CREDITS_SRC, FAIR_SHARE_RATE, FAIR_SHARE_SRC, FAIR_SHARE_THRESHOLD, LOSSES_SRC, ALLOWANCE_SRC, ALLOWANCES,
-                      Period, QUARTER_CREDIT_SRC, QUARTER_INCOME_SRC, QUARTER_RELIEF, RATES,
+                      ALLOWANCE_RULES, AllowanceRule, Period, QUARTER_CREDIT_SRC, QUARTER_INCOME_SRC, QUARTER_RELIEF, RATES,
                       MOTOR_VEHICLE_CAP, SMALL_PLANT, AssetKind, Basis, BUSINESS_SRC, DISALLOWED, DISALLOWED_SRC)
 
 ZERO = Decimal(0)
@@ -47,12 +47,11 @@ class Asset:
     if self.allowances_before > self.cost: raise ValueError(f"allowances before {self.allowances_before} exceed cost {self.cost}")
     if self.kind is AssetKind.MOTOR_VEHICLE and self.cost > MOTOR_VEHICLE_CAP: raise ValueError(f"motor vehicle cost {self.cost} not supported yet")
 
-  @property
-  def allowance(self) -> Decimal:
+  def allowance(self, part:Decimal) -> Decimal:
     rate, basis, plant = ALLOWANCES[self.kind]
     base = self.cost - self.allowances_before
-    if plant and base <= SMALL_PLANT: return base
-    return min(base, (rate * (self.cost if basis is Basis.COST else base)).quantize(Decimal(1), ROUND_DOWN))
+    if plant and base <= SMALL_PLANT: return base * part
+    return min(base, (rate * (self.cost if basis is Basis.COST else base)).quantize(Decimal(1), ROUND_DOWN)) * part
 
 @dataclass(frozen=True)
 class Business:
@@ -89,9 +88,8 @@ class Business:
   @property
   def non_allowable(self) -> Decimal: return self.non_allowable_expenses + sum((getattr(self, n) for n in DISALLOWED), ZERO)
 
-  @property
-  def net_income(self) -> Decimal:
-    return self.net_profit + self.income_not_in_accounts + self.non_allowable - sum((a.allowance for a in self.assets), ZERO)
+  def net_income(self, part:Decimal) -> Decimal:
+    return self.net_profit + self.income_not_in_accounts + self.non_allowable - sum((a.allowance(part) for a in self.assets), ZERO)
 
 @dataclass(frozen=True)
 class Facts:
@@ -118,7 +116,6 @@ class Facts:
     if self.dependants < 0: raise ValueError(f"invalid dependants {self.dependants}")
     check_amounts(self)
     if self.period is Period.YEAR: return
-    if self.business != Business(): raise ValueError("a business in a quarter is not supported yet")
     if held := sorted(n for n in AMOUNTS if n not in QUARTERLY and getattr(self, n)): raise ValueError(f"a quarter does not take {held}")
 
   @property
@@ -149,7 +146,7 @@ def from_json[T:(Facts, Business, Asset)](cls:type[T], raw:Any) -> T:
 def rupees(x:Decimal) -> Decimal: return x.quantize(Decimal(1), ROUND_HALF_UP)
 
 def net_income_and_losses(f:Facts) -> tuple[Decimal, Decimal]:
-  business = f.business.net_income
+  business = f.business.net_income(ALLOWANCE_RULES[f.period].part)
   other = f.other_income + f.rent + max(ZERO, business)
   used = min(other, losses := f.losses_brought_forward + max(ZERO, -business))
   return f.emoluments + other - used, losses - used
@@ -174,19 +171,23 @@ def income_tax(chargeable:Decimal, period:Period) -> Figure:
   for width, rate in bands: ret, lo = ret + (max(ZERO, min(chargeable - lo, width)) * rate).quantize(Decimal(1), ROUND_DOWN), lo + width
   return Figure("income tax", ret, src)
 
+def business_figures(b:Business, rule:AllowanceRule) -> tuple[Figure, ...]:
+  each = tuple(Figure(f"{rule.wording} {a.kind.name.lower().replace('_', ' ')}", a.allowance(rule.part), ALLOWANCE_SRC + rule.src) for a in b.assets)
+  return (Figure("gross profit", b.gross_profit, BUSINESS_SRC), Figure("net profit per accounts", b.net_profit, BUSINESS_SRC),
+          Figure("non-allowable expenses", b.non_allowable, DISALLOWED_SRC), *each,
+          Figure("net income from business", b.net_income(rule.part), BUSINESS_SRC + DISALLOWED_SRC + ALLOWANCE_SRC + rule.src))
+
 def assess(f:Facts) -> tuple[Figure, ...]:
   ci = chargeable_income(f)
   tax = income_tax(ci.amt, f.period)
   losses = Figure("losses carried forward", net_income_and_losses(f)[1], LOSSES_SRC)
+  ret:tuple[Figure, ...]
   if f.period is Period.QUARTER:
-    return (ci, tax, Figure("balance of tax", tax.amt - f.tax_deducted_at_source, tax.src + QUARTER_CREDIT_SRC), losses)
+    ret = (ci, tax, Figure("balance of tax", tax.amt - f.tax_deducted_at_source, tax.src + QUARTER_CREDIT_SRC), losses)
+    return ret if (b := f.business) == Business() else (*ret, *business_figures(b, ALLOWANCE_RULES[f.period]))
   share = Figure("fair share contribution", rupees(max(ZERO, ci.amt + f.resident_dividends - FAIR_SHARE_THRESHOLD) * FAIR_SHARE_RATE), FAIR_SHARE_SRC)
   total = Figure("total tax", tax.amt + share.amt, tax.src + share.src)
   paid = f.paye_withheld + f.tax_deducted_at_source + f.quarterly_tax_paid
   balance = Figure("balance of tax", total.amt - paid, total.src + CREDITS_SRC)
   ret = (ci, tax, share, total, balance, losses)
-  if (b := f.business) == Business(): return ret
-  allowances = tuple(Figure(f"annual allowance on {a.kind.name.lower().replace('_', ' ')}", a.allowance, ALLOWANCE_SRC) for a in b.assets)
-  return (*ret, Figure("gross profit", b.gross_profit, BUSINESS_SRC), Figure("net profit per accounts", b.net_profit, BUSINESS_SRC),
-          Figure("non-allowable expenses", b.non_allowable, DISALLOWED_SRC), *allowances,
-          Figure("net income from business", b.net_income, BUSINESS_SRC + DISALLOWED_SRC + ALLOWANCE_SRC))
+  return ret if (b := f.business) == Business() else (*ret, *business_figures(b, ALLOWANCE_RULES[f.period]))

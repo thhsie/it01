@@ -50,9 +50,24 @@ class TestQuarter(unittest.TestCase):
       with self.subTest(name), self.assertRaisesRegex(ValueError, f"quarter does not take \\['{name}'\\]"):
         Facts(True, period=Period.QUARTER, **{name: Decimal(1)})
 
-  def test_quarter_refuses_a_business(self):
-    with self.assertRaisesRegex(ValueError, "business in a quarter"):
-      Facts(True, business=biz(gross_income=900000), period=Period.QUARTER)
+  def test_quarter_takes_a_quarter_of_the_allowance(self):
+    held = biz(gross_income=900000, assets=(Asset(AssetKind.COMPUTER, Decimal(80000)),))
+    figs = assess(Facts(True, business=held, period=Period.QUARTER))
+    self.assertEqual(fig(figs, "a quarter of the annual allowance on computer").amt, Decimal(10000))
+    self.assertEqual(fig(figs, "net income from business").amt, Decimal(890000))
+
+  def test_quarter_shows_the_business_working(self):
+    figs = assess(Facts(True, business=biz(gross_income=900000), period=Period.QUARTER))
+    self.assertEqual([x.rule for x in figs][-4:],
+                     ["gross profit", "net profit per accounts", "non-allowable expenses", "net income from business"])
+
+  def test_quarter_allowance_keeps_its_cents(self):
+    self.assertEqual(asset("computer", "50000").allowance(Decimal("0.25")), Decimal("12500.00"))
+
+  def test_quarter_allowance_names_the_guidance(self):
+    held = biz(assets=(Asset(AssetKind.COMPUTER, Decimal(80000)),))
+    figs = assess(Facts(True, business=held, period=Period.QUARTER))
+    self.assertIn(Source("cps", "7. Annual allowance", 3), fig(figs, "a quarter of the annual allowance on computer").src)
 
 class TestIncomeTax(unittest.TestCase):
   def test_calculator_cases(self):
@@ -137,17 +152,21 @@ class TestAccounts(unittest.TestCase):
     self.assertNotIn("gross profit", [x.rule for x in assess(Facts(True, salary=Decimal(1000000)))])
 
 class TestAnnualAllowance(unittest.TestCase):
+  def test_a_small_plant_keeps_its_cents(self):
+    self.assertEqual(asset("computer", "59999.55").allowance(Decimal(1)), Decimal("59999.55"))
+
   def test_rates(self):
     cases = [("computer", "80000", "0", 40000), ("computer", "70001", "0", 35000), ("computer", "50000", "0", 50000),
              ("furniture", "1000000", "200000", 160000), ("other_plant", "60000", "0", 60000), ("electronic_equipment", "500000", "0", 500000),
              ("green_technology", "50000", "0", 50000), ("green_technology", "100000", "0", 50000), ("commercial_premises", "1000000", "0", 50000),
              ("commercial_premises", "1000000", "980000", 20000), ("other_capital_item", "40000", "0", 2000)]
     for kind, cost, before, amt in cases:
-      with self.subTest(kind=kind, cost=cost, before=before): self.assertEqual(asset(kind, cost, before).allowance, amt)
+      with self.subTest(kind=kind, cost=cost, before=before): self.assertEqual(asset(kind, cost, before).allowance(Decimal(1)), amt)
 
   def test_next_year_reads_this_year(self):
     first = asset("other_plant", "100000.01")
-    self.assertEqual((first.allowance, asset("other_plant", "100000.01", str(first.allowance)).allowance), (35000, 22750))
+    whole = first.allowance(Decimal(1))
+    self.assertEqual((whole, asset("other_plant", "100000.01", str(whole)).allowance(Decimal(1))), (35000, 22750))
 
   def test_reduces_business_income(self):
     f = Facts(True, salary=Decimal(1200000), business=biz(gross_income=300000, other_expenses=100000, assets=(asset("computer", "80000"),)))
