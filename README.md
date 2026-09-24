@@ -103,7 +103,9 @@ tax_deducted_at_source       quarterly_tax_paid
 
 `salary` holds all emoluments. `rent` holds income from letting. `other_income` holds income that is neither emoluments, rent nor business. `business` holds the accounts line by line as the return lists them, with an `assets` list for annual allowances.
 
-Six keys are set aside before the computation and none of them reaches it: `proposed`, `sources`, `documents`, `texts`, `answers`, `pending`.
+Seven keys are set aside before the computation and none of them reaches it: `proposed`, `sources`, `documents`, `texts`, `paths`, `answers`, `pending`.
+
+`paths` holds the full path each document was read from, so `it01 show` can print the document. `it01 show` refuses a document that is no longer at that path, and one whose text has changed since it was read.
 
 ## Keep your own copies
 
@@ -123,6 +125,7 @@ A folder that is not there is refused.
 it01 FACTS.json                         compute the tax
 it01 add FACTS.json DOCUMENT.txt        read a document into the file
 it01 keep FACTS.json                    print everything so far
+it01 show FACTS.json DOCUMENT.txt       print a document the way it was read
 it01 confirm FACTS.json FACT            accept a proposed figure
 it01 answer FACTS.json QUESTION ANSWER  answer an open question
 it01 read DOCUMENT.txt                  propose facts through your endpoint

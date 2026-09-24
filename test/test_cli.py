@@ -124,9 +124,40 @@ class TestCli(unittest.TestCase):
     self.assertIn("py.typed", shipped)
     self.assertTrue((ROOT/"it01"/"py.typed").exists())
 
+  def cased(self, paper:str, said:str) -> str:
+    name = pathlib.Path(paper).name
+    here = on_disk(json.dumps({"resident": True, "documents": {name: "payslip"}, "paths": {name: paper},
+                               "texts": {fingerprint(said): name}}))
+    self.addCleanup(os.unlink, here)
+    return here
+
+  def saved_document(self, said:str) -> str:
+    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as f: f.write(said)
+    self.addCleanup(os.unlink, f.name)
+    return f.name
+
+  def test_a_document_is_shown_as_the_engine_read_it(self):
+    paper = self.saved_document(STATEMENT)
+    ret = run("show", self.cased(paper, STATEMENT), pathlib.Path(paper).name)
+    self.assertEqual((ret.returncode, ret.stdout), (0, STATEMENT))
+
+  def test_a_document_the_case_never_read_cannot_be_shown(self):
+    ret = run("show", self.cased("/nowhere/payslip.txt", ""), "other.txt")
+    self.assertEqual((ret.returncode, ret.stderr), (1, "error: the case does not say where other.txt was read from\n"))
+
+  def test_a_document_that_has_moved_says_where_it_was(self):
+    ret = run("show", self.cased("/nowhere/payslip.txt", ""), "payslip.txt")
+    self.assertEqual((ret.returncode, ret.stderr), (1, "error: payslip.txt is no longer at /nowhere/payslip.txt\n"))
+
+  def test_a_document_rewritten_since_it_was_read_is_refused(self):
+    paper = self.saved_document(OUTGOINGS)
+    ret = run("show", self.cased(paper, STATEMENT), name := pathlib.Path(paper).name)
+    self.assertEqual((ret.returncode, ret.stderr), (1, f"error: {name} has changed since it was read\n"))
+
   def test_usage(self):
     for args in ((), ("read",), ("rows",), ("credits",), ("keep",), ("local",), ("read", "a", "b"), ("keep", "a", "b"), ("a", "b"),
                  ("confirm",), ("confirm", "a"), ("confirm", "a", "b", "c"), ("add",), ("add", "a"), ("add", "a", "b", "c"),
+                 ("show",), ("show", "a"), ("show", "a", "b", "c"),
                  ("answer",), ("answer", "a"), ("answer", "a", "b"), ("answer", "a", "b", "c", "d")):
       self.assertEqual(run(*args).returncode, 2, args)
 

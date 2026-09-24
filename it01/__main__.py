@@ -13,6 +13,7 @@ USAGE = ("usage: it01 FACTS.json\n       it01 read DOCUMENT\n"
          "       it01 rows STATEMENT\n       it01 credits STATEMENT\n"
          "       it01 keep FACTS.json\n       it01 local DOCUMENT\n"
          "       it01 confirm FACTS.json FACT\n       it01 add FACTS.json DOCUMENT\n"
+         "       it01 show FACTS.json DOCUMENT\n"
          "       it01 answer FACTS.json QUESTION ANSWER\n       it01 data FACTS.json")
 
 def money(amt:Decimal|None) -> str: return f"{amt:,}" if amt is not None else ""
@@ -90,6 +91,13 @@ def responded(here:pathlib.Path, asked:str, said:str) -> list[str]:
   rewritten(here, answer(text, hit[0], said))
   return [f"answered {hit[0]}", f"  {said}"]
 
+def opened(here:pathlib.Path, name:str) -> list[str]:
+  held = apart(loaded(here.read_text()))[1]
+  if name not in held["paths"]: raise ValueError(f"the case does not say where {name} was read from")
+  if not (paper := pathlib.Path(held["paths"][name])).is_file(): raise ValueError(f"{name} is no longer at {paper}")
+  if held["texts"].get(fingerprint(src := source(paper))) != name: raise ValueError(f"{name} has changed since it was read")
+  return src.splitlines()
+
 def questioned(questions:tuple[Question, ...]) -> list[tuple[str, str]]:
   return [(f"{q.amt:,} paid in on {q.date}, {q.description}", q.asking) for q in questions]
 
@@ -108,7 +116,7 @@ def added(here:pathlib.Path, document:str) -> list[str]:
   else:
     form, told, asked, _ = reading(src)
     was, seen, asking = form.name, *shaped(told, asked)
-  text, how = noted(here.read_text(), seen, Document(paper.name, mark, was), asking)
+  text, how = noted(here.read_text(), seen, Document(name=paper.name, path=str(paper.resolve()), mark=mark, kind=was), asking)
   rewritten(here, text)
   ret = [f"{paper.name} read as {was}"]
   if how.proposed: ret += ["", "proposed"] + [f"  {name:<32}{seen[name][0]:>16,}" for name in how.proposed]
@@ -119,17 +127,18 @@ def added(here:pathlib.Path, document:str) -> list[str]:
 def to_data(text:str) -> list[str]: return [dumped(case(text))]
 
 VERBS = {"read": to_proposals, "rows": to_transactions, "credits": to_credits, "keep": keep, "local": to_local, "data": to_data}
-EDITS:dict[str, tuple[Callable[..., list[str]], int]] = {"confirm": (accepted, 2), "add": (added, 2), "answer": (responded, 3)}
+ON_CASE:dict[str, tuple[Callable[..., list[str]], int]] = {"confirm": (accepted, 2), "add": (added, 2), "answer": (responded, 3),
+                                                           "show": (opened, 2)}
 
 def main() -> int:
   args = sys.argv[1:]
-  named, edit = (VERBS.get(args[0]), EDITS.get(args[0])) if args else (None, None)
-  rest = args[1:] if named or edit else args
-  if len(rest) != (edit[1] if edit else 1):
+  named, on_case = (VERBS.get(args[0]), ON_CASE.get(args[0])) if args else (None, None)
+  rest = args[1:] if named or on_case else args
+  if len(rest) != (on_case[1] if on_case else 1):
     print(USAGE, file=sys.stderr)
     return 2
   here = pathlib.Path(rest[0])
-  try: lines = edit[0](here, *rest[1:]) if edit else (named or to_figures)(source(here))
+  try: lines = on_case[0](here, *rest[1:]) if on_case else (named or to_figures)(source(here))
   except (OSError, ValueError) as e:
     print(f"error: {e}", file=sys.stderr)
     return 1
