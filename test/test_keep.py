@@ -1,7 +1,8 @@
 import json, unittest
 from decimal import Decimal
-from it01.keep import ASIDE, TITLES, WORDING, answer, apart, case, confirm, dumped, figures, fingerprint, keep, loaded, noted, shown
+from it01.keep import ASIDE, TITLES, WORDING, Document, answer, apart, case, confirm, dumped, figures, fingerprint, keep, loaded, noted, shown
 
+STATEMENT = Document("bank.txt", "a", "bank statement")
 FACTS = {"resident": True, "dependants": 1, "salary": 1107000, "paye_withheld": 71401,
          "sources": {"salary": "Total emoluments        1,107,000.00"},
          "answers": {"cash of 500.00 on 05/07/2025": "sold my old bicycle"},
@@ -112,52 +113,52 @@ class TestKeep(unittest.TestCase):
     with self.assertRaisesRegex(ValueError, "a case file cannot hold"): dumped({"salary": None})
 
   def test_a_figure_read_for_a_free_name_is_proposed_with_its_wording(self):
-    text, how = noted(written(), {"other_reliefs": (Decimal(5000), "Relief claimed 5,000.00")}, {}, [], {})
+    text, how = noted(written(), {"other_reliefs": (Decimal(5000), "Relief claimed 5,000.00")}, STATEMENT, [])
     raw = loaded(text)
     self.assertEqual((raw["proposed"]["other_reliefs"], raw["sources"]["other_reliefs"], how.proposed, how.asked),
                      (Decimal(5000), "Relief claimed 5,000.00", ("other_reliefs",), ()))
 
   def test_a_second_document_adds_to_what_is_proposed(self):
     was = written(sources=FACTS["sources"] | {"other_income": "Rent received 40,000.00"})
-    text, how = noted(was, {"other_income": (Decimal(15000), "2 labelled rent")}, {"q2.txt": "bank statement"}, [], {})
+    text, how = noted(was, {"other_income": (Decimal(15000), "2 labelled rent")}, Document("q2.txt", "b", "bank statement"), [])
     raw = loaded(text)
     self.assertEqual((raw["proposed"]["other_income"], raw["sources"]["other_income"], how.proposed),
                      (Decimal(55000), "Rent received 40,000.00, 2 labelled rent", ("other_income",)))
 
   def test_two_documents_asking_about_one_fact_do_not_collide(self):
-    one, _ = noted(written(), {"salary": (Decimal(1107000), "q1 line")}, {"q1.txt": "payslip"}, [], {})
-    two, how = noted(one, {"salary": (Decimal(1107000), "q2 line")}, {"q2.txt": "payslip"}, [], {})
+    one, _ = noted(written(), {"salary": (Decimal(1107000), "q1 line")}, Document("q1.txt", "a", "payslip"), [])
+    two, how = noted(one, {"salary": (Decimal(1107000), "q2 line")}, Document("q2.txt", "b", "payslip"), [])
     self.assertEqual(len(how.asked), 1)
     self.assertEqual(len([q for q in loaded(two)["pending"] if q.startswith("salary read as")]), 2)
 
   def test_a_figure_for_a_confirmed_fact_is_asked_about(self):
     for amt in (Decimal(9), Decimal(1107000)):
       with self.subTest(amt):
-        text, how = noted(written(), {"salary": (amt, "a payslip line")}, {}, [], {})
+        text, how = noted(written(), {"salary": (amt, "a payslip line")}, STATEMENT, [])
         asked = f"salary read as {amt:,} in a payslip line, and the file already gives 1,107,000"
         self.assertEqual(loaded(text)["pending"][asked], "add it to the fact, or leave the fact if this is the same money read twice")
         self.assertEqual((how.proposed, how.asked), ((), (asked,)))
 
   def test_the_same_question_worded_differently_is_refused(self):
     asked = [("cash of 1,200.00 on 12/08/2025", "a different wording")]
-    with self.assertRaisesRegex(ValueError, "already open with different wording"): noted(written(), {}, {}, asked, {})
+    with self.assertRaisesRegex(ValueError, "already open with different wording"): noted(written(), {}, STATEMENT, asked)
 
   def test_the_same_question_worded_the_same_changes_nothing(self):
     asked = [("cash of 1,200.00 on 12/08/2025", FACTS["pending"]["cash of 1,200.00 on 12/08/2025"])]
-    self.assertEqual(loaded(noted(written(), {}, {}, asked, {})[0])["pending"], FACTS["pending"])
+    self.assertEqual(loaded(noted(written(), {}, STATEMENT, asked)[0])["pending"], FACTS["pending"])
 
   def test_a_question_already_answered_is_not_asked_again(self):
     was = "cash of 500.00 on 05/07/2025"
-    text, how = noted(written(), {}, {}, [(was, "what is this money")], {})
+    text, how = noted(written(), {}, STATEMENT, [(was, "what is this money")])
     self.assertEqual(loaded(text).get("pending"), FACTS["pending"])
     self.assertEqual((how.asked, how.answered), ((), (was,)))
 
   def test_the_text_a_document_held_is_remembered_by_its_fingerprint(self):
-    text, _ = noted(written(), {}, {"payslip.txt": "payslip"}, [], {fingerprint("a line"): "payslip.txt"})
+    text, _ = noted(written(), {}, Document("payslip.txt", fingerprint("a line"), "payslip"), [])
     self.assertEqual(loaded(text)["texts"], {fingerprint("a line"): "payslip.txt"})
 
   def test_the_document_that_was_read_is_recorded(self):
-    text, _ = noted(written(), {}, {"payslip.txt": "payslip"}, [], {})
+    text, _ = noted(written(), {}, Document("payslip.txt", "a mark", "payslip"), [])
     self.assertEqual(loaded(text)["documents"]["payslip.txt"], "payslip")
 
   def test_the_case_comes_back_as_data(self):

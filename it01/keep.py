@@ -58,6 +58,12 @@ def dumped(value:Any, deep:int=0) -> str:
   raise ValueError(f"a case file cannot hold {value}")
 
 @dataclass(frozen=True)
+class Document:
+  name: str
+  mark: str
+  kind: str
+
+@dataclass(frozen=True)
 class Noted:
   proposed: tuple[str, ...]
   asked: tuple[str, ...]
@@ -67,8 +73,7 @@ def as_file(given:dict[str, Any], held:dict[str, dict[str, str]], proposed:dict[
   whole:dict[str, Any] = given | ({"proposed": proposed} if proposed else {})
   return dumped(whole | {k: v for k, v in held.items() if v}) + "\n"
 
-def noted(text:str, seen:dict[str, tuple[Decimal, str]], documents:dict[str, str], asking:list[tuple[str, str]],
-          texts:dict[str, str]) -> tuple[str, Noted]:
+def noted(text:str, seen:dict[str, tuple[Decimal, str]], doc:Document, asking:list[tuple[str, str]]) -> tuple[str, Noted]:
   assert set(seen) <= set(AMOUNTS)
   given, held, proposed = apart(loaded(text))
   wrote, ask = [], list(asking)
@@ -85,8 +90,8 @@ def noted(text:str, seen:dict[str, tuple[Decimal, str]], documents:dict[str, str
   for question, asks in fresh:
     if held["pending"].get(question, asks) != asks: raise ValueError(f"the same question is already open with different wording {question}")
     held["pending"][question] = asks
-  held["documents"].update(documents)
-  held["texts"].update(texts)
+  held["documents"][doc.name] = doc.kind
+  held["texts"][doc.mark] = doc.name
   return as_file(given, held, proposed), Noted(tuple(wrote), tuple(q for q, _ in fresh), before)
 
 def confirm(text:str, name:str) -> str:
