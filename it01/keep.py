@@ -1,11 +1,11 @@
-import json
+import hashlib, json
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 from it01.tax import AMOUNTS, JSON_TYPES, ZERO, Facts, Figure, amount, assess, from_json, is_amount
 
 TITLES = {"documents": "documents you read", "answers": "questions you answered", "pending": "questions still open"}
-WORDING = ("sources", *TITLES)
+WORDING = ("sources", "texts", *TITLES)
 ASIDE = ("proposed", *WORDING)
 
 def once(pairs:list[tuple[str, Any]]) -> dict[str, Any]:
@@ -16,6 +16,8 @@ def once(pairs:list[tuple[str, Any]]) -> dict[str, Any]:
   return ret
 
 def loaded(text:str) -> Any: return json.loads(text, parse_float=Decimal, object_pairs_hook=once)
+
+def fingerprint(text:str) -> str: return hashlib.sha256(text.encode()).hexdigest()[:32]
 
 def wording(raw:dict[str, Any], name:str) -> dict[str, str]:
   if name not in raw: return {}
@@ -65,7 +67,8 @@ def as_file(given:dict[str, Any], held:dict[str, dict[str, str]], proposed:dict[
   whole:dict[str, Any] = given | ({"proposed": proposed} if proposed else {})
   return dumped(whole | {k: v for k, v in held.items() if v}) + "\n"
 
-def noted(text:str, seen:dict[str, tuple[Decimal, str]], documents:dict[str, str], asking:list[tuple[str, str]]) -> tuple[str, Noted]:
+def noted(text:str, seen:dict[str, tuple[Decimal, str]], documents:dict[str, str], asking:list[tuple[str, str]],
+          texts:dict[str, str]) -> tuple[str, Noted]:
   assert set(seen) <= set(AMOUNTS)
   given, held, proposed = apart(loaded(text))
   wrote, ask = [], list(asking)
@@ -83,6 +86,7 @@ def noted(text:str, seen:dict[str, tuple[Decimal, str]], documents:dict[str, str
     if held["pending"].get(question, asks) != asks: raise ValueError(f"the same question is already open with different wording {question}")
     held["pending"][question] = asks
   held["documents"].update(documents)
+  held["texts"].update(texts)
   return as_file(given, held, proposed), Noted(tuple(wrote), tuple(q for q, _ in fresh), before)
 
 def confirm(text:str, name:str) -> str:
