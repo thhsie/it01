@@ -3,7 +3,7 @@ from collections.abc import Callable
 from decimal import Decimal
 from typing import TYPE_CHECKING
 from it01.credits import Question, fed, label, spoken, totals
-from it01.keep import answer, apart, case, confirm, dumped, figures, keep, loaded, noted
+from it01.keep import answer, apart, case, confirm, dumped, figures, fingerprint, keep, loaded, noted
 from it01.read import read
 from it01.rows import Check, dropped, entries, is_statement
 if TYPE_CHECKING: from it01.local import Asked, Form, Sum, Told
@@ -95,8 +95,10 @@ def questioned(questions:tuple[Question, ...]) -> list[tuple[str, str]]:
 
 def added(here:pathlib.Path, document:str) -> list[str]:
   paper = pathlib.Path(document)
-  if paper.name in apart(loaded(here.read_text()))[1]["documents"]: return [f"{paper.name} was read before, so nothing changed"]
+  held = apart(loaded(here.read_text()))[1]
+  if paper.name in held["documents"]: return [f"{paper.name} was read before, so nothing changed"]
   src = source(paper)
+  if (mark := fingerprint(src)) in held["texts"]: return [f"{paper.name} holds the same text as {held['texts'][mark]}, so nothing changed"]
   seen:dict[str, tuple[Decimal, str]] = {}
   if is_statement(src):
     was, _, feeds, _ = spoken("labelling")
@@ -106,7 +108,7 @@ def added(here:pathlib.Path, document:str) -> list[str]:
   else:
     form, told, asked, _ = reading(src)
     was, seen, asking = form.name, *shaped(told, asked)
-  text, how = noted(here.read_text(), seen, {paper.name: was}, asking)
+  text, how = noted(here.read_text(), seen, {paper.name: was}, asking, {mark: paper.name})
   rewritten(here, text)
   ret = [f"{paper.name} read as {was}"]
   if how.proposed: ret += ["", "proposed"] + [f"  {name:<32}{seen[name][0]:>16,}" for name in how.proposed]

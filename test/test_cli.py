@@ -2,6 +2,7 @@ import importlib, json, os, pathlib, subprocess, sys, tempfile, tomllib, unittes
 from dataclasses import dataclass
 from decimal import Decimal
 from it01.__main__ import questioned, shaped
+from it01.keep import fingerprint
 from test.helpers import ROOT
 
 @dataclass(frozen=True)
@@ -136,6 +137,17 @@ class TestCli(unittest.TestCase):
     ret = run("add", name, "gone.txt")
     self.assertEqual((ret.returncode, pathlib.Path(name).read_text()), (0, was))
     self.assertIn("was read before", ret.stdout)
+
+  def test_the_same_text_under_another_name_is_not_read_twice(self):
+    said = "Total emoluments        1,107,000.00\n"
+    was = json.dumps({"resident": True, "documents": {"payslip.txt": "payslip"}, "texts": {fingerprint(said): "payslip.txt"}})
+    name = on_disk(was)
+    self.addCleanup(os.unlink, name)
+    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as f: f.write(said)
+    self.addCleanup(os.unlink, paper := f.name)
+    ret = run("add", name, paper)
+    self.assertEqual((ret.returncode, pathlib.Path(name).read_text()), (0, was))
+    self.assertIn("same text as payslip.txt", ret.stdout)
 
   def test_confirming_moves_a_figure_into_the_facts(self):
     name = on_disk(json.dumps({"resident": True, "salary": 1200000, "proposed": {"other_income": 40000},
