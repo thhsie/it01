@@ -3,7 +3,7 @@ from collections.abc import Callable
 from decimal import Decimal
 from typing import TYPE_CHECKING
 from it01.credits import Question, fed, label, spoken, totals
-from it01.keep import answer, apart, case, confirm, dumped, figures, fingerprint, keep, loaded, noted
+from it01.keep import Document, answer, apart, case, confirm, dumped, figures, fingerprint, keep, loaded, noted
 from it01.read import read
 from it01.rows import Check, dropped, entries, is_statement
 if TYPE_CHECKING: from it01.local import Asked, Form, Sum, Told
@@ -108,7 +108,7 @@ def added(here:pathlib.Path, document:str) -> list[str]:
   else:
     form, told, asked, _ = reading(src)
     was, seen, asking = form.name, *shaped(told, asked)
-  text, how = noted(here.read_text(), seen, {paper.name: was}, asking, {mark: paper.name})
+  text, how = noted(here.read_text(), seen, Document(paper.name, mark, was), asking)
   rewritten(here, text)
   ret = [f"{paper.name} read as {was}"]
   if how.proposed: ret += ["", "proposed"] + [f"  {name:<32}{seen[name][0]:>16,}" for name in how.proposed]
