@@ -2,7 +2,7 @@ import json, unittest
 from decimal import Decimal
 from it01.keep import ASIDE, TITLES, WORDING, Document, answer, apart, case, confirm, dumped, figures, fingerprint, keep, loaded, noted, shown
 
-STATEMENT = Document("bank.txt", "a", "bank statement")
+STATEMENT = Document(name="bank.txt", path="in/bank.txt", mark="a", kind="bank statement")
 FACTS = {"resident": True, "dependants": 1, "salary": 1107000, "paye_withheld": 71401,
          "sources": {"salary": "Total emoluments        1,107,000.00"},
          "answers": {"cash of 500.00 on 05/07/2025": "sold my old bicycle"},
@@ -120,14 +120,14 @@ class TestKeep(unittest.TestCase):
 
   def test_a_second_document_adds_to_what_is_proposed(self):
     was = written(sources=FACTS["sources"] | {"other_income": "Rent received 40,000.00"})
-    text, how = noted(was, {"other_income": (Decimal(15000), "2 labelled rent")}, Document("q2.txt", "b", "bank statement"), [])
+    text, how = noted(was, {"other_income": (Decimal(15000), "2 labelled rent")}, STATEMENT, [])
     raw = loaded(text)
     self.assertEqual((raw["proposed"]["other_income"], raw["sources"]["other_income"], how.proposed),
                      (Decimal(55000), "Rent received 40,000.00, 2 labelled rent", ("other_income",)))
 
   def test_two_documents_asking_about_one_fact_do_not_collide(self):
-    one, _ = noted(written(), {"salary": (Decimal(1107000), "q1 line")}, Document("q1.txt", "a", "payslip"), [])
-    two, how = noted(one, {"salary": (Decimal(1107000), "q2 line")}, Document("q2.txt", "b", "payslip"), [])
+    one, _ = noted(written(), {"salary": (Decimal(1107000), "q1 line")}, Document(name="q1.txt", path="in/q1.txt", mark="a", kind="payslip"), [])
+    two, how = noted(one, {"salary": (Decimal(1107000), "q2 line")}, Document(name="q2.txt", path="in/q2.txt", mark="b", kind="payslip"), [])
     self.assertEqual(len(how.asked), 1)
     self.assertEqual(len([q for q in loaded(two)["pending"] if q.startswith("salary read as")]), 2)
 
@@ -154,12 +154,16 @@ class TestKeep(unittest.TestCase):
     self.assertEqual((how.asked, how.answered), ((), (was,)))
 
   def test_the_text_a_document_held_is_remembered_by_its_fingerprint(self):
-    text, _ = noted(written(), {}, Document("payslip.txt", fingerprint("a line"), "payslip"), [])
+    text, _ = noted(written(), {}, Document(name="payslip.txt", path="in/payslip.txt", mark=fingerprint("a line"), kind="payslip"), [])
     self.assertEqual(loaded(text)["texts"], {fingerprint("a line"): "payslip.txt"})
 
   def test_the_document_that_was_read_is_recorded(self):
-    text, _ = noted(written(), {}, Document("payslip.txt", "a mark", "payslip"), [])
+    text, _ = noted(written(), {}, Document(name="payslip.txt", path="in/payslip.txt", mark="a mark", kind="payslip"), [])
     self.assertEqual(loaded(text)["documents"]["payslip.txt"], "payslip")
+
+  def test_the_path_a_document_was_read_from_is_recorded(self):
+    text, _ = noted(written(), {}, Document(name="payslip.txt", path="in/payslip.txt", mark="a mark", kind="payslip"), [])
+    self.assertEqual(loaded(text)["paths"], {"payslip.txt": "in/payslip.txt"})
 
   def test_the_case_comes_back_as_data(self):
     got = case(written())

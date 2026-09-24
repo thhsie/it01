@@ -5,7 +5,7 @@ from typing import Any
 from it01.tax import AMOUNTS, JSON_TYPES, ZERO, Facts, Figure, amount, assess, from_json, is_amount
 
 TITLES = {"documents": "documents you read", "answers": "questions you answered", "pending": "questions still open"}
-WORDING = ("sources", "texts", *TITLES)
+WORDING = ("sources", "texts", "paths", *TITLES)
 ASIDE = ("proposed", *WORDING)
 
 def once(pairs:list[tuple[str, Any]]) -> dict[str, Any]:
@@ -60,6 +60,7 @@ def dumped(value:Any, deep:int=0) -> str:
 @dataclass(frozen=True)
 class Document:
   name: str
+  path: str
   mark: str
   kind: str
 
@@ -92,6 +93,7 @@ def noted(text:str, seen:dict[str, tuple[Decimal, str]], doc:Document, asking:li
     held["pending"][question] = asks
   held["documents"][doc.name] = doc.kind
   held["texts"][doc.mark] = doc.name
+  held["paths"][doc.name] = doc.path
   return as_file(given, held, proposed), Noted(tuple(wrote), tuple(q for q, _ in fresh), before)
 
 def confirm(text:str, name:str) -> str:

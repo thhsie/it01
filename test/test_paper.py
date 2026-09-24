@@ -1,5 +1,6 @@
-import pathlib, tempfile, unittest
-from it01.__main__ import source
+import json, pathlib, tempfile, unittest
+from it01.__main__ import opened, source
+from it01.keep import fingerprint
 from it01.rows import breaks
 
 try:
@@ -43,6 +44,14 @@ class TestPdf(unittest.TestCase):
     here = saved(written(LINES), ".pdf")
     self.addCleanup(here.unlink)
     self.assertEqual(to_text(here).split("\n"), [line.decode() for line in LINES])
+
+  def test_a_pdf_a_case_read_is_shown_line_by_line(self):
+    here = saved(written(LINES), ".pdf")
+    self.addCleanup(here.unlink)
+    facts = {"resident": True, "paths": {here.name: str(here)}, "texts": {fingerprint(to_text(here)): here.name}}
+    held_at = saved(json.dumps(facts).encode(), ".json")
+    self.addCleanup(held_at.unlink)
+    self.assertEqual(opened(held_at, here.name), [line.decode() for line in LINES])
 
   def test_each_page_is_a_page_to_the_row_reader(self):
     here = saved(written(LINES[:1], LINES[1:]), ".pdf")
