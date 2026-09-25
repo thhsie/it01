@@ -1,7 +1,7 @@
 import json, unittest
 from decimal import Decimal
 from it01.law import AssetKind, Period, Source
-from it01.tax import AMOUNTS, Asset, Business, Facts, Figure, assess, chargeable_income, from_json, income_tax
+from it01.tax import AMOUNTS, Asset, Business, Facts, Figure, amount, assess, chargeable_income, figures, from_json, income_tax
 from test.helpers import ROOT
 
 CASES = json.loads((ROOT/"test"/"cases"/"calculator.json").read_text(), parse_float=Decimal)
@@ -184,6 +184,23 @@ class TestAnnualAllowance(unittest.TestCase):
   def test_cites_the_schedule(self):
     figs = assess(Facts(True, business=biz(assets=(asset("computer", "1"),))))
     self.assertIn(Source("regs", "Fourth Schedule", 46), fig(figs, "annual allowance on computer").src)
+
+class TestWritten(unittest.TestCase):
+  def test_an_amount_is_read_whichever_way_it_is_written(self):
+    for written, want in (("1,107,000.00", "1107000.00"), ("1107000", "1107000"), ("666 870,00", "666870.00"),
+                          ("1.234.567,89", "1234567.89"), ("2 700,00", "2700.00"), ("9448,5", "9448.5")):
+      with self.subTest(written): self.assertEqual(amount(written), Decimal(want))
+
+  def test_an_ambiguous_amount_is_refused(self):
+    for written in ("1,2,3", "1 23,45", "666 870.00,25", "1107000.000", "666 870", "12345,678", "1,23,456.78"):
+      with self.subTest(written): self.assertRaises(ValueError, amount, written)
+
+  def test_every_amount_on_a_line_is_read(self):
+    self.assertEqual(figures("Emoluments 666 870,00 tax withheld 31 116,00"), {Decimal("666870.00"), Decimal("31116.00")})
+
+  def test_a_figure_inside_a_longer_run_of_digits_is_not_read(self):
+    for line in ("12345,678", "1,23,456.78", "1.234"):
+      with self.subTest(line): self.assertEqual(figures(line), set())
 
 class TestAssess(unittest.TestCase):
   def test_calculator_cases(self):

@@ -3,11 +3,13 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import Enum, auto
+from it01.tax import to_decimal
 
 MONEY = re.compile(r"(?<![\d.,])\(?-?(?:\d{1,3}(?:,\d{3})+\.\d{2}|\d{1,3}(?:\.\d{3})+,\d{2}"
                    r"|\d{1,3}(?: \d{3})+[.,]\d{2}|\d+[.,]\d{2})\)?-?(?![\d.,%])")
 DATE = re.compile(r"\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{1,2} [A-Za-z]{3,9} \d{2,4}")
 GAP = re.compile(r"\s{2,}")
+SIGN = re.compile(r"[()-]")
 ZERO = Decimal(0)
 SPREAD = 3
 HEADING_SPREAD = 8
@@ -42,15 +44,13 @@ class Entry:
   balance: Decimal|None
   check: Check
 
-def to_decimal(text:str) -> Decimal:
+def to_signed(text:str) -> Decimal:
   raw = text.strip()
-  negative = raw.startswith(("(", "-")) or raw.endswith("-")
-  digits = re.sub(r"[()\s-]", "", raw)
-  value = Decimal(digits[:-3].replace(",", "").replace(".", "") + "." + digits[-2:])
-  return -value if negative else value
+  value = to_decimal(SIGN.sub("", raw))
+  return -value if raw.startswith(("(", "-")) or raw.endswith("-") else value
 
 def amounts(text:str) -> tuple[Amount, ...]:
-  return tuple(Amount(to_decimal(m.group()), line, m.end()) for line, row in enumerate(text.split("\n")) for m in MONEY.finditer(row))
+  return tuple(Amount(to_signed(m.group()), line, m.end()) for line, row in enumerate(text.split("\n")) for m in MONEY.finditer(row))
 
 def columns(found:tuple[Amount, ...]) -> tuple[int, ...]:
   ret:list[int] = []
