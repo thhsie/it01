@@ -7,6 +7,7 @@ FACTS = {"resident": True, "dependants": 1, "salary": 1107000, "paye_withheld": 
          "sources": {"salary": "Total emoluments        1,107,000.00"},
          "answers": {"cash of 500.00 on 05/07/2025": "sold my old bicycle"},
          "documents": {"statement.txt": "statement of emoluments"},
+         "labels": {"bank.txt, 12.50 paid in on 05/07/2025, INTEREST": "interest"},
          "pending": {"cash of 1,200.00 on 12/08/2025": "where did this come from"},
          "proposed": {"other_income": 40000}}
 
@@ -156,6 +157,12 @@ class TestKeep(unittest.TestCase):
   def test_the_text_a_document_held_is_remembered_by_its_fingerprint(self):
     text, _ = noted(written(), {}, Document(name="payslip.txt", path="in/payslip.txt", mark=fingerprint("a line"), kind="payslip"), [])
     self.assertEqual(loaded(text)["texts"], {fingerprint("a line"): "payslip.txt"})
+
+  def test_each_credit_is_kept_with_its_label_under_its_document(self):
+    salary, interest = "5,000.00 paid in on 02/07/2025, SALARY", "12.50 paid in on 05/07/2025, INTEREST"
+    text, _ = noted(written(labels={}), {}, STATEMENT, [], ((salary, "pay"), (salary, "pay"), (interest, "interest")))
+    where = STATEMENT.name
+    self.assertEqual(loaded(text)["labels"], {f"{where}, {salary}": "pay", f"{where}, {salary} (2)": "pay", f"{where}, {interest}": "interest"})
 
   def test_the_document_that_was_read_is_recorded(self):
     text, _ = noted(written(), {}, Document(name="payslip.txt", path="in/payslip.txt", mark="a mark", kind="payslip"), [])
