@@ -1,6 +1,7 @@
 import json
 from dataclasses import dataclass
 from decimal import Decimal
+from typing import Any
 from it01.helpers import data, instruction
 from it01.llm import ask
 from it01.rows import Check, Entry, entries
@@ -49,11 +50,18 @@ def received(text:str) -> tuple[Entry, ...]: return tuple(e for e in entries(tex
 def listed(paid:tuple[Entry, ...]) -> str:
   return "\n".join(f"{n}. {e.date} {e.paid_in:,} {e.description}" for n, e in enumerate(paid, 1))
 
+def numbered(paid:tuple[Entry, ...]) -> list[str]: return [str(n) for n in range(1, len(paid) + 1)]
+
+def answers(paid:tuple[Entry, ...], kinds:dict[str, str]) -> dict[str, Any]:
+  numbers = numbered(paid)
+  return {"type": "object", "properties": {n: {"type": "string", "enum": list(kinds)} for n in numbers},
+          "required": numbers, "additionalProperties": False}
+
 def named(paid:tuple[Entry, ...], reply:str, kinds:dict[str, str]) -> tuple[Credit, ...]:
   try: raw = json.loads(reply)
   except json.JSONDecodeError: raise ValueError(f"the model did not answer with JSON {reply}") from None
   if not isinstance(raw, dict): raise ValueError(f"the model must answer with a JSON object, not {type(raw).__name__}")
-  if sorted(raw) != sorted(str(n) for n in range(1, len(paid) + 1)):
+  if sorted(raw) != sorted(numbered(paid)):
     raise ValueError(f"the model answered for {sorted(raw)} and there are {len(paid)} credits")
   ret = []
   for n, e in enumerate(paid, 1):
@@ -83,4 +91,4 @@ def label(text:str) -> tuple[tuple[Credit, ...], tuple[Question, ...]]:
   _, kinds, _, asking = spoken("labelling")
   if not (paid := received(text)): return (), ()
   said = "\n".join(f"{kind}: {means}" for kind, means in kinds.items())
-  return (found := named(paid, ask(instruction("labelling") + "\n" + said, listed(paid)), kinds)), asked(found, asking)
+  return (found := named(paid, ask(instruction("labelling") + "\n" + said, listed(paid), answers(paid, kinds)), kinds)), asked(found, asking)

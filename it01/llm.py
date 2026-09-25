@@ -1,10 +1,13 @@
 import json, urllib.error, urllib.request
 from decimal import Decimal
+from typing import Any
 from it01.helpers import IT01_DEBUG, IT01_ENDPOINT, IT01_KEY, IT01_MODEL, IT01_TIMEOUT
 
-def ask(instruction:str, document:str) -> str:
+def ask(instruction:str, document:str, schema:dict[str, Any]|None=None) -> str:
+  wanted = {"type": "json_schema", "json_schema": {"name": "answer", "strict": True, "schema": schema}}
+  shape = {"response_format": wanted} if schema is not None else {}
   body = json.dumps({"model": IT01_MODEL, "temperature": 0,
-                     "messages": [{"role": "system", "content": instruction}, {"role": "user", "content": document}]}).encode()
+                     "messages": [{"role": "system", "content": instruction}, {"role": "user", "content": document}]} | shape).encode()
   headers = {"Content-Type": "application/json"} | ({"Authorization": f"Bearer {IT01_KEY}"} if IT01_KEY else {})
   request = urllib.request.Request(IT01_ENDPOINT, body, headers)
   try:
