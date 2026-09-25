@@ -31,6 +31,15 @@ Date        Description                   Credit        Debit      Balance
 09/07/2025  Standing order                             300.00      5,000.00
 """
 
+ONE_FEE = """\
+Date        Description                    Debit       Credit      Balance
+01/07/2025  Opening balance                                       1,000.00
+02/07/2025  Salary                                   5,000.00      6,000.00
+03/07/2025  Refund                                   1,500.00      7,500.00
+04/07/2025  Fees                            200.00                 7,300.00
+05/07/2025  Interest                                    12.50      7,312.50
+"""
+
 NO_BALANCE_PAGE = """\
 \fDate        Description                    Debit       Credit
 06/07/2025  Refund                                     111.11
@@ -113,6 +122,15 @@ class TestRows(unittest.TestCase):
   def test_an_amount_with_no_balance_to_check_it_is_marked(self):
     trailing = SIDE_BY_SIDE + "06/07/2025  Cheque                          400.00\n"
     self.assertEqual(entries(trailing)[-1].check, Check.UNCHECKED)
+
+  def test_a_total_under_the_last_balance_is_not_a_transaction(self):
+    totalled = SIDE_BY_SIDE + "            Total                         1,700.00    5,012.50\n"
+    self.assertEqual(entries(totalled), entries(SIDE_BY_SIDE))
+
+  def test_a_dated_line_or_a_single_amount_under_the_last_balance_stays(self):
+    cheque = "06/07/2025  Cheque                        1,700.00\n"
+    for text, tail in ((SIDE_BY_SIDE, cheque), (ONE_FEE, "            Total                           200.00\n")):
+      with self.subTest(tail): self.assertEqual(entries(text + tail)[-1].check, Check.UNCHECKED)
 
   def test_a_statement_with_no_running_balance_is_refused(self):
     with self.assertRaisesRegex(ValueError, "no running balance column"): entries("Salary 5,000.00\nRent 1,500.00\n")
