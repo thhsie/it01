@@ -10,7 +10,10 @@ from it01.law import (CHARGEABLE_SRC, DEPENDANTS, DEPENDANTS_SRC, INTEREST_BAR, 
 
 ZERO = Decimal(0)
 AMOUNT_LIMIT = Decimal(10) ** 15
-FIGURE = re.compile(r"(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{1,2})?")
+FIGURE = re.compile(r"(?<![\d.,])(?:\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d{1,3}(?:\.\d{3})+,\d{1,2}"
+                    r"|\d{1,3}(?: \d{3})+[.,]\d{1,2}|\d+(?:[.,]\d{1,2})?)(?![.,]?\d)")
+DECIMALS = re.compile(r"[.,](\d{1,2})$")
+SEPARATOR = re.compile(r"[ ,.]")
 JSON_TYPES: dict[Any, tuple[type, ...]] = {bool: (bool,), int: (int,), Decimal: (int, Decimal)}
 EXPENSES = ("wages", "professional_expenses", "entertainment_gifts_and_donations", "advertising", "overseas_travel", "interest", "bank_charges",
             "utilities", "rent", "licences_and_taxes", "motor_vehicle_expenses", "repairs", "depreciation", "bad_debts", "other_expenses")
@@ -25,11 +28,15 @@ def amount_names(obj:Any) -> tuple[str, ...]: return tuple(f.name for f in field
 
 def is_amount(v:Decimal) -> bool: return v.is_finite() and 0 <= v < AMOUNT_LIMIT and v == v.quantize(Decimal("0.01"))
 
-def figures(line:str) -> set[Decimal]: return {Decimal(m.replace(",", "")) for m in FIGURE.findall(line)}
+def to_decimal(text:str) -> Decimal:
+  if not (m := DECIMALS.search(text)): return Decimal(SEPARATOR.sub("", text))
+  return Decimal(SEPARATOR.sub("", text[:m.start()]) + "." + m.group(1))
+
+def figures(line:str) -> set[Decimal]: return {to_decimal(m) for m in FIGURE.findall(line)}
 
 def amount(raw:object) -> Decimal:
   if not FIGURE.fullmatch(text := str(raw).strip()): raise ValueError(f"not an amount {raw}")
-  if not is_amount(value := Decimal(text.replace(",", ""))): raise ValueError(f"invalid amount {raw}")
+  if not is_amount(value := to_decimal(text)): raise ValueError(f"invalid amount {raw}")
   return value
 
 def check_amounts(obj:Any) -> None:

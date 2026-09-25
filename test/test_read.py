@@ -10,7 +10,8 @@ PERIOD = "Period 01/07/2024 to 30/06/2025"
 STAFF = "Payslip for employee 11070001"
 PENSION = "Pension contribution       55,000.00"
 ROUND = "Rounded total              1,107,000"
-DOC = "\n".join(["STATEMENT OF EMOLUMENTS", PERIOD, STAFF, PAY, TAX, PENSION, ROUND, ""])
+TRAVEL = "Travelling allowance          66 870,00"
+DOC = "\n".join(["STATEMENT OF EMOLUMENTS", PERIOD, STAFF, PAY, TAX, PENSION, ROUND, TRAVEL, ""])
 
 def reply(fact:str="salary", amount:object="1,107,000.00", quote:str=PAY) -> str:
   return json.dumps([{"fact": fact, "amount": amount, "quote": quote}])
@@ -44,6 +45,10 @@ class TestRead(unittest.TestCase):
 
   def test_line_without_decimals_shows_the_same_figure(self):
     self.assertEqual(proposals(DOC, reply(amount="1107000.00", quote=ROUND))[0].amt, Decimal("1107000.00"))
+
+  def test_an_amount_written_with_a_space_and_a_comma_is_read(self):
+    said = reply(fact="taxable_transport_allowance", amount="66 870,00", quote=TRAVEL)
+    self.assertEqual(proposals(DOC, said)[0].amt, Decimal("66870.00"))
 
   def test_refuses_what_the_document_does_not_support(self):
     for answer, msg in REFUSED:
