@@ -2,7 +2,7 @@ import json, unittest
 from decimal import Decimal
 from unittest import mock
 from it01.rows import Check
-from it01.credits import ADRIFT, asked, fed, listed, named, received, spoken, totals
+from it01.credits import ADRIFT, asked, fed, label, listed, named, received, spoken, totals
 from it01.tax import AMOUNTS
 
 PAID_IN = """\
@@ -35,6 +35,12 @@ class TestCredits(unittest.TestCase):
   def test_a_kind_that_feeds_a_fact_totals_its_credits(self):
     found = named(received(PAID_IN), reply("rent", "rent", "cash"), KINDS)
     self.assertEqual(fed(found, FEEDS)[0], {"rent": (Decimal("5012.50"), "2 labelled rent")})
+
+  def test_the_endpoint_is_told_to_answer_one_known_kind_for_each_credit(self):
+    with mock.patch("it01.credits.ask", return_value=reply("pay", "interest", "cash")) as said: label(PAID_IN)
+    schema = said.call_args.args[2]
+    self.assertEqual((schema["required"], schema["additionalProperties"]), (["1", "2", "3"], False))
+    self.assertEqual(schema["properties"]["2"], {"type": "string", "enum": list(KINDS)})
 
   def test_a_credit_whose_balance_does_not_agree_is_left_out_and_asked_about(self):
     found = named(received(OFF_BY), reply("rent", "rent", "rent"), KINDS)
