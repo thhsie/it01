@@ -98,8 +98,9 @@ def opened(here:pathlib.Path, name:str) -> list[str]:
   if held["texts"].get(fingerprint(src := source(paper))) != name: raise ValueError(f"{name} has changed since it was read")
   return src.splitlines()
 
-def questioned(questions:tuple[Question, ...]) -> list[tuple[str, str]]:
-  return [(f"{q.amt:,} paid in on {q.date}, {q.description}", q.asking) for q in questions]
+def worded(amt:Decimal, date:str, description:str) -> str: return f"{amt:,} paid in on {date}, {description}"
+
+def questioned(questions:tuple[Question, ...]) -> list[tuple[str, str]]: return [(worded(q.amt, q.date, q.description), q.asking) for q in questions]
 
 def added(here:pathlib.Path, document:str) -> list[str]:
   paper = pathlib.Path(document)
@@ -108,15 +109,17 @@ def added(here:pathlib.Path, document:str) -> list[str]:
   src = source(paper)
   if (mark := fingerprint(src)) in held["texts"]: return [f"{paper.name} holds the same text as {held['texts'][mark]}, so nothing changed"]
   seen:dict[str, tuple[Decimal, str]] = {}
+  labels:tuple[tuple[str, str], ...] = ()
   if is_statement(src):
     was, _, feeds, _ = spoken("labelling")
     found, questions = label(src)
     seen, adrift = fed(found, feeds)
     asking = questioned(questions + adrift)
+    labels = tuple((worded(c.amt, c.date, c.description), c.kind) for c in found)
   else:
     form, told, asked, _ = reading(src)
     was, seen, asking = form.name, *shaped(told, asked)
-  text, how = noted(here.read_text(), seen, Document(name=paper.name, path=str(paper.resolve()), mark=mark, kind=was), asking)
+  text, how = noted(here.read_text(), seen, Document(name=paper.name, path=str(paper.resolve()), mark=mark, kind=was), asking, labels)
   rewritten(here, text)
   ret = [f"{paper.name} read as {was}"]
   if how.proposed: ret += ["", "proposed"] + [f"  {name:<32}{seen[name][0]:>16,}" for name in how.proposed]

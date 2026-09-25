@@ -4,7 +4,8 @@ from decimal import Decimal
 from typing import Any
 from it01.tax import AMOUNTS, JSON_TYPES, ZERO, Facts, Figure, amount, assess, from_json, is_amount
 
-TITLES = {"documents": "documents you read", "answers": "questions you answered", "pending": "questions still open"}
+TITLES = {"documents": "documents you read", "labels": "how money paid in was labelled", "answers": "questions you answered",
+          "pending": "questions still open"}
 WORDING = ("sources", "texts", "paths", *TITLES)
 ASIDE = ("proposed", *WORDING)
 
@@ -74,7 +75,8 @@ def as_file(given:dict[str, Any], held:dict[str, dict[str, str]], proposed:dict[
   whole:dict[str, Any] = given | ({"proposed": proposed} if proposed else {})
   return dumped(whole | {k: v for k, v in held.items() if v}) + "\n"
 
-def noted(text:str, seen:dict[str, tuple[Decimal, str]], doc:Document, asking:list[tuple[str, str]]) -> tuple[str, Noted]:
+def noted(text:str, seen:dict[str, tuple[Decimal, str]], doc:Document, asking:list[tuple[str, str]],
+          labels:tuple[tuple[str, str], ...]=()) -> tuple[str, Noted]:
   assert set(seen) <= set(AMOUNTS)
   given, held, proposed = apart(loaded(text))
   wrote, ask = [], list(asking)
@@ -91,6 +93,10 @@ def noted(text:str, seen:dict[str, tuple[Decimal, str]], doc:Document, asking:li
   for question, asks in fresh:
     if held["pending"].get(question, asks) != asks: raise ValueError(f"the same question is already open with different wording {question}")
     held["pending"][question] = asks
+  repeats:dict[str, int] = {}
+  for said, kind in labels:
+    repeats[said] = cnt = repeats.get(said, 0) + 1
+    held["labels"][f"{doc.name}, {said}" + (f" ({cnt})" if cnt > 1 else "")] = kind
   held["documents"][doc.name] = doc.kind
   held["texts"][doc.mark] = doc.name
   held["paths"][doc.name] = doc.path
