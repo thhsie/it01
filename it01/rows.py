@@ -189,6 +189,7 @@ def entries(text:str) -> tuple[Entry, ...]:
   ret:list[Entry] = []
   moves:list[tuple[Amount, Kind]] = []
   running:Decimal|None = None
+  settled:dict[Kind, list[Decimal]] = {}
   for a in found:
     named = maps[max(i for i, start in enumerate(starts) if start <= a.line)][0]
     col = nearest(tuple(named), a.col)
@@ -201,8 +202,10 @@ def entries(text:str) -> tuple[Entry, ...]:
       continue
     entry, running = settle(rows, tuple(moves), a, running, flip)
     ret.append(entry)
+    for was, kind in moves: settled.setdefault(kind, []).append(abs(was.value))
     moves = []
-  if moves:
+  summed = all(len(above := settled.get(kind, [])) >= 2 and sum(above, ZERO) == abs(a.value) for a, kind in moves)
+  if moves and (not summed or dated(rows, moves[0][0].line, moves[-1][0].line)):
     entry, running = settle(rows, tuple(moves), None, running, flip)
     ret.append(entry)
   return tuple(ret)
