@@ -327,11 +327,12 @@ class TestLocal(unittest.TestCase):
     self.assertEqual(asked, ())
 
   def test_two_figures_for_one_fact_ask_which_is_the_fact(self):
-    form = Form("soe", (("net_emoluments", "a"),), (("net_emoluments", "salary"),))
-    seen = (Found("net_emoluments", Decimal("100"), "100", 100, 10), Found("net_emoluments", Decimal("200"), "200", 100, 20))
-    told, asked, _ = tells(form, seen)
-    self.assertEqual(told, ())
-    self.assertEqual([q.asking for q in asked], ["which of these is the salary"] * 2)
+    for fact, said in (("salary", "salary"), ("paye_withheld", "paye withheld")):
+      form = Form("soe", (("net_emoluments", "a"),), (("net_emoluments", fact),))
+      seen = (Found("net_emoluments", Decimal("100"), "100", 100, 10), Found("net_emoluments", Decimal("200"), "200", 100, 20))
+      told, asked, _ = tells(form, seen)
+      self.assertEqual(told, ())
+      self.assertEqual([q.asking for q in asked], [f"which of these is the {said}"] * 2)
 
   def test_a_sum_is_never_read_from_a_figure_the_output_asks_about(self):
     form = Form("soe", (("total", "a"), ("exempt_income", "b"), ("net_emoluments", "c"), ("salary", "d")),

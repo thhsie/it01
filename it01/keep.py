@@ -5,7 +5,7 @@ from typing import Any
 from it01.kinds import Table, spoken
 from it01.law import YEAR_SRC, YEAR_STARTS, Source
 from it01.rows import months
-from it01.tax import JSON_TYPES, PLACES, ZERO, Facts, Figure, amount, assess, from_json, is_amount, summed
+from it01.tax import JSON_TYPES, PLACES, ZERO, Facts, Figure, amount, assess, from_json, is_amount, plain, summed
 
 TITLES = {"documents": "documents you read", "labels": "how money paid in was labelled", "answers": "questions you answered",
           "pending": "questions still open"}
@@ -97,7 +97,7 @@ def placed(given:dict[str, Any], held:dict[str, dict[str, str]], proposed:dict[s
   wrote, ask = [], list(asking)
   for name, (amt, quote) in seen.items():
     if (was := at(given, name)) is not None:
-      ask.append((f"{name} read as {amt:,} in {quote}, and the file already gives {amount(was):,}",
+      ask.append((f"{plain(name)} read as {amt:,} in {quote}, and the case already gives {amount(was):,}",
                   "add it to the fact, or leave the fact if this is the same money read twice"))
     else:
       proposed[name] = proposed.get(name, ZERO) + amt

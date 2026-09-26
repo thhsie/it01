@@ -137,6 +137,8 @@ AMOUNTS = amount_names(Facts)
 PLACES = (*AMOUNTS, *(f"business.{n}" for n in amount_names(Business)))
 QUARTERLY = ("rent", "losses_brought_forward", "tax_deducted_at_source")
 
+def plain(name:str) -> str: return name.replace(".", " ").replace("_", " ")
+
 def from_json[T:(Facts, Business, Asset)](cls:type[T], raw:Any) -> T:
   name = cls.__name__.lower()
   if not isinstance(raw, dict): raise ValueError(f"{name} must be a JSON object")
