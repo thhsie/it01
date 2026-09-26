@@ -16,6 +16,12 @@
     "dividend": "resident_dividends",
     "rent": "rent"
   },
+  "needs": {
+    "pay": {
+      "fact": "salary",
+      "asking": "the bank shows pay after tax and deductions, so add the statement of emoluments, which gives the salary and the tax withheld"
+    }
+  },
   "asking": {
     "cash": "where did this cash come from",
     "unclear": "what was this payment for"

@@ -3,7 +3,7 @@ from collections.abc import Callable
 from decimal import Decimal
 from typing import TYPE_CHECKING
 from it01.credits import Question, fed, label, spoken, totals
-from it01.keep import Document, answer, apart, case, confirm, dumped, figures, fingerprint, keep, loaded, noted
+from it01.keep import Document, answer, apart, case, confirm, dumped, figures, fingerprint, is_given, keep, loaded, noted
 from it01.read import read
 from it01.rows import Check, dropped, entries, is_statement
 if TYPE_CHECKING: from it01.local import Asked, Form, Sum, Told
@@ -104,17 +104,19 @@ def questioned(questions:tuple[Question, ...]) -> list[tuple[str, str]]: return 
 
 def added(here:pathlib.Path, document:str) -> list[str]:
   paper = pathlib.Path(document)
-  held = apart(loaded(here.read_text()))[1]
+  given, held, proposed = apart(loaded(here.read_text()))
   if paper.name in held["documents"]: return [f"{paper.name} was read before, so nothing changed"]
   src = source(paper)
   if (mark := fingerprint(src)) in held["texts"]: return [f"{paper.name} holds the same text as {held['texts'][mark]}, so nothing changed"]
   seen:dict[str, tuple[Decimal, str]] = {}
   labels:tuple[tuple[str, str], ...] = ()
   if is_statement(src):
-    was, _, feeds, _ = spoken("labelling")
+    was, _, feeds, _, needs = spoken("labelling")
     found, questions = label(src)
     seen, adrift = fed(found, feeds)
     asking = questioned(questions + adrift)
+    asking += [(f"money labelled {kind} came in and the case gives no {fact}", asks) for kind, (fact, asks) in needs.items()
+               if any(c.kind == kind for c in found) and not is_given(given, proposed, fact)]
     labels = tuple((worded(c.amt, c.date, c.description), c.kind) for c in found)
   else:
     form, told, asked, _ = reading(src)
