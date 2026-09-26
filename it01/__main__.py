@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 from it01.credits import Question, fed, label, totals
 from it01.kinds import picked, spoken
 from it01.keep import Document, answer, apart, case, confirm, dumped, figures, fingerprint, is_given, keep, labelled, loaded, noted, relabelled
-from it01.keep import PAID_IN, worded
+from it01.keep import PAID_IN, reanswered, worded
 from it01.read import read
 from it01.rows import Check, dropped, entries, is_statement
 from it01.tax import amount
@@ -17,7 +17,8 @@ USAGE = ("usage: it01 FACTS.json\n       it01 read DOCUMENT\n"
          "       it01 keep FACTS.json\n       it01 local DOCUMENT\n"
          "       it01 confirm FACTS.json FACT\n       it01 add FACTS.json DOCUMENT\n"
          "       it01 show FACTS.json DOCUMENT\n"
-         "       it01 answer FACTS.json QUESTION ANSWER\n       it01 data FACTS.json")
+         "       it01 answer FACTS.json QUESTION ANSWER\n       it01 change FACTS.json QUESTION KIND\n"
+         "       it01 data FACTS.json")
 
 def money(amt:Decimal|None) -> str: return f"{amt:,}" if amt is not None else ""
 
@@ -115,6 +116,19 @@ def responded(here:pathlib.Path, asked:str, said:str) -> list[str]:
   rewritten(here, text)
   return ret
 
+def changed(here:pathlib.Path, asked:str, said:str) -> list[str]:
+  if not (asked := asked.strip()): raise ValueError("the question to change is blank")
+  text = here.read_text()
+  answers = apart(loaded(text))[1]["answers"]
+  question = matched(answers, asked, "answered")
+  table, keys = spoken("labelling"), labelled(text, question)
+  if not keys or not (paid := PAID_IN.match(question)) or (kind := said.strip()) not in picked(table):
+    raise ValueError(f"only a payment's kind can be changed, to one of: {', '.join(picked(table))}")
+  text = reanswered(text, question, kind, table.feeds.get(answers[question].strip()), amount(paid["amt"]) * len(keys))
+  text, lines = kinded(text, question, keys, kind, table.feeds.get(kind))
+  rewritten(here, text)
+  return [f"changed {question}"] + lines
+
 def opened(here:pathlib.Path, name:str) -> list[str]:
   held = apart(loaded(here.read_text()))[1]
   if name not in held["paths"]: raise ValueError(f"the case does not say where {name} was read from")
@@ -164,7 +178,7 @@ def to_data(text:str) -> list[str]: return [dumped(case(text))]
 
 VERBS = {"read": to_proposals, "rows": to_transactions, "credits": to_credits, "keep": keep, "local": to_local, "data": to_data}
 ON_CASE:dict[str, tuple[Callable[..., list[str]], int]] = {"confirm": (accepted, 2), "add": (added, 2), "answer": (responded, 3),
-                                                           "show": (opened, 2)}
+                                                           "change": (changed, 3), "show": (opened, 2)}
 
 def main() -> int:
   args = sys.argv[1:]

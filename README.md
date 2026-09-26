@@ -72,6 +72,16 @@ Give the start of the question's wording after the file. When it matches no ques
 
 The question moves from `pending` to `answers` with the words you used. No figure moves. A question already answered is refused, so your first words are kept.
 
+## Change a payment's kind
+
+```sh
+it01 change facts.json "1,200.00 paid in on 12/08" rent
+```
+
+`change` gives an answered payment another kind. The amount the old kind added to a proposed figure is taken back. The new kind adds the amount to its own proposed figure, if it has one.
+
+A figure you have confirmed is left alone, and the change is refused. Only a kind can replace an answer.
+
 ## Read with a model file of your own
 
 ```sh
@@ -161,6 +171,7 @@ it01 keep FACTS.json                    print everything so far
 it01 show FACTS.json DOCUMENT.txt       print a document the way it was read
 it01 confirm FACTS.json FACT            accept a proposed figure
 it01 answer FACTS.json QUESTION ANSWER  answer an open question
+it01 change FACTS.json QUESTION KIND    give an answered payment another kind
 it01 read DOCUMENT.txt                  propose facts through your endpoint
 it01 local DOCUMENT.txt                 propose facts with your model file
 it01 rows STATEMENT.txt                 read transactions

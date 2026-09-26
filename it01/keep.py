@@ -140,6 +140,21 @@ def answer(text:str, question:str, said:str) -> str:
   del held["pending"][question]
   return as_file(given, held, proposed)
 
+def reanswered(text:str, question:str, said:str, fact:str|None, amt:Decimal) -> str:
+  given, held, proposed = apart(loaded(text))
+  if fact:
+    if at(given, fact) is not None: raise ValueError(f"{fact} is confirmed, so {question} cannot be changed")
+    if proposed.get(fact, ZERO) < amt: raise ValueError(f"{fact} no longer holds the {amt:,} that {question} added")
+    rest, cnt = re.subn(rf"(^|, ){re.escape(f'answered {question}')}(?=, |$)", "", held["sources"].get(fact, ""))
+    if cnt != 1: raise ValueError(f"the source of {fact} does not name {question} once, so its amount cannot be taken back")
+    left, rest = proposed[fact] - amt, rest.removeprefix(", ")
+    if rest: held["sources"][fact] = rest
+    else: held["sources"].pop(fact, None)
+    if left or rest: proposed[fact] = left
+    else: del proposed[fact]
+  held["answers"][question] = said
+  return as_file(given, held, proposed)
+
 def labelled(text:str, credit:str) -> list[str]:
   mark = re.compile(re.escape(f", {credit}") + r"( \(\d+\))?$")
   return [k for k in apart(loaded(text))[1]["labels"] if mark.search(k)]

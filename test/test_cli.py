@@ -2,7 +2,7 @@ import importlib, json, os, pathlib, subprocess, sys, tempfile, tomllib, unittes
 from dataclasses import dataclass
 from decimal import Decimal
 from unittest import mock
-from it01.__main__ import added, questioned, responded, shaped
+from it01.__main__ import added, changed, questioned, responded, shaped
 from it01.credits import Credit
 from it01.keep import fingerprint
 from it01.rows import Check
@@ -222,6 +222,47 @@ class TestCli(unittest.TestCase):
   def test_a_payment_answered_with_a_kind_already_confirmed_becomes_a_question(self):
     held = self.answered_with("business", business={"gross_income": 100000})
     self.assertEqual(("proposed" in held, len(held["pending"])), (False, 1))
+
+  def changed_to(self, first:str, then:str, **given:object) -> dict:
+    here = on_disk(json.dumps({"resident": True, "labels": {f"bank.pdf, {self.PAYMENT}": "unclear"},
+                               "pending": {self.PAYMENT: "what was this payment for"}} | given))
+    self.addCleanup(os.unlink, here)
+    responded(pathlib.Path(here), self.PAYMENT, first)
+    changed(pathlib.Path(here), self.PAYMENT[:20], then)
+    return json.loads(pathlib.Path(here).read_text())
+
+  def test_a_changed_kind_moves_the_amount_to_the_new_fact(self):
+    held = self.changed_to("business", "rent")
+    self.assertEqual((held["proposed"], list(held["labels"].values()), held["answers"]), ({"rent": 20000}, ["rent"], {self.PAYMENT: "rent"}))
+    self.assertEqual((list(held["sources"]), held["sources"]["rent"]), (["rent"], f"answered {self.PAYMENT}"))
+
+  def test_a_kind_changed_to_one_that_counts_nothing_takes_the_amount_back(self):
+    held = self.changed_to("business", "other")
+    self.assertEqual(("proposed" in held, "sources" in held, list(held["labels"].values())), (False, False, ["other"]))
+
+  def test_an_answer_in_words_can_become_a_kind(self):
+    self.assertEqual(self.changed_to("a gift", "business")["proposed"], {"business.gross_income": 20000})
+
+  def test_a_change_after_the_figure_was_confirmed_is_refused(self):
+    here = on_disk(json.dumps({"resident": True, "labels": {f"bank.pdf, {self.PAYMENT}": "unclear"},
+                               "pending": {self.PAYMENT: "what was this payment for"}}))
+    self.addCleanup(os.unlink, here)
+    responded(pathlib.Path(here), self.PAYMENT, "business")
+    run("confirm", here, "business.gross_income")
+    with self.assertRaisesRegex(ValueError, "is confirmed, so .* cannot be changed"): changed(pathlib.Path(here), self.PAYMENT, "rent")
+
+  def test_a_change_to_a_kind_whose_fact_is_confirmed_becomes_a_question(self):
+    held = self.changed_to("rent", "business", business={"gross_income": 100000})
+    self.assertEqual(("business.gross_income" in held.get("proposed", {}), list(held["labels"].values())), (False, ["business"]))
+    self.assertEqual(len(held["pending"]), 1)
+
+  def test_only_a_kind_can_replace_an_answer(self):
+    with self.assertRaisesRegex(ValueError, "only a payment's kind can be changed"): self.changed_to("business", "a gift")
+
+  def test_a_question_not_yet_answered_cannot_be_changed(self):
+    here = on_disk(json.dumps({"resident": True, "pending": {self.PAYMENT: "what was this payment for"}}))
+    self.addCleanup(os.unlink, here)
+    with self.assertRaisesRegex(ValueError, "0 answered questions match"): changed(pathlib.Path(here), self.PAYMENT, "rent")
 
   def test_pay_in_two_statements_asks_once(self):
     here = on_disk(json.dumps({"resident": True}))

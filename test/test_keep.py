@@ -1,7 +1,7 @@
 import json, unittest
 from decimal import Decimal
 from it01.keep import (ASIDE, TITLES, WORDING, Document, answer, apart, case, confirm, dumped, figures, fingerprint, keep, loaded, noted,
-                       received, shown)
+                       reanswered, received, shown)
 from it01.kinds import spoken
 
 STATEMENT = Document(name="bank.txt", path="in/bank.txt", mark="a", kind="bank statement")
@@ -360,5 +360,30 @@ class TestReceived(unittest.TestCase):
     text = dumped({"resident": True, "documents": self.held()["documents"], "labels": self.LABELS})
     got = case(text)["received"]
     self.assertEqual((got["months"]["2025-04"]["total"], [s["page"] for s in got["year_sources"]]), ("7.00", [19, 26]))
+
+class TestReanswered(unittest.TestCase):
+  SHORT = "100.00 paid in on 01/02/2026, TRANSFER"
+  LONG = "100.00 paid in on 01/02/2026, TRANSFER FROM X"
+  SALE = "50.00 paid in on 03/02/2026, SALE"
+
+  def text(self, notes:str) -> str:
+    return dumped({"resident": True, "proposed": {"rent": 250}, "sources": {"rent": notes},
+                   "answers": {self.SHORT: "rent", self.LONG: "rent", self.SALE: "rent"}})
+
+  def test_only_the_whole_note_of_the_changed_answer_is_taken_back(self):
+    notes = f"answered {self.SHORT}, answered {self.SALE}, answered {self.LONG}"
+    held = loaded(reanswered(self.text(notes), self.SHORT, "other", "rent", Decimal(100)))
+    self.assertEqual((held["proposed"], held["sources"]["rent"], held["answers"][self.SHORT]),
+                     ({"rent": Decimal(150)}, f"answered {self.SALE}, answered {self.LONG}", "other"))
+
+  def test_a_figure_another_source_still_backs_is_kept_at_zero(self):
+    text = dumped({"resident": True, "proposed": {"rent": 100}, "sources": {"rent": f"bank.pdf page 1, answered {self.SHORT}"},
+                   "answers": {self.SHORT: "rent"}})
+    held = loaded(reanswered(text, self.SHORT, "other", "rent", Decimal(100)))
+    self.assertEqual((held["proposed"], held["sources"]), ({"rent": Decimal(0)}, {"rent": "bank.pdf page 1"}))
+
+  def test_a_note_that_cannot_be_told_apart_is_refused(self):
+    notes = f"answered {self.SALE}, answered {self.SALE}"
+    with self.assertRaisesRegex(ValueError, "does not name .* once"): reanswered(self.text(notes), self.SALE, "other", "rent", Decimal(50))
 
 if __name__ == "__main__": unittest.main()
