@@ -33,6 +33,8 @@ def at(given:dict[str, Any], name:str) -> Any:
   if not isinstance(block := given.get(part, {}), dict): raise ValueError(f"{part} must be a JSON object")
   return block.get(field)
 
+def is_given(given:dict[str, Any], proposed:dict[str, Decimal], name:str) -> bool: return at(given, name) is not None or name in proposed
+
 def offered(raw:dict[str, Any]) -> dict[str, Decimal]:
   if not isinstance(held := raw.get("proposed", {}), dict): raise ValueError("proposed must be a JSON object of figures")
   if unknown := sorted(set(held) - set(PLACES)): raise ValueError(f"proposed names figures that are not facts {unknown}")
@@ -47,7 +49,7 @@ def apart(raw:Any) -> tuple[dict[str, Any], dict[str, dict[str, str]], dict[str,
   held, proposed = {name: wording(raw, name) for name in WORDING}, offered(raw)
   given = {k: v for k, v in raw.items() if k not in ASIDE}
   if both := sorted(n for n in proposed if at(given, n) is not None): raise ValueError(f"proposed repeats facts already given {both}")
-  if unknown := sorted(n for n in held["sources"] if at(given, n) is None and n not in proposed):
+  if unknown := sorted(n for n in held["sources"] if not is_given(given, proposed, n)):
     raise ValueError(f"sources name neither a fact nor a proposed figure {unknown}")
   if nested := sorted(k for k in held["sources"] if isinstance(given.get(k), (dict, list))): raise ValueError(f"sources cannot name {nested}")
   return given, held, proposed

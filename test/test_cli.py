@@ -1,8 +1,11 @@
 import importlib, json, os, pathlib, subprocess, sys, tempfile, tomllib, unittest
 from dataclasses import dataclass
 from decimal import Decimal
-from it01.__main__ import questioned, shaped
+from unittest import mock
+from it01.__main__ import added, questioned, shaped
+from it01.credits import Credit
 from it01.keep import fingerprint
+from it01.rows import Check
 from test.helpers import ROOT
 
 @dataclass(frozen=True)
@@ -168,6 +171,23 @@ class TestCli(unittest.TestCase):
     ret = run("add", name, "gone.txt")
     self.assertEqual((ret.returncode, pathlib.Path(name).read_text()), (0, was))
     self.assertIn("was read before", ret.stdout)
+
+  def test_pay_in_two_statements_asks_once(self):
+    here = on_disk(json.dumps({"resident": True}))
+    self.addCleanup(os.unlink, here)
+    found = (Credit("02/07/2025", Decimal("5000.00"), "Salary", "pay", Check.AGREES),)
+    with mock.patch("it01.__main__.label", return_value=(found, ())):
+      for said in (STATEMENT, STATEMENT + "\n"): added(pathlib.Path(here), self.saved_document(said))
+    self.assertEqual(len(json.loads(pathlib.Path(here).read_text())["pending"]), 1)
+
+  def test_pay_in_the_bank_asks_for_the_salary_only_when_the_case_has_none(self):
+    found = (Credit("02/07/2025", Decimal("5000.00"), "Salary", "pay", Check.AGREES),)
+    for given, asked in (({}, 1), ({"salary": 1200000}, 0), ({"proposed": {"salary": 1200000}}, 0)):
+      here = on_disk(json.dumps({"resident": True} | given))
+      self.addCleanup(os.unlink, here)
+      with self.subTest(given), mock.patch("it01.__main__.label", return_value=(found, ())): added(pathlib.Path(here), self.saved_document(STATEMENT))
+      pending = json.loads(pathlib.Path(here).read_text()).get("pending", {})
+      self.assertEqual(len([q for q in pending if "the case gives no salary" in q]), asked)
 
   def test_the_same_text_under_another_name_is_not_read_twice(self):
     said = "Total emoluments        1,107,000.00\n"

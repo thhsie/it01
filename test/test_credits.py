@@ -24,7 +24,7 @@ Date        Description                    Debit       Credit      Balance
 06/07/2025  RENT SEPTEMBER                           2,000.00      5,600.00
 """
 
-CALLED, KINDS, FEEDS, ASKING = spoken("labelling")
+CALLED, KINDS, FEEDS, ASKING, NEEDS = spoken("labelling")
 
 def reply(*names:str) -> str: return json.dumps({str(n): name for n, name in enumerate(names, 1)})
 
@@ -63,6 +63,16 @@ class TestCredits(unittest.TestCase):
   def test_a_labelling_file_with_no_feeds_proposes_nothing(self):
     base = {"name": "a statement", "kinds": {"one": "a"}, "asking": {"one": "what is this"}}
     with mock.patch("it01.credits.data", return_value=base): self.assertEqual(spoken("labelling")[2], {})
+
+  def test_a_needs_table_that_does_not_hold_up_is_refused(self):
+    base = {"name": "a statement", "kinds": {"one": "a", "two": "b"}, "feeds": {"one": "rent"}, "asking": {"two": "what is this"}}
+    ask = "a question"
+    for needs, says in (({"one": {"fact": "salary"}}, "a fact and a question"),
+                        ({"nope": {"fact": "salary", "asking": ask}}, r"unknown kinds \['nope'\]"),
+                        ({"one": {"fact": "nope", "asking": ask}}, r"unknown facts \['nope'\]"),
+                        ({"one": {"fact": "rent", "asking": ask}}, "feeds and needs"), ([], "needs as an object")):
+      with self.subTest(says), mock.patch("it01.credits.data", return_value=base | {"needs": needs}):
+        with self.assertRaisesRegex(ValueError, says): spoken("labelling")
 
   def test_the_shipped_table_feeds_only_kinds_and_facts(self):
     for kind, fact in FEEDS.items():

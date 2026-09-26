@@ -24,7 +24,7 @@ class Question:
   description: str
   asking: str
 
-def spoken(name:str) -> tuple[str, dict[str, str], dict[str, str], dict[str, str]]:
+def spoken(name:str) -> tuple[str, dict[str, str], dict[str, str], dict[str, str], dict[str, tuple[str, str]]]:
   held = data(name)
   if not isinstance(called := held.get("name"), str) or not called.strip(): raise ValueError(f"{name}.json must say what it reads")
   ret = []
@@ -43,7 +43,16 @@ def spoken(name:str) -> tuple[str, dict[str, str], dict[str, str], dict[str, str
   if both := sorted(set(feeds) & set(asking)): raise ValueError(f"{name}.json both feeds and asks about {both}")
   fills = list(feeds.values())
   if twice := sorted({f for f in fills if fills.count(f) > 1}): raise ValueError(f"{name}.json feeds {twice} from more than one kind")
-  return called, kinds, feeds, asking
+  if not isinstance(wanted := held.get("needs", {}), dict): raise ValueError(f"{name}.json must hold needs as an object")
+  needs = {}
+  for kind, need in wanted.items():
+    if not isinstance(need, dict) or not all(isinstance(need.get(k), str) and need[k].strip() for k in ("fact", "asking")):
+      raise ValueError(f"{name}.json must give a fact and a question for what {kind} needs")
+    needs[str(kind)] = (need["fact"], need["asking"])
+  if unknown := sorted(set(needs) - set(kinds)): raise ValueError(f"{name}.json needs unknown kinds {unknown}")
+  if unknown := sorted({f for f, _ in needs.values()} - set(PLACES)): raise ValueError(f"{name}.json needs unknown facts {unknown}")
+  if both := sorted({f for f, _ in needs.values()} & set(fills)): raise ValueError(f"{name}.json both feeds and needs {both}")
+  return called, kinds, feeds, asking, needs
 
 def received(text:str) -> tuple[Entry, ...]: return tuple(e for e in entries(text) if e.paid_in is not None)
 
@@ -88,7 +97,7 @@ def totals(found:tuple[Credit, ...]) -> dict[str, Decimal]:
   return ret
 
 def label(text:str) -> tuple[tuple[Credit, ...], tuple[Question, ...]]:
-  _, kinds, _, asking = spoken("labelling")
+  _, kinds, _, asking, _ = spoken("labelling")
   if not (paid := received(text)): return (), ()
   said = "\n".join(f"{kind}: {means}" for kind, means in kinds.items())
   return (found := named(paid, ask(instruction("labelling") + "\n" + said, listed(paid), answers(paid, kinds)), kinds)), asked(found, asking)
