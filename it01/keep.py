@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 from it01.kinds import Table, spoken
+from it01.law import YEAR_SRC, YEAR_STARTS, Source
 from it01.rows import months
 from it01.tax import JSON_TYPES, PLACES, ZERO, Facts, Figure, amount, assess, from_json, is_amount, summed
 
@@ -189,10 +190,9 @@ def texted(value:Any) -> Any:
 
 def case(text:str) -> dict[str, Any]:
   given, held, proposed = apart(loaded(text))
-  worked = [{"rule": fig.rule, "amount": str(fig.amt),
-             "sources": [{"doc": s.doc, "section": s.section, "page": s.page, "url": s.url} for s in fig.src]}
-            for fig in assessed(given)]
-  return {"facts": texted(given), "proposed": texted(proposed)} | held | {"figures": worked, "received": texted(received(held, spoken("labelling")))}
+  worked = [{"rule": fig.rule, "amount": str(fig.amt), "sources": [cited(s) for s in fig.src]} for fig in assessed(given)]
+  money = texted(received(held, spoken("labelling"))) | {"year_sources": [cited(s) for s in YEAR_SRC]}
+  return {"facts": texted(given), "proposed": texted(proposed)} | held | {"figures": worked, "received": money}
 
 @dataclass(frozen=True)
 class Paid:
@@ -208,6 +208,14 @@ def credited(key:str, kind:str, docs:list[str], table:Table) -> Paid|None:
   try: return Paid(key, doc, amount(m["amt"]), m["date"], kind)
   except ValueError: return None
 
+def year_of(month:str) -> tuple[str, ...]:
+  first = int(month[:4]) - (int(month[5:]) < YEAR_STARTS)
+  return tuple(f"{first + (YEAR_STARTS - 1 + n) // 12}-{(YEAR_STARTS - 1 + n) % 12 + 1:02d}" for n in range(12))
+
+def spoke(src:Source) -> str: return f"{src.doc} {src.section} page {src.page}"
+
+def cited(src:Source) -> dict[str, Any]: return {"doc": src.doc, "section": src.section, "page": src.page, "url": src.url}
+
 def received(held:dict[str, dict[str, str]], table:Table) -> dict[str, Any]:
   where = {kind: group for group, kinds in (("income", (*table.feeds, *table.needs)), ("exempt", table.exempt), ("unsorted", table.asking),
                                              ("other", table.not_income)) for kind in kinds}
@@ -218,8 +226,13 @@ def received(held:dict[str, dict[str, str]], table:Table) -> dict[str, Any]:
   dated = [(p, ways[p.doc][p.date]) for p in found]
   kinds = summed([(p.kind, p.amt) for p in found])
   groups = summed([(where[p.kind], p.amt) for p in found])
+  year = year_of(last) if (last := max((at for _, at in dated if at), default="")) else ()
+  by_month = {m: [p for p, at in dated if at == m] for m in year}
   return {"groups": {group: groups.get(group, NIL) for group in GROUPS}, "kinds": dict(sorted(kinds.items(), key=lambda one: -one[1])),
-          "months": {m: summed([(p.kind, p.amt) for p, at in dated if at == m]) for m in sorted({at for _, at in dated if at})},
+          "months": {m: {"total": sum((p.amt for p in paid), NIL), "groups": summed([(where[p.kind], p.amt) for p in paid]),
+                         "payments": {g: [p.key for p in paid if where[p.kind] == g] for g in dict.fromkeys(where[p.kind] for p in paid)}}
+                     for m, paid in by_month.items()},
+          "outside": [p.key for p, at in dated if at and at not in year],
           "undated": [p.key for p, at in dated if at is None], "unread": [key for key, p in read.items() if p is None]}
 
 def keep(text:str) -> list[str]:
@@ -230,11 +243,14 @@ def keep(text:str) -> list[str]:
   table = spoken("labelling")
   money = received(held, table)
   if money["kinds"]:
-    freed = [f"    {s.doc} {s.section} page {s.page}" for s in table.exempt.values()]
+    freed = [f"    {spoke(s)}" for s in table.exempt.values()]
     ret += ["", "money paid in, by what it counts as, as labelled"]
     ret += [line for group, amt in money["groups"].items() for line in [f"  {GROUPS[group]:<44}{amt:>14,}"] + (freed if group == "exempt" else [])]
     ret += ["", "money paid in, by the kind it was labelled"] + [f"  {kind:<44}{amt:>14,}" for kind, amt in money["kinds"].items()]
-  if money["months"]: ret += ["", "money paid in, by month"] + [f"  {m:<44}{sum(k.values(), ZERO):>14,}" for m, k in money["months"].items()]
+  if year := list(money["months"]):
+    ret += ["", f"money paid in over the income year from {year[0]} to {year[-1]}, {', '.join(spoke(s) for s in YEAR_SRC)}"]
+    ret += [f"  {m:<44}{one['total']:>14,}" for m, one in money["months"].items()]
+  if money["outside"]: ret += ["", "money paid in outside that income year"] + [f"  {key}" for key in money["outside"]]
   if money["undated"]: ret += ["", "money paid in with a date whose month is not clear"] + [f"  {key}" for key in money["undated"]]
   if money["unread"]: ret += ["", "labels that do not read as money paid in"] + [f"  {key}" for key in money["unread"]]
   for name, title in TITLES.items():

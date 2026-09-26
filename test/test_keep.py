@@ -299,23 +299,37 @@ class TestReceived(unittest.TestCase):
             "day.pdf, 250.50 paid in on 03/03/2025, SALARY (2)": "business", "day.pdf, 12.25 paid in on 29 Jun 25, INTEREST": "interest",
             "month.pdf, 5.00 paid in on 02/15/2025, REFUND": "other", "month.pdf, 7.00 paid in on 04/01/2025, REFUND": "other",
             "either.pdf, 400.00 paid in on 05/06/2025, TRANSFER": "other", "gone.pdf, 1.00 paid in on 01/01/2025, X": "other",
-            "day.pdf, a lot paid in on 01/01/2025, X": "other"}
+            "day.pdf, a lot paid in on 01/01/2025, X": "other", "day.pdf, 3.00 paid in on 20/05/2024, OLD": "other"}
 
   def held(self): return {"documents": dict.fromkeys(("day.pdf", "month.pdf", "either.pdf"), "bank statement"), "labels": self.LABELS}
 
   def test_money_in_is_summed_by_kind_with_the_largest_first(self):
-    self.assertEqual(received(self.held(), TABLE)["kinds"], {"pay": Decimal("2000.00"), "other": Decimal("412.00"), "business": Decimal("250.50"),
+    self.assertEqual(received(self.held(), TABLE)["kinds"], {"pay": Decimal("2000.00"), "other": Decimal("415.00"), "business": Decimal("250.50"),
                                                         "interest": Decimal("12.25")})
 
   def test_a_statement_says_by_its_dates_which_part_is_the_month(self):
-    self.assertEqual(received(self.held(), TABLE)["months"], {"2025-02": {"pay": Decimal("1000.00"), "other": Decimal("5.00")},
-                                                         "2025-03": {"pay": Decimal("1000.00"), "business": Decimal("250.50")},
-                                                         "2025-04": {"other": Decimal("7.00")}, "2025-06": {"interest": Decimal("12.25")}})
+    got = received(self.held(), TABLE)["months"]
+    self.assertEqual([got[m]["total"] for m in ("2025-02", "2025-04", "2025-06")], [Decimal("1005.00"), Decimal("7.00"), Decimal("12.25")])
+
+  def test_the_income_year_runs_from_july_to_the_june_after_the_latest_payment(self):
+    got = received(self.held(), TABLE)
+    year = list(got["months"])
+    self.assertEqual((year[0], year[-1], len(year)), ("2024-07", "2025-06", 12))
+    self.assertEqual(got["months"]["2024-12"], {"total": Decimal("0.00"), "groups": {}, "payments": {}})
+
+  def test_each_month_holds_its_total_its_groups_and_its_payments(self):
+    self.assertEqual(received(self.held(), TABLE)["months"]["2025-03"],
+                     {"total": Decimal("1250.50"), "groups": {"income": Decimal("1250.50")},
+                      "payments": {"income": ["day.pdf, 1,000.00 paid in on 03/03/2025, SALARY",
+                                              "day.pdf, 250.50 paid in on 03/03/2025, SALARY (2)"]}})
+
+  def test_a_payment_before_the_income_year_is_named(self):
+    self.assertEqual(received(self.held(), TABLE)["outside"], ["day.pdf, 3.00 paid in on 20/05/2024, OLD"])
 
   def test_money_in_is_summed_by_what_it_counts_as(self):
     held = self.held() | {"labels": self.LABELS | {"month.pdf, 9.00 paid in on 04/01/2025, CASH": "cash"}}
     self.assertEqual(received(held, TABLE)["groups"], {"income": Decimal("2250.50"), "exempt": Decimal("12.25"), "unsorted": Decimal("9.00"),
-                                                  "other": Decimal("412.00")})
+                                                  "other": Decimal("415.00")})
 
   def test_a_group_with_nothing_shows_zero_to_the_cent(self):
     self.assertEqual(str(received(self.held(), TABLE)["groups"]["unsorted"]), "0.00")
@@ -337,11 +351,14 @@ class TestReceived(unittest.TestCase):
     self.assertIn(f"  {'pay':<44}{'2,000.00':>14}", out)
     at = out.index(f"  {'exempt':<44}{'12.25':>14}")
     self.assertEqual(out[at + 1], "    ita Second Schedule Part II Sub-Part B item 3(c) page 267")
+    self.assertIn("money paid in over the income year from 2024-07 to 2025-06, ita s.2 page 19, ita s.2 page 26", out)
     self.assertIn(f"  {'2025-03':<44}{'1,250.50':>14}", out)
+    self.assertEqual(out[out.index("money paid in outside that income year") + 1], "  day.pdf, 3.00 paid in on 20/05/2024, OLD")
     self.assertEqual(out[out.index("money paid in with a date whose month is not clear") + 1], "  either.pdf, 400.00 paid in on 05/06/2025, TRANSFER")
 
-  def test_the_case_as_json_carries_money_in_as_text(self):
+  def test_the_case_as_json_carries_money_in_as_text_with_the_law_on_the_year(self):
     text = dumped({"resident": True, "documents": self.held()["documents"], "labels": self.LABELS})
-    self.assertEqual(case(text)["received"]["months"]["2025-04"], {"other": "7.00"})
+    got = case(text)["received"]
+    self.assertEqual((got["months"]["2025-04"]["total"], [s["page"] for s in got["year_sources"]]), ("7.00", [19, 26]))
 
 if __name__ == "__main__": unittest.main()
