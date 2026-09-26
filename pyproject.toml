@@ -14,7 +14,7 @@ it01 = "it01.__main__:main"
 [project.optional-dependencies]
 linting = ["ruff==0.16.8", "mypy==2.3.1"]
 local = ["numpy>=1.24", "onnxruntime>=1.17", "tokenizers>=0.15"]
-pdf = ["pypdf>=5", "pypdfium2>=4"]
+pdf = ["pypdfium2>=4"]
 
 [build-system]
 requires = ["setuptools>=77"]
@@ -62,5 +62,5 @@ warn_unused_ignores = true
 warn_unused_configs = true
 
 [[tool.mypy.overrides]]
-module = ["numpy.*", "onnxruntime.*", "tokenizers.*", "pypdf.*", "pypdfium2.*"]
+module = ["numpy.*", "onnxruntime.*", "tokenizers.*", "pypdfium2.*"]
 ignore_missing_imports = true
