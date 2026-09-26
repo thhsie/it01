@@ -1,6 +1,6 @@
 import unittest
 from decimal import Decimal
-from it01.rows import Check, dropped, entries, is_statement
+from it01.rows import Check, dropped, entries, is_statement, months
 
 SIDE_BY_SIDE = """\
 Date        Description                    Debit       Credit      Balance
@@ -295,5 +295,11 @@ class TestRows(unittest.TestCase):
   def test_a_cover_page_does_not_stop_the_statement_being_read(self):
     cover = "Your statement\nAccount number 0012345678\nOpening balance 1,000.00\nClosing balance 4,312.50\n\f" + SIDE_BY_SIDE
     self.assertEqual(len(entries(cover)), len(entries(SIDE_BY_SIDE)))
+
+class TestMonths(unittest.TestCase):
+  def test_only_a_real_day_and_a_real_month_are_placed(self):
+    for dates, want in ((("45/02/2025", "03/03/2025"), [None, None]), (("1 Junk 25",), [None]), (("1 June 25", "2 Sep 2025"), ["2025-06", "2025-09"]),
+                        (("31/12/2025", "32/01/2025"), ["2025-12", None])):
+      with self.subTest(dates): self.assertEqual(list(months(dates).values()), want)
 
 if __name__ == "__main__": unittest.main()

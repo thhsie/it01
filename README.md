@@ -56,6 +56,10 @@ A document whose name is already in `documents` is not read at all, and the file
 
 `keep` prints everything processed so far. `confirm` moves one figure into the facts, and nothing else does. `data` prints the same case as JSON, with every number as text.
 
+`keep` also adds up the money paid in, by the kind it was labelled and by month. A label that does not read as money paid in is listed, not counted. `data` carries the same totals.
+
+The dates of a statement's labelled payments say which part is the month. A first part from 13 to 31 means the day comes first, and a second part from 13 to 31 means the month comes first. When the dates do not show the order, no payment from that statement is placed in a month, and `keep` lists them. A two-digit year is read as 20yy.
+
 ## Answer an open question
 
 ```sh
