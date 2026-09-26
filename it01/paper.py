@@ -1,10 +1,11 @@
 import pathlib
-from pypdf import PdfReader
-from pypdf.errors import PyPdfError
+import pypdfium2
 
-def to_text(here:pathlib.Path) -> str:
-  try: pages = [page.extract_text(extraction_mode="layout") for page in PdfReader(here).pages]
-  except PyPdfError as e: raise ValueError(f"{here.name} does not read as a PDF ({e})") from e
-  if bare := [str(n) for n, page in enumerate(pages, 1) if not page.strip()]:
-    raise ValueError(f"no text on {here.name} page {', '.join(bare)}, so it has to be read off the page first")
-  return "\n\f".join(pages)
+SCALE = 2
+
+def pictured(here:pathlib.Path) -> tuple[tuple[bytes, int, int, int], ...]:
+  try: held = pypdfium2.PdfDocument(here)
+  except pypdfium2.PdfiumError as e: raise ValueError(f"{here.name} does not read as a PDF ({e})") from e
+  with held:
+    shots = [page.render(scale=SCALE, rev_byteorder=True, force_bitmap_format=pypdfium2.raw.FPDFBitmap_BGR) for page in held]
+    return tuple((bytes(shot.buffer), shot.width, shot.height, shot.stride) for shot in shots)

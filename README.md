@@ -46,7 +46,7 @@ it01 confirm facts.json resident_dividends
 
 The endpoint takes OpenAI-compatible chat requests and can be on your computer or on a server.
 
-A document is read as text. Installing `it01[pdf]` lets a PDF be given instead, and its text layer is taken page by page. A page with no text is refused, and the message names the page. Read a scan off the page first, with a tool of your own.
+A document is read as text. A PDF can be given instead, and each of its pages is read off its picture, as described below.
 
 `add` works out what the document is. A running balance column means a bank statement, which is labelled through your endpoint or a model file. Anything else is read with a model file of your own.
 
@@ -77,6 +77,20 @@ it01 local statement.txt
 The `local` command takes an encoder that scores runs of words. It reads the document once and every answer points at a place in the text. The model is asked to fill one form, and the form's own sums decide between competing readings.
 
 `it01/model.json` says what your file calls the nine things the package needs, along with the wording it expects. `it01/reading.json` holds the form, and the instruction the endpoint reader sends.
+
+## Read a PDF off its pages
+
+```sh
+pip install -e '.[pdf,local]'
+export IT01_DETECTOR=detector.onnx IT01_RECOGNISER=recogniser.onnx
+it01 rows statement.pdf
+```
+
+Every page of a PDF is drawn as a picture and read with two model files. The text layer is not used, so a scan and a printed file are read the same way. A page on which nothing is read is refused, and the message names the page.
+
+The detector takes the page at most 1280 pixels on its longest side, with each side a multiple of 32. It returns, for each pixel, the chance that it is part of a line of writing. The recogniser takes one line at 48 pixels tall. It returns the chance of each character at each step, where the first means no character and the last means a space.
+
+The recogniser lists the characters it writes in its metadata, under `character`, one to a line. A list that does not match its output is refused. Both files take red, green and blue channels first, scaled from minus one to one.
 
 ## Read a bank statement
 
