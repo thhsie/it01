@@ -1,4 +1,4 @@
-import hashlib, json
+import hashlib, json, re
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
@@ -83,10 +83,9 @@ def as_file(given:dict[str, Any], held:dict[str, dict[str, str]], proposed:dict[
   whole:dict[str, Any] = given | ({"proposed": proposed} if proposed else {})
   return dumped(whole | {k: v for k, v in held.items() if v}) + "\n"
 
-def noted(text:str, seen:dict[str, tuple[Decimal, str]], doc:Document, asking:list[tuple[str, str]],
-          labels:tuple[tuple[str, str], ...]=()) -> tuple[str, Noted]:
+def placed(given:dict[str, Any], held:dict[str, dict[str, str]], proposed:dict[str, Decimal], seen:dict[str, tuple[Decimal, str]],
+           asking:list[tuple[str, str]]) -> Noted:
   assert set(seen) <= set(PLACES)
-  given, held, proposed = apart(loaded(text))
   wrote, ask = [], list(asking)
   for name, (amt, quote) in seen.items():
     if (was := at(given, name)) is not None:
@@ -101,6 +100,12 @@ def noted(text:str, seen:dict[str, tuple[Decimal, str]], doc:Document, asking:li
   for question, asks in fresh:
     if held["pending"].get(question, asks) != asks: raise ValueError(f"the same question is already open with different wording {question}")
     held["pending"][question] = asks
+  return Noted(tuple(wrote), tuple(q for q, _ in fresh), before)
+
+def noted(text:str, seen:dict[str, tuple[Decimal, str]], doc:Document, asking:list[tuple[str, str]],
+          labels:tuple[tuple[str, str], ...]=()) -> tuple[str, Noted]:
+  given, held, proposed = apart(loaded(text))
+  how = placed(given, held, proposed, seen, asking)
   repeats:dict[str, int] = {}
   for said, kind in labels:
     repeats[said] = cnt = repeats.get(said, 0) + 1
@@ -108,7 +113,7 @@ def noted(text:str, seen:dict[str, tuple[Decimal, str]], doc:Document, asking:li
   held["documents"][doc.name] = doc.kind
   held["texts"][doc.mark] = doc.name
   held["paths"][doc.name] = doc.path
-  return as_file(given, held, proposed), Noted(tuple(wrote), tuple(q for q, _ in fresh), before)
+  return as_file(given, held, proposed), how
 
 def confirm(text:str, name:str) -> str:
   given, held, proposed = apart(loaded(text))
@@ -126,6 +131,16 @@ def answer(text:str, question:str, said:str) -> str:
   held["answers"][question] = said
   del held["pending"][question]
   return as_file(given, held, proposed)
+
+def labelled(text:str, credit:str) -> list[str]:
+  mark = re.compile(re.escape(f", {credit}") + r"( \(\d+\))?$")
+  return [k for k in apart(loaded(text))[1]["labels"] if mark.search(k)]
+
+def relabelled(text:str, keys:list[str], kind:str, seen:dict[str, tuple[Decimal, str]]) -> tuple[str, Noted]:
+  given, held, proposed = apart(loaded(text))
+  for key in keys: held["labels"][key] = kind
+  how = placed(given, held, proposed, seen, [])
+  return as_file(given, held, proposed), how
 
 def shown(value:Any) -> str:
   if isinstance(value, bool): return "yes" if value else "no"

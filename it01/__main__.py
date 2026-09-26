@@ -1,13 +1,15 @@
-import pathlib, sys
+import pathlib, re, sys
 from collections.abc import Callable
 from decimal import Decimal
 from typing import TYPE_CHECKING
-from it01.credits import Question, fed, label, spoken, totals
-from it01.keep import Document, answer, apart, case, confirm, dumped, figures, fingerprint, is_given, keep, loaded, noted
+from it01.credits import Question, fed, label, picked, spoken, totals
+from it01.keep import Document, answer, apart, case, confirm, dumped, figures, fingerprint, is_given, keep, labelled, loaded, noted, relabelled
 from it01.read import read
 from it01.rows import Check, dropped, entries, is_statement
+from it01.tax import amount
 if TYPE_CHECKING: from it01.local import Asked, Form, Sum, Told
 
+CREDIT = re.compile(r"(\S+) paid in on ")
 MARKS = {Check.AGREES: "ok", Check.DIFFERS: "does not agree", Check.UNCHECKED: "not checked"}
 USAGE = ("usage: it01 FACTS.json\n       it01 read DOCUMENT\n"
          "       it01 rows STATEMENT\n       it01 credits STATEMENT\n"
@@ -85,11 +87,19 @@ def accepted(here:pathlib.Path, name:str) -> list[str]:
 def responded(here:pathlib.Path, asked:str, said:str) -> list[str]:
   if not (asked := asked.strip()): raise ValueError("the question to answer is blank")
   text = here.read_text()
-  pending = list(apart(loaded(text))[1]["pending"])
+  pending = apart(loaded(text))[1]["pending"]
   hit = [asked] if asked in pending else [q for q in pending if q.lower().startswith(asked.lower())]
   if len(hit) != 1: raise ValueError(f"{len(hit)} open questions match {asked}")
-  rewritten(here, answer(text, hit[0], said))
-  return [f"answered {hit[0]}", f"  {said}"]
+  table, ret = spoken("labelling"), [f"answered {hit[0]}", f"  {said}"]
+  keys = labelled(text, hit[0]) if pending[hit[0]] in table.asking.values() and (kind := said.strip()) in picked(table) else []
+  if len({k.split(", ", 1)[0] for k in keys}) > 1: raise ValueError(f"{hit[0]} was read in more than one document, so say which in words")
+  text = answer(text, hit[0], said)
+  if keys and (paid := CREDIT.match(hit[0])):
+    fact = table.feeds.get(kind)
+    text, how = relabelled(text, keys, kind, {fact: (amount(paid.group(1)) * len(keys), f"answered {hit[0]}")} if fact else {})
+    ret += [f"labelled {kind}"] + [f"  proposed {name}" for name in how.proposed] + [f"  asked {q}" for q in how.asked]
+  rewritten(here, text)
+  return ret
 
 def opened(here:pathlib.Path, name:str) -> list[str]:
   held = apart(loaded(here.read_text()))[1]
@@ -111,6 +121,7 @@ def added(here:pathlib.Path, document:str) -> list[str]:
   seen:dict[str, tuple[Decimal, str]] = {}
   labels:tuple[tuple[str, str], ...] = ()
   freed:list[str] = []
+  hint = ""
   if is_statement(src):
     table = spoken("labelling")
     was = table.name
@@ -120,6 +131,7 @@ def added(here:pathlib.Path, document:str) -> list[str]:
     asking += [(f"money labelled {kind} came in and the case gives no {fact}", asks) for kind, (fact, asks) in table.needs.items()
                if any(c.kind == kind for c in found) and not is_given(given, proposed, fact)]
     labels = tuple((worded(c.amt, c.date, c.description), c.kind) for c in found)
+    if any(asks in table.asking.values() for _, asks in asking): hint = f"answer a payment with one of: {', '.join(picked(table))}"
     freed = [line for kind, amt in totals(found).items() if (why := table.exempt.get(kind))
              for line in (f"  {kind:<32}{amt:>16,}", f"    {why.section:<42}{why.url}")]
   else:
@@ -131,6 +143,7 @@ def added(here:pathlib.Path, document:str) -> list[str]:
   if freed: ret += ["", "exempt"] + freed
   if how.proposed: ret += ["", "proposed"] + [f"  {name:<32}{seen[name][0]:>16,}" for name in how.proposed]
   if how.asked: ret += ["", "questions"] + [f"  {question}" for question in how.asked]
+  if hint: ret += ["", hint]
   if how.answered: ret += ["", "asked before and answered"] + [f"  {question}" for question in how.answered]
   return ret
 

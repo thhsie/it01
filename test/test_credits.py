@@ -2,7 +2,7 @@ import importlib.util, json, unittest
 from decimal import Decimal
 from unittest import mock
 from it01.rows import Check
-from it01.credits import ADRIFT, asked, fed, label, listed, named, received, spoken, totals
+from it01.credits import ADRIFT, asked, fed, label, listed, named, picked, received, spoken, totals
 from it01.tax import PLACES
 
 PAID_IN = """\
@@ -137,6 +137,9 @@ class TestCredits(unittest.TestCase):
     got = named(received(PAID_IN), reply("pay", "unclear", "cash"), KINDS)
     self.assertEqual([(q.amt, q.asking) for q in asked(got, ASKING)],
                      [(Decimal("12.50"), ASKING["unclear"]), (Decimal("500.00"), ASKING["cash"])])
+
+  def test_a_payment_can_be_answered_with_any_kind_that_is_not_itself_a_question(self):
+    self.assertEqual(list(picked(TABLE)), [k for k in KINDS if k not in ASKING])
 
   def test_a_credit_with_a_settled_kind_raises_no_question(self):
     got = named(received(PAID_IN), reply("pay", "interest", "business"), KINDS)
