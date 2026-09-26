@@ -2,7 +2,7 @@ import json
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
-from it01.helpers import data, instruction
+from it01.helpers import IT01_LABELLER, data, instruction
 from it01.law import DOCS, Source
 from it01.llm import ask
 from it01.rows import Check, Entry, entries
@@ -33,6 +33,7 @@ class Table:
   asking: dict[str, str]
   needs: dict[str, tuple[str, str]]
   exempt: dict[str, Source]
+  examples: tuple[tuple[str, str], ...]
 
 def spoken(name:str) -> Table:
   held = data(name)
@@ -71,7 +72,12 @@ def spoken(name:str) -> Table:
     exempt[str(kind)] = Source(src["doc"], src["section"], src["page"])
   if unknown := sorted(set(exempt) - set(kinds)): raise ValueError(f"{name}.json exempts unknown kinds {unknown}")
   if both := sorted(set(exempt) & (set(feeds) | set(needs) | set(asking))): raise ValueError(f"{name}.json both exempts and uses {both}")
-  return Table(called, kinds, feeds, asking, needs, exempt)
+  shown = held.get("examples", [])
+  if not isinstance(shown, list): raise ValueError(f"{name}.json must hold examples as a list")
+  if bad := next((e for e in shown if not (isinstance(e, list) and len(e) == 2 and all(isinstance(x, str) and x.strip() for x in e))), None):
+    raise ValueError(f"{name}.json gives an example {bad!r} that is not a credit and its kind")
+  if unknown := sorted({k for _, k in shown} - set(kinds)): raise ValueError(f"{name}.json gives examples of unknown kinds {unknown}")
+  return Table(called, kinds, feeds, asking, needs, exempt, tuple((t, k) for t, k in shown))
 
 def received(text:str) -> tuple[Entry, ...]: return tuple(e for e in entries(text) if e.paid_in is not None)
 
@@ -115,9 +121,19 @@ def totals(found:tuple[Credit, ...]) -> dict[str, Decimal]:
   for c in found: ret[c.kind] = ret.get(c.kind, Decimal(0)) + c.amt
   return ret
 
+def by_file(paid:tuple[Entry, ...], table:Table) -> tuple[Credit, ...]:
+  try: from it01.local import classified
+  except ImportError as e: raise ValueError(f"labelling with a model file needs pip install 'it01[local]' ({e})") from e
+  pairs = [(e, e.paid_in) for e in paid if e.paid_in is not None]
+  kinds = classified(tuple((amt, e.description) for e, amt in pairs), table.kinds, table.examples)
+  return tuple(Credit(e.date, amt, e.description, kind, e.check) for (e, amt), kind in zip(pairs, kinds, strict=True))
+
+def by_endpoint(paid:tuple[Entry, ...], table:Table) -> tuple[Credit, ...]:
+  said = "\n".join(f"{kind}: {means}" for kind, means in table.kinds.items())
+  return named(paid, ask(instruction("labelling") + "\n" + said, listed(paid), answers(paid, table.kinds)), table.kinds)
+
 def label(text:str) -> tuple[tuple[Credit, ...], tuple[Question, ...]]:
   table = spoken("labelling")
   if not (paid := received(text)): return (), ()
-  said = "\n".join(f"{kind}: {means}" for kind, means in table.kinds.items())
-  reply = ask(instruction("labelling") + "\n" + said, listed(paid), answers(paid, table.kinds))
-  return (found := named(paid, reply, table.kinds)), asked(found, table.asking)
+  found = by_file(paid, table) if IT01_LABELLER else by_endpoint(paid, table)
+  return found, asked(found, table.asking)

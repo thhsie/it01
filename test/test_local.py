@@ -5,7 +5,7 @@ from unittest import mock
 try:
   import numpy as np
   from it01.local import Form, Found, Working, batched, filled, found, prompt, reader, room
-  from it01.local import shaped, sizes, spans, sums, tells, wanted, windows, words, written
+  from it01.local import classified, pieces, shaped, sizes, sorter, spans, sums, tells, wanted, windows, words, written
   FORM = Form("statement_of_emoluments", (("salary", "the gross pay"),))
   SHAPE = shaped()
   SCHEMA = SHAPE.schema
@@ -14,6 +14,9 @@ try:
            "gives": dict(zip(("spans", "scores", "valid"), SHAPE.gives)),
            "schema": {"form": SCHEMA.form, "describes": SCHEMA.describes, "lists": SCHEMA.lists, "document": SCHEMA.document},
            "line_mark": SHAPE.line_mark, "text_mark": SHAPE.text_mark, "word_start": SHAPE.word_start}
+  SORT = sorter()
+  SORTED = ({"takes": dict(zip(("tokens", "attention", "labels", "label_mask"), SORT.takes)), "gives": {"logits": SORT.gives}}
+            | {"task": SORT.task, "instruction": SORT.asking} | SORT.marks | SORT.fills)
   MISSING = ""
 except ImportError as e: MISSING = str(e)
 
@@ -426,5 +429,48 @@ class TestLocal(unittest.TestCase):
   def test_a_name_the_file_leaves_out_is_refused(self):
     with mock.patch("it01.local.data", lambda name: SHOWN | {"gives": dict(SHOWN["gives"], spans=None)}):
       with self.assertRaisesRegex(ValueError, "under gives must hold spans"): shaped()
+
+class Pieces:
+  def encode(self, piece, add_special_tokens=False): return Coded([7] if piece == SORT.marks["label_mark"] else [1] * len(piece.split()), [])
+  def token_to_id(self, name): return 7 if name == SORT.marks["label_mark"] else None
+
+class Unmarked(Pieces):
+  def encode(self, piece, add_special_tokens=False): return Coded([1], [])
+
+class Sorting:
+  def __init__(self, best): self.best, self.fed = best, []
+  def get_inputs(self): return [Size(n, 64 if n == SORT.takes[0] else 8) for n in SORT.takes]
+  def run(self, names, feed):
+    self.fed.append(feed)
+    return [np.array([[1.0 if n == self.best else 0.0 for n in range(8)]])]
+
+@unittest.skipIf(MISSING, f"the local extra is not installed: {MISSING}")
+class TestLabeller(unittest.TestCase):
+  kinds = {"pay": "from an employer", "other": "not income"}
+
+  def test_the_prompt_lists_each_kind_after_its_mark_and_ends_with_the_words(self):
+    got = pieces(SORT, self.kinds, (("Credit 1.00\nA GIFT", "other"),), "Credit 5,000.00\nSALARY")
+    m = SORT.marks
+    listed = [m["label_mark"], "pay", m["label_mark"], "other"]
+    words_in = ["credit", "5", ",", "000", ".", "00", "salary"]
+    self.assertEqual(got[:2] + got[3:], [m["open"], m["task_mark"], m["open"], *listed, m["close"], m["close"], m["text_mark"], *words_in, m["end"]])
+    self.assertTrue(got[2].startswith(f"{SORT.task}: {SORT.asking}"))
+    self.assertIn("from an employer", got[2])
+    self.assertIn("A GIFT", got[2])
+
+  def test_each_credit_gets_the_kind_the_model_scores_highest(self):
+    session = Sorting(best=1)
+    with mock.patch("it01.local.loaded", return_value=(session, Pieces())):
+      said = classified(((Decimal("5000.00"), "SALARY"), (Decimal("20.00"), "REFUND")), self.kinds, ())
+    self.assertEqual((said, len(session.fed)), (("other", "other"), 2))
+    self.assertEqual(session.fed[0][SORT.takes[3]].tolist(), [[True, True] + [False] * 6])
+
+  def test_a_tokeniser_that_loses_a_kind_mark_is_refused(self):
+    with mock.patch("it01.local.loaded", return_value=(Sorting(best=0), Unmarked())):
+      with self.assertRaisesRegex(ValueError, "marked 0 of 2 kinds"): classified(((Decimal("1.00"), "X"),), self.kinds, ())
+
+  def test_a_labeller_description_missing_a_blank_is_refused(self):
+    with mock.patch("it01.local.data", return_value=SORTED | {"credit": "Credit {amount}"}):
+      with self.assertRaisesRegex(ValueError, r"credit wording in labeller.json leaves out \['description'\]"): sorter()
 
 if __name__ == "__main__": unittest.main()

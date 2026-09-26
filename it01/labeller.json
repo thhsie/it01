@@ -1,0 +1,22 @@
+{
+  "takes": {
+    "tokens": "tokens",
+    "attention": "attention",
+    "labels": "labels",
+    "label_mask": "label_mask"
+  },
+  "gives": {
+    "logits": "logits"
+  },
+  "task": "source",
+  "instruction": "Say where this money paid into a bank account comes from.",
+  "open": "(",
+  "close": ")",
+  "task_mark": "[FORM]",
+  "label_mark": "[L]",
+  "text_mark": "[TEXT]",
+  "end": ".",
+  "describes": " [MEANS] {kind}: {means}",
+  "example": " [EXAMPLE] {text} [OUTPUT] {kind}",
+  "credit": "Credit {amount}\n{description}"
+}

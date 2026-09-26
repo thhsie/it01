@@ -1,4 +1,4 @@
-import json, unittest
+import importlib.util, json, unittest
 from decimal import Decimal
 from unittest import mock
 from it01.rows import Check
@@ -87,6 +87,21 @@ class TestCredits(unittest.TestCase):
 
   def test_interest_is_exempt_under_the_schedule_that_says_so(self):
     self.assertEqual(TABLE.exempt["interest"].url, "https://www.mra.mu/download/ITAConsolidated.pdf#page=267")
+
+  def test_examples_that_do_not_hold_up_are_refused(self):
+    base = {"name": "a statement", "kinds": {"one": "a"}, "asking": {"one": "what is this"}}
+    for examples, says in (("x", "examples as a list"), ([["x", ""]], r"example \['x', ''\] that is not a credit"),
+                           ([["x", "nope"]], r"unknown kinds \['nope'\]")):
+      with self.subTest(examples), mock.patch("it01.credits.data", return_value=base | {"examples": examples}):
+        with self.assertRaisesRegex(ValueError, says): spoken("labelling")
+
+  @unittest.skipIf(any(importlib.util.find_spec(m) is None for m in ("numpy", "onnxruntime", "tokenizers")), "the local extra is not installed")
+  def test_a_model_file_labels_the_credits_when_one_is_named(self):
+    with mock.patch("it01.credits.IT01_LABELLER", "labeller.onnx"):
+      with mock.patch("it01.local.classified", return_value=("pay", "interest", "cash")) as sorted_by: found, questions = label(PAID_IN)
+    self.assertEqual([c.kind for c in found], ["pay", "interest", "cash"])
+    given = sorted_by.call_args.args
+    self.assertEqual((given[0][0], given[2], len(questions)), ((Decimal("5000.00"), "SALARY JULY ACME LTD"), TABLE.examples, 1))
 
   def test_the_shipped_table_feeds_only_kinds_and_facts(self):
     for kind, fact in FEEDS.items():

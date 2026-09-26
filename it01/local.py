@@ -3,7 +3,7 @@ import numpy as np, onnxruntime, tokenizers
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
-from it01.helpers import IT01_MODEL_FILE, IT01_TOKENISER, data
+from it01.helpers import IT01_LABELLER, IT01_MODEL_FILE, IT01_TOKENISER, data
 from it01.tax import AMOUNTS, amount
 
 WORD = re.compile(r"\w+|[^\w\s]")
@@ -18,6 +18,9 @@ ROLES = ("tokens", "attention", "words", "word_mask", "lines", "line_mask")
 ANSWERS = (("spans", 4), ("scores", 3), ("valid", 3))
 TAKEN = {"form": ("name", "described", "listed"), "describes": ("line", "means"), "lists": ("line",), "document": ("text",)}
 PARTS = tuple(TAKEN)
+SORTING = ("tokens", "attention", "labels", "label_mask")
+MARKS = ("open", "close", "task_mark", "label_mark", "text_mark", "end")
+FILLS = {"describes": ("kind", "means"), "example": ("text", "kind"), "credit": ("amount", "description")}
 
 @dataclass(frozen=True)
 class Schema:
@@ -307,6 +310,50 @@ def loaded(model:str, key:str) -> tuple[Any, Any]:
   return onnxruntime.InferenceSession(model, providers=["CPUExecutionProvider"]), tokenizers.Tokenizer.from_file(IT01_TOKENISER)
 
 def reader() -> tuple[Any, Any]: return loaded(IT01_MODEL_FILE, "IT01_MODEL_FILE")
+
+@dataclass(frozen=True)
+class Sorter:
+  takes: tuple[str, ...]
+  gives: str
+  task: str
+  asking: str
+  marks: dict[str, str]
+  fills: dict[str, str]
+
+def sorter() -> Sorter:
+  held, where = data("labeller"), "labeller.json"
+  takes, gives = named(held, "takes", SORTING), named(held, "gives", ("logits",))
+  fills = {}
+  for part, names in FILLS.items():
+    got = text(held, part, where)
+    if missing := [n for n in names if "{" + n + "}" not in got]: raise ValueError(f"the {part} wording in {where} leaves out {missing}")
+    fills[part] = got
+  return Sorter(tuple(text(takes, role, f"{where}, under takes") for role in SORTING), text(gives, "logits", f"{where}, under gives"),
+                text(held, "task", where), text(held, "instruction", where), {m: text(held, m, where) for m in MARKS}, fills)
+
+def pieces(sort:Sorter, kinds:dict[str, str], examples:tuple[tuple[str, str], ...], said:str) -> list[str]:
+  m, f = sort.marks, sort.fills
+  told = f"{sort.task}: {sort.asking}" + "".join(f["describes"].format(kind=k, means=v) for k, v in kinds.items())
+  told += "".join(f["example"].format(text=t, kind=k) for t, k in examples)
+  listed = [x for k in kinds for x in (m["label_mark"], k)]
+  return [m["open"], m["task_mark"], told, m["open"], *listed, m["close"], m["close"], m["text_mark"], *[w for w, _, _ in words(said)], m["end"]]
+
+def classified(paid:tuple[tuple[Decimal, str], ...], kinds:dict[str, str], examples:tuple[tuple[str, str], ...]) -> tuple[str, ...]:
+  sort = sorter()
+  session, tok = loaded(IT01_LABELLER, "IT01_LABELLER")
+  size, mark, names = fixed(session, sort.takes, SORTING, "labeller.json"), marker(tok, sort.marks["label_mark"]), list(kinds)
+  ret = []
+  for amt, description in paid:
+    said = sort.fills["credit"].format(amount=f"{amt:,}", description=description)
+    ids = [i for piece in pieces(sort, kinds, examples, said) for i in tok.encode(piece, add_special_tokens=False).ids]
+    marks = [n for n, i in enumerate(ids) if i == mark]
+    if len(marks) != len(names): raise ValueError(f"the tokeniser marked {len(marks)} of {len(names)} kinds")
+    tokens, attention = filled(ids, size["tokens"], "tokens")
+    spots, kept = filled(marks, size["labels"], "kinds")
+    logits = session.run([sort.gives], dict(zip(sort.takes, (tokens, attention.astype(np.int64), spots, kept))))[0]
+    if logits.ndim != 2: raise ValueError(f"the model file gives {sort.gives} in {logits.ndim} dimensions and this reads 2")
+    ret.append(names[int(np.argmax(logits[0][:len(names)]))])
+  return tuple(ret)
 
 def figure(quote:str) -> Decimal|None:
   try: return amount(quote)
