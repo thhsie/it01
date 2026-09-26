@@ -105,8 +105,8 @@ def opened(here:pathlib.Path, name:str) -> list[str]:
   held = apart(loaded(here.read_text()))[1]
   if name not in held["paths"]: raise ValueError(f"the case does not say where {name} was read from")
   if not (paper := pathlib.Path(held["paths"][name])).is_file(): raise ValueError(f"{name} is no longer at {paper}")
-  if held["texts"].get(fingerprint(src := source(paper))) != name: raise ValueError(f"{name} has changed since it was read")
-  return src.splitlines()
+  if held["texts"].get(fingerprint(paper.read_bytes())) != name: raise ValueError(f"{name} has changed since it was read")
+  return source(paper).splitlines()
 
 def worded(amt:Decimal, date:str, description:str) -> str: return f"{amt:,} paid in on {date}, {description}"
 
@@ -116,8 +116,9 @@ def added(here:pathlib.Path, document:str) -> list[str]:
   paper = pathlib.Path(document)
   given, held, proposed = apart(loaded(here.read_text()))
   if paper.name in held["documents"]: return [f"{paper.name} was read before, so nothing changed"]
+  if (mark := fingerprint(paper.read_bytes())) in held["texts"]:
+    return [f"{paper.name} is the same file as {held['texts'][mark]}, so nothing changed"]
   src = source(paper)
-  if (mark := fingerprint(src)) in held["texts"]: return [f"{paper.name} holds the same text as {held['texts'][mark]}, so nothing changed"]
   seen:dict[str, tuple[Decimal, str]] = {}
   labels:tuple[tuple[str, str], ...] = ()
   freed:list[str] = []

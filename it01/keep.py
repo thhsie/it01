@@ -18,7 +18,7 @@ def once(pairs:list[tuple[str, Any]]) -> dict[str, Any]:
 
 def loaded(text:str) -> Any: return json.loads(text, parse_float=Decimal, object_pairs_hook=once)
 
-def fingerprint(text:str) -> str: return hashlib.sha256(text.encode()).hexdigest()[:32]
+def fingerprint(raw:bytes) -> str: return hashlib.sha256(raw).hexdigest()[:32]
 
 def wording(raw:dict[str, Any], name:str) -> dict[str, str]:
   if name not in raw: return {}
