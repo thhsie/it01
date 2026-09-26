@@ -11,6 +11,16 @@
     "cash": "Money paid in as cash, whatever else the wording says.",
     "unclear": "The wording does not say where the money came from."
   },
+  "examples": [
+    ["Credit 45,200.00\nSalary Proceeds FT25033KQ7\\BNK SAL MAR 25 BLUEWAVE LOGISTICS LTD BULK PAYMENT", "pay"],
+    ["Credit 1,250.00\nSalary Proceeds FT25089ZT1\\BNK EXP MAR 25 BLUEWAVE LOGISTICS LTD BULK PAYMENT", "other"],
+    ["Credit 3,000.00\nOWN ACCOUNT TRANSFER FROM SAVINGS FT25101PL2\\BNK", "other"],
+    ["Credit 88,400.00\nInward Remittance FT25140WW9\\BNK /ROC/77120/URI/DESIGN STUDIO LTD - WEBSITE PROJECT", "business"],
+    ["Credit 12.40\nInterest Paid : 01-04-2025 to 30-04-2025", "interest"],
+    ["Credit 499.00\nREV POS PURCH SUNSET ELECTRONICS", "other"],
+    ["Credit 7,000.00\nCASH DEP ATM 0412", "cash"],
+    ["Credit 6,500.00\nInstant Transfer FT25177RB4\\BNK MR TOMAS HALE", "unclear"]
+  ],
   "feeds": {
     "business": "business.gross_income",
     "dividend": "resident_dividends",

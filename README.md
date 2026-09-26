@@ -48,7 +48,7 @@ The endpoint takes OpenAI-compatible chat requests and can be on your computer o
 
 A document is read as text. Installing `it01[pdf]` lets a PDF be given instead, and its text layer is taken page by page. A page with no text is refused, and the message names the page. Read a scan off the page first, with a tool of your own.
 
-`add` works out what the document is. A running balance column means a bank statement, which is labelled through your endpoint. Anything else is read with a model file of your own.
+`add` works out what the document is. A running balance column means a bank statement, which is labelled through your endpoint or a model file. Anything else is read with a model file of your own.
 
 What it finds goes to `proposed`, with a note of where it came from. What it cannot place goes to `pending` as a question. A question you have already answered is not asked again, and the command says so. A figure for a name already proposed is added to it, and both notes are kept.
 
@@ -87,7 +87,18 @@ it01 credits statement.txt
 
 `rows` finds the columns from the arithmetic, checks each balance against the running total and marks each transaction `ok`, `does not agree` or `not checked`. An amount it cannot place is counted, per page.
 
-`credits` labels every payment in through your endpoint. The kinds are in `it01/labelling.json`. `feeds` says which fact each kind adds to, and `asking` says which kinds it asks you about.
+`credits` labels every payment in through your endpoint, or your model file when `IT01_LABELLER` is set. The kinds are in `it01/labelling.json`. `feeds` says which fact each kind adds to, and `asking` says which kinds it asks you about.
+
+## Label bank credits with a model file of your own
+
+```sh
+export IT01_LABELLER=labeller.onnx IT01_TOKENISER=tokenizer.json
+it01 credits bank.txt
+```
+
+With `IT01_LABELLER` set, each credit is labelled by a classifier on this computer and the endpoint is not called. The file scores every kind in `it01/labelling.json` for one credit at a time, and the highest score wins.
+
+`it01/labeller.json` says what your file calls its four inputs and its output, and how the prompt is laid out. The kinds, their descriptions and the examples come from `it01/labelling.json`. The labeller reads with the same `IT01_TOKENISER` as the reader.
 
 ## The facts file
 

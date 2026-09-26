@@ -18,6 +18,7 @@ IT01_DEBUG = number("IT01_DEBUG", "0")
 IT01_TIMEOUT = number("IT01_TIMEOUT", "120")
 IT01_MODEL_FILE = flag("IT01_MODEL_FILE", "")
 IT01_TOKENISER = flag("IT01_TOKENISER", "")
+IT01_LABELLER = flag("IT01_LABELLER", "")
 IT01_DATA = folder("IT01_DATA", "")
 
 def data(name:str) -> dict[str, Any]:
