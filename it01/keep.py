@@ -14,6 +14,8 @@ ASIDE = ("proposed", *WORDING)
 NIL = Decimal("0.00")
 GROUPS = {"income": "counts as income", "exempt": "exempt", "unsorted": "still to sort", "other": "not income"}
 PAID_IN = re.compile(r"(?P<amt>\S+) paid in on (?P<date>[^,]*), ")
+TWICE = re.compile(r"(?P<name>.+) read as (?P<amt>\S+) in (?P<quote>.+), and the case already gives (?P<was>\S+)")
+BOTH = ("add", "leave")
 
 def once(pairs:list[tuple[str, Any]]) -> dict[str, Any]:
   ret:dict[str, Any] = {}
@@ -91,6 +93,8 @@ def as_file(given:dict[str, Any], held:dict[str, dict[str, str]], proposed:dict[
   whole:dict[str, Any] = given | ({"proposed": proposed} if proposed else {})
   return dumped(whole | {k: v for k, v in held.items() if v}) + "\n"
 
+def quoted(sources:dict[str, str], name:str, quote:str) -> str: return f"{said}, {quote}" if (said := sources.get(name)) else quote
+
 def placed(given:dict[str, Any], held:dict[str, dict[str, str]], proposed:dict[str, Decimal], seen:dict[str, tuple[Decimal, str]],
            asking:list[tuple[str, str]]) -> Noted:
   assert set(seen) <= set(PLACES)
@@ -98,10 +102,11 @@ def placed(given:dict[str, Any], held:dict[str, dict[str, str]], proposed:dict[s
   for name, (amt, quote) in seen.items():
     if (was := at(given, name)) is not None:
       ask.append((f"{plain(name)} read as {amt:,} in {quote}, and the case already gives {amount(was):,}",
-                  "add it to the fact, or leave the fact if this is the same money read twice"))
+                  ("add it if this is more money, or leave it if the same money was read twice: "
+                   f"add (it becomes {amount(was) + amt:,}); leave (it stays {amount(was):,})")))
     else:
       proposed[name] = proposed.get(name, ZERO) + amt
-      held["sources"][name] = f"{said}, {quote}" if (said := held["sources"].get(name)) else quote
+      held["sources"][name] = quoted(held["sources"], name, quote)
       wrote.append(name)
   before = tuple(q for q, _ in ask if q in held["answers"])
   fresh = [(q, asks) for q, asks in ask if q not in before]
@@ -155,6 +160,15 @@ def reanswered(text:str, question:str, said:str, fact:str|None, amt:Decimal) -> 
     else: del proposed[fact]
   held["answers"][question] = said
   return as_file(given, held, proposed)
+
+def increased(text:str, question:str) -> str:
+  given, held, proposed = apart(loaded(text))
+  if not (asked := TWICE.fullmatch(question)) or not (name := next((n for n in PLACES if plain(n) == asked["name"]), "")):
+    raise ValueError(f"{question} does not add to a figure")
+  if (was := at(given, name)) is None or amount(was) != amount(asked["was"]):
+    raise ValueError(f"{asked['name']} is no longer {asked['was']}, so it cannot be added to")
+  held["sources"][name] = quoted(held["sources"], name, asked["quote"])
+  return as_file(put(given, name, amount(was) + amount(asked["amt"])), held, proposed)
 
 def labelled(text:str, credit:str) -> list[str]:
   mark = re.compile(re.escape(f", {credit}") + r"( \(\d+\))?$")
