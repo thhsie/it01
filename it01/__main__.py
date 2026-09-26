@@ -1,15 +1,15 @@
-import pathlib, re, sys
+import pathlib, sys
 from collections.abc import Callable
 from decimal import Decimal
 from typing import TYPE_CHECKING
 from it01.credits import Question, fed, label, picked, spoken, totals
 from it01.keep import Document, answer, apart, case, confirm, dumped, figures, fingerprint, is_given, keep, labelled, loaded, noted, relabelled
+from it01.keep import PAID_IN, worded
 from it01.read import read
 from it01.rows import Check, dropped, entries, is_statement
 from it01.tax import amount
 if TYPE_CHECKING: from it01.local import Asked, Form, Sum, Told
 
-CREDIT = re.compile(r"(\S+) paid in on ")
 MARKS = {Check.AGREES: "ok", Check.DIFFERS: "does not agree", Check.UNCHECKED: "not checked"}
 USAGE = ("usage: it01 FACTS.json\n       it01 read DOCUMENT\n"
          "       it01 rows STATEMENT\n       it01 credits STATEMENT\n"
@@ -99,9 +99,9 @@ def responded(here:pathlib.Path, asked:str, said:str) -> list[str]:
   keys = labelled(text, hit[0]) if pending[hit[0]] in table.asking.values() and (kind := said.strip()) in picked(table) else []
   if len({k.split(", ", 1)[0] for k in keys}) > 1: raise ValueError(f"{hit[0]} was read in more than one document, so say which in words")
   text = answer(text, hit[0], said)
-  if keys and (paid := CREDIT.match(hit[0])):
+  if keys and (paid := PAID_IN.match(hit[0])):
     fact = table.feeds.get(kind)
-    text, how = relabelled(text, keys, kind, {fact: (amount(paid.group(1)) * len(keys), f"answered {hit[0]}")} if fact else {})
+    text, how = relabelled(text, keys, kind, {fact: (amount(paid["amt"]) * len(keys), f"answered {hit[0]}")} if fact else {})
     ret += [f"labelled {kind}"] + [f"  proposed {name}" for name in how.proposed] + [f"  asked {q}" for q in how.asked]
   rewritten(here, text)
   return ret
@@ -112,8 +112,6 @@ def opened(here:pathlib.Path, name:str) -> list[str]:
   if not (paper := pathlib.Path(held["paths"][name])).is_file(): raise ValueError(f"{name} is no longer at {paper}")
   if held["texts"].get(fingerprint(paper.read_bytes())) != name: raise ValueError(f"{name} has changed since it was read")
   return source(paper).splitlines()
-
-def worded(amt:Decimal, date:str, description:str) -> str: return f"{amt:,} paid in on {date}, {description}"
 
 def questioned(questions:tuple[Question, ...]) -> list[tuple[str, str]]: return [(worded(q.amt, q.date, q.description), q.asking) for q in questions]
 

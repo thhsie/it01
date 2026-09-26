@@ -26,6 +26,11 @@ class Figure:
 
 def amount_names(obj:Any) -> tuple[str, ...]: return tuple(f.name for f in fields(obj) if f.type is Decimal)
 
+def summed(pairs:list[tuple[str, Decimal]]) -> dict[str, Decimal]:
+  ret:dict[str, Decimal] = {}
+  for name, amt in pairs: ret[name] = ret.get(name, ZERO) + amt
+  return ret
+
 def is_amount(v:Decimal) -> bool: return v.is_finite() and 0 <= v < AMOUNT_LIMIT and v == v.quantize(Decimal("0.01"))
 
 def to_decimal(text:str) -> Decimal:
