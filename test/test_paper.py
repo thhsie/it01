@@ -2,10 +2,10 @@ import json, pathlib, tempfile, unittest
 from unittest import mock
 from it01.__main__ import opened, source
 from it01.keep import fingerprint
-from it01.rows import breaks
 
 try:
-  from it01.paper import to_text
+  from it01 import local
+  from it01.paper import pictured
   MISSING = ""
 except ImportError as e: MISSING = str(e)
 
@@ -48,12 +48,29 @@ class TestPaper(unittest.TestCase):
     with mock.patch("it01.__main__.source", return_value="Total emoluments  1,107,000.60"):
       self.assertEqual(opened(held_at, here.name), ["Total emoluments  1,107,000.60"])
 
-@unittest.skipIf(MISSING, f"the pdf extra is not installed: {MISSING}")
+def told(*pages:str): return mock.patch.object(local, "looked", lambda shots: pages[:len(shots)])
+
+@unittest.skipIf(MISSING, f"the pdf and local extras are not installed: {MISSING}")
 class TestPdf(unittest.TestCase):
-  def test_a_pdf_gives_up_its_lines(self):
+  def test_each_page_is_a_picture_of_the_page(self):
+    here = saved(written(LINES[:1], LINES[1:]), ".pdf")
+    self.addCleanup(here.unlink)
+    self.assertEqual([shot[1:3] for shot in pictured(here)], [(1224, 1584), (1224, 1584)])
+
+  def test_the_picture_shows_the_writing(self):
     here = saved(written(LINES), ".pdf")
     self.addCleanup(here.unlink)
-    self.assertEqual(to_text(here).split("\n"), [line.decode() for line in LINES])
+    self.assertLess(min(pictured(here)[0][0]), 128)
+
+  def test_each_page_is_read_off_its_picture(self):
+    here = saved(written(LINES[:1], LINES[1:]), ".pdf")
+    self.addCleanup(here.unlink)
+    with told("one", "two"): self.assertEqual(source(here), "one\n\ftwo")
+
+  def test_a_page_with_nothing_read_is_refused(self):
+    here = saved(written(LINES, LINES), ".pdf")
+    self.addCleanup(here.unlink)
+    with told("Tax  9.00", " "), self.assertRaisesRegex(ValueError, "nothing could be read on .* page 2"): source(here)
 
   def test_a_pdf_a_case_read_is_shown_line_by_line(self):
     here = saved(written(LINES), ".pdf")
@@ -61,24 +78,15 @@ class TestPdf(unittest.TestCase):
     facts = {"resident": True, "paths": {here.name: str(here)}, "texts": {fingerprint(here.read_bytes()): here.name}}
     held_at = saved(json.dumps(facts).encode(), ".json")
     self.addCleanup(held_at.unlink)
-    self.assertEqual(opened(held_at, here.name), [line.decode() for line in LINES])
-
-  def test_each_page_is_a_page_to_the_row_reader(self):
-    here = saved(written(LINES[:1], LINES[1:]), ".pdf")
-    self.addCleanup(here.unlink)
-    self.assertEqual(breaks(to_text(here)), (0, 1))
+    with told("\n".join(line.decode() for line in LINES)):
+      self.assertEqual(opened(held_at, here.name), [line.decode() for line in LINES])
 
   def test_a_pdf_is_read_by_its_suffix(self):
     for suffix in (".pdf", ".PDF"):
-      with self.subTest(suffix):
+      with self.subTest(suffix), told("Total emoluments  1,107,000.00"):
         here = saved(written(LINES), suffix)
         self.addCleanup(here.unlink)
-        self.assertIn("1,107,000.00", source(here))
-
-  def test_a_page_with_no_text_is_refused(self):
-    here = saved(written(LINES, ()), ".pdf")
-    self.addCleanup(here.unlink)
-    with self.assertRaisesRegex(ValueError, "page 2"): to_text(here)
+        self.assertEqual(source(here), "Total emoluments  1,107,000.00")
 
   def test_a_file_that_does_not_read_as_a_pdf_is_refused(self):
     here = saved(b"not a pdf at all", ".pdf")

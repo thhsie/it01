@@ -6,6 +6,7 @@ try:
   import numpy as np
   from it01.local import Form, Found, Working, batched, filled, found, prompt, reader, room
   from it01.local import classified, pieces, shaped, sizes, sorter, spans, sums, tells, wanted, windows, words, written
+  from it01.local import blobs, laid, looked
   FORM = Form("statement_of_emoluments", (("salary", "the gross pay"),))
   SHAPE = shaped()
   SCHEMA = SHAPE.schema
@@ -472,5 +473,52 @@ class TestLabeller(unittest.TestCase):
   def test_a_labeller_description_missing_a_blank_is_refused(self):
     with mock.patch("it01.local.data", return_value=SORTED | {"credit": "Credit {amount}"}):
       with self.assertRaisesRegex(ValueError, r"credit wording in labeller.json leaves out \['description'\]"): sorter()
+
+class Seeing:
+  def __init__(self, listed, sure=1, ink=1): self.listed, self.sure, self.ink = listed, sure, ink
+  def get_inputs(self): return [Size("x", 0)]
+  def get_modelmeta(self): return mock.Mock(custom_metadata_map={"character": self.listed} if self.listed else {})
+  def run(self, names, feed):
+    tall, wide = feed["x"].shape[2:]
+    if tall == 48: return [np.eye(4)[[1, 1, 0, 2]][None] * self.sure]
+    inked = np.zeros((1, 1, tall, wide))
+    inked[..., 10:20, 10:60] = self.ink
+    return [inked]
+
+def white(width:int, height:int) -> tuple[bytes, int, int, int]: return bytes([255] * width * height * 3), width, height, width * 3
+
+@unittest.skipIf(MISSING, f"the local extra is not installed: {MISSING}")
+class TestPicture(unittest.TestCase):
+  def test_touching_ink_is_one_shape(self):
+    mask = np.zeros((6, 8), bool)
+    mask[1:3, 1:3] = mask[1:4, 5:7] = mask[3, 2] = True
+    self.assertEqual(sorted(blobs(mask)), [[1, 1, 2, 3], [5, 1, 6, 3]])
+
+  def test_pieces_at_one_height_share_a_line_at_their_column(self):
+    got = laid([((0, 30, 40, 40), "Next"), ((200, 12, 240, 20), "100.00"), ((0, 10, 40, 20), "Date")])
+    self.assertEqual(got.split("\n"), ["Date" + " " * 16 + "  100.00", "Next"])
+
+  def seen(self, listed:str, **given): return mock.patch("it01.local.onnxruntime.InferenceSession", lambda path, providers: Seeing(listed, **given))
+
+  def test_a_page_is_spelled_from_the_found_shapes(self):
+    with mock.patch("it01.local.file_at", lambda path, flag: flag), self.seen("4\n2"):
+      self.assertEqual(looked((white(200, 100),)), ("42",))
+
+  def test_a_faint_reading_or_a_faint_shape_reads_as_nothing(self):
+    for given in ({"sure": 0.4}, {"ink": 0.4}):
+      with self.subTest(given), mock.patch("it01.local.file_at", lambda path, flag: flag), self.seen("4\n2", **given):
+        self.assertEqual(looked((white(200, 100),)), ("",))
+
+  def test_a_recogniser_listing_too_few_characters_is_refused(self):
+    with mock.patch("it01.local.file_at", lambda path, flag: flag), self.seen("4"):
+      with self.assertRaisesRegex(ValueError, "scores 2 characters and lists 1"): looked((white(200, 100),))
+
+  def test_a_recogniser_without_characters_is_refused(self):
+    with mock.patch("it01.local.file_at", lambda path, flag: flag), self.seen(""):
+      with self.assertRaisesRegex(ValueError, "lists no characters"): looked((white(200, 100),))
+
+  def test_reading_a_picture_needs_the_detector(self):
+    with mock.patch("it01.local.IT01_DETECTOR", ""):
+      with self.assertRaisesRegex(ValueError, "set IT01_DETECTOR"): looked((white(200, 100),))
 
 if __name__ == "__main__": unittest.main()

@@ -3,7 +3,7 @@ import numpy as np, onnxruntime, tokenizers
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
-from it01.helpers import IT01_LABELLER, IT01_MODEL_FILE, IT01_TOKENISER, data
+from it01.helpers import IT01_DETECTOR, IT01_LABELLER, IT01_MODEL_FILE, IT01_RECOGNISER, IT01_TOKENISER, data
 from it01.tax import AMOUNTS, amount
 
 WORD = re.compile(r"\w+|[^\w\s]")
@@ -21,6 +21,10 @@ PARTS = tuple(TAKEN)
 SORTING = ("tokens", "attention", "labels", "label_mask")
 MARKS = ("open", "close", "task_mark", "label_mark", "text_mark", "end")
 FILLS = {"describes": ("kind", "means"), "example": ("text", "kind"), "credit": ("amount", "description")}
+INKED, BOXED, GROW, THINNEST, SIDE, STEP = 30, 50, 160, 3, 1280, 32
+LEGIBLE, TALL, WIDE = 50, 48, 320
+Box = tuple[int, int, int, int]
+Picture = tuple[bytes, int, int, int]
 
 @dataclass(frozen=True)
 class Schema:
@@ -381,3 +385,91 @@ def found(document:str) -> tuple[Found, ...]:
     quote = document[said[a][1]:said[b - 1][2]]
     if (amt := figure(quote)) is not None: ret.append(Found(name, amt, quote, sure, said[a][1]))
   return tuple(sorted(ret, key=lambda f: (-f.sure, f.field)))
+
+def axis(src:int, dst:int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+  at = np.clip(((2 * np.arange(dst) + 1) * src - dst) / (2 * dst), 0, src - 1)
+  low = np.floor(at).astype(np.int64)
+  return low, np.minimum(low + 1, src - 1), (at - low).astype(np.float32)
+
+def resized(img:np.ndarray, height:int, width:int) -> np.ndarray:
+  y0, y1, fy = axis(img.shape[0], height)
+  x0, x1, fx = axis(img.shape[1], width)
+  rows = img[y0] * (1 - fy)[:, None, None] + img[y1] * fy[:, None, None]
+  return rows[:, x0] * (1 - fx)[None, :, None] + rows[:, x1] * fx[None, :, None]
+
+def fed(session:Any, img:np.ndarray) -> np.ndarray:
+  return session.run(None, {session.get_inputs()[0].name: ((2 * img - 255) / 255).transpose(2, 0, 1)[None].astype(np.float32)})[0][0]
+
+def blobs(mask:np.ndarray) -> list[list[int]]:
+  runs:list[tuple[int, int, int]] = []
+  for line in np.flatnonzero(mask.any(1)):
+    edge = np.diff(np.concatenate(([0], mask[line].view(np.int8), [0])))
+    runs += [(int(line), int(s), int(e) - 1) for s, e in zip(np.flatnonzero(edge == 1), np.flatnonzero(edge == -1))]
+  parent = list(range(len(runs)))
+  def root(i:int) -> int:
+    while parent[i] != i: parent[i] = i = parent[parent[i]]
+    return i
+  above:list[int] = []
+  here:list[int] = []
+  row = -2
+  for i, (y, s, e) in enumerate(runs):
+    if y != row: above, here, row = (here if y == row + 1 else []), [], y
+    here.append(i)
+    for j in above:
+      if runs[j][1] <= e + 1 and s <= runs[j][2] + 1: parent[root(i)] = root(j)
+  ret:dict[int, list[int]] = {}
+  for i, (y, s, e) in enumerate(runs):
+    box = ret.setdefault(root(i), [s, y, e, y])
+    box[:] = [min(box[0], s), min(box[1], y), max(box[2], e), max(box[3], y)]
+  return list(ret.values())
+
+def boxes(session:Any, img:np.ndarray) -> list[Box]:
+  inked = fed(session, img)[0]
+  mask = inked * 100 > INKED
+  ret = []
+  for x0, y0, x1, y1 in blobs(mask):
+    wide, tall = x1 - x0, y1 - y0
+    if min(wide, tall) < THINNEST or inked[y0:y1 + 1, x0:x1 + 1].mean() * 100 < BOXED: continue
+    pad = wide * tall * GROW / (200 * (wide + tall))
+    ret.append((max(0, round(x0 - pad)), max(0, round(y0 - pad)), min(img.shape[1] - 1, round(x1 + pad)), min(img.shape[0] - 1, round(y1 + pad))))
+  return ret
+
+def spelled(session:Any, chars:list[str], crop:np.ndarray) -> str:
+  width = math.ceil(TALL * crop.shape[1] / crop.shape[0])
+  padded = np.full((TALL, max(WIDE, width), 3), 255 / 2, np.float32)
+  padded[:, :width] = resized(crop, TALL, width)
+  if (out := fed(session, padded)).shape[1] != len(chars):
+    raise ValueError(f"{IT01_RECOGNISER} scores {out.shape[1] - 2} characters and lists {len(chars) - 2}")
+  ids = out.argmax(1)
+  keep = (ids != 0) & np.concatenate(([True], ids[1:] != ids[:-1]))
+  return "".join(chars[i] for i in ids[keep]) if keep.any() and out.max(1)[keep].mean() * 100 >= LEGIBLE else ""
+
+def laid(items:list[tuple[Box, str]]) -> str:
+  if not items: return ""
+  char = sorted((x1 - x0) / len(said) for (x0, _, x1, _), said in items)[len(items) // 2]
+  lines:list[tuple[int, list[tuple[int, str]]]] = []
+  for (x0, top, _, bot), said in sorted(items, key=lambda item: (item[0][1], item[0][3], item[0][0])):
+    if (line := next((one for one in lines if abs(one[0] - top - bot) < bot - top), None)) is None: lines.append(line := (top + bot, []))
+    line[1].append((x0, said))
+  ret = []
+  for _, held in sorted(lines, key=lambda one: one[0]):
+    row = ""
+    for left, text in sorted(held): row = row.ljust(int(left / char)) + ("  " if row else "") + text
+    ret.append(row)
+  return "\n".join(ret)
+
+def page(det:Any, rec:Any, chars:list[str], shot:Picture) -> str:
+  raw, width, height, stride = shot
+  img = np.frombuffer(raw, np.uint8).reshape(height, stride)[:, :width * 3].reshape(height, width, 3).astype(np.float32)
+  ratio = min(1, SIDE / max(height, width))
+  img = resized(img, *(max(STEP, round(int(n * ratio) / STEP) * STEP) for n in (height, width)))
+  seen = [(box, spelled(rec, chars, img[box[1]:box[3] + 1, box[0]:box[2] + 1])) for box in boxes(det, img)]
+  return laid([(box, said) for box, said in seen if said])
+
+def looked(shots:tuple[Picture, ...]) -> tuple[str, ...]:
+  det, rec = (onnxruntime.InferenceSession(file_at(path, flag), providers=["CPUExecutionProvider"])
+              for path, flag in ((IT01_DETECTOR, "IT01_DETECTOR"), (IT01_RECOGNISER, "IT01_RECOGNISER")))
+  if not isinstance(listed := rec.get_modelmeta().custom_metadata_map.get("character"), str):
+    raise ValueError(f"{IT01_RECOGNISER} lists no characters, so what it reads cannot be spelled")
+  chars = ["", *listed.splitlines(), " "]
+  return tuple(page(det, rec, chars, shot) for shot in shots)

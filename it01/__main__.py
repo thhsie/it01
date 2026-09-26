@@ -29,9 +29,14 @@ def to_proposals(text:str) -> list[str]:
 
 def source(here:pathlib.Path) -> str:
   if here.suffix.lower() != ".pdf": return here.read_text()
-  try: from it01.paper import to_text
-  except ImportError as e: raise ValueError(f"reading a PDF needs pip install 'it01[pdf]' ({e})") from e
-  return to_text(here)
+  try:
+    from it01.local import looked
+    from it01.paper import pictured
+  except ImportError as e: raise ValueError(f"reading a PDF needs pip install 'it01[pdf,local]' ({e})") from e
+  pages = looked(pictured(here))
+  if blank := [str(n) for n, page in enumerate(pages, 1) if not page.strip()]:
+    raise ValueError(f"nothing could be read on {here.name} page {', '.join(blank)}")
+  return "\n\f".join(pages)
 
 def reading(text:str) -> tuple["Form", tuple["Told", ...], tuple["Asked", ...], tuple["Sum", ...]]:
   try: from it01.local import found, tells, wanted
