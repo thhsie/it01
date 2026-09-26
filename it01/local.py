@@ -303,11 +303,14 @@ def shaped() -> Shape:
   return Shape(tuple(text(takes, role, "model.json, under takes") for role in ROLES),
                tuple(text(gives, role, "model.json, under gives") for role, _ in ANSWERS), schema, line, written_at, start)
 
+def file_at(path:str, flag:str) -> str:
+  if not path: raise ValueError(f"set {flag} to use a model of your own")
+  if not pathlib.Path(path).is_file(): raise ValueError(f"{flag} names {path}, which is not a file")
+  return path
+
 def loaded(model:str, key:str) -> tuple[Any, Any]:
-  for path, flag in ((model, key), (IT01_TOKENISER, "IT01_TOKENISER")):
-    if not path: raise ValueError(f"set {flag} to use a model of your own")
-    if not pathlib.Path(path).is_file(): raise ValueError(f"{flag} names {path}, which is not a file")
-  return onnxruntime.InferenceSession(model, providers=["CPUExecutionProvider"]), tokenizers.Tokenizer.from_file(IT01_TOKENISER)
+  model_path, tok_path = file_at(model, key), file_at(IT01_TOKENISER, "IT01_TOKENISER")
+  return onnxruntime.InferenceSession(model_path, providers=["CPUExecutionProvider"]), tokenizers.Tokenizer.from_file(tok_path)
 
 def reader() -> tuple[Any, Any]: return loaded(IT01_MODEL_FILE, "IT01_MODEL_FILE")
 
