@@ -166,9 +166,14 @@ class TestKeep(unittest.TestCase):
     for amt in (Decimal(9), Decimal(1107000)):
       with self.subTest(amt):
         text, how = noted(written(), {"salary": (amt, "a payslip line")}, STATEMENT, [])
-        asked = f"salary read as {amt:,} in a payslip line, and the file already gives 1,107,000"
+        asked = f"salary read as {amt:,} in a payslip line, and the case already gives 1,107,000"
         self.assertEqual(loaded(text)["pending"][asked], "add it to the fact, or leave the fact if this is the same money read twice")
         self.assertEqual((how.proposed, how.asked), ((), (asked,)))
+
+  def test_a_question_names_a_fact_in_words(self):
+    given = written(business={"gross_income": 5000})
+    text, _ = noted(given, {"business.gross_income": (Decimal(1200), "a statement line")}, STATEMENT, [])
+    self.assertIn("business gross income read as 1,200 in a statement line, and the case already gives 5,000", loaded(text)["pending"])
 
   def test_the_same_question_worded_differently_is_refused(self):
     asked = [("cash of 1,200.00 on 12/08/2025", "a different wording")]

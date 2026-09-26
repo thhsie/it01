@@ -8,7 +8,7 @@ from it01.keep import Document, answer, apart, case, confirm, dumped, figures, f
 from it01.keep import PAID_IN, reanswered, worded
 from it01.read import read
 from it01.rows import Check, dropped, entries, is_statement
-from it01.tax import amount
+from it01.tax import amount, plain
 if TYPE_CHECKING: from it01.local import Asked, Form, Sum, Told
 
 MARKS = {Check.AGREES: "ok", Check.DIFFERS: "does not agree", Check.UNCHECKED: "not checked"}
@@ -155,7 +155,7 @@ def added(here:pathlib.Path, document:str) -> list[str]:
     found, questions = label(src)
     seen, adrift = fed(found, table.feeds)
     asking = questioned(questions + adrift)
-    asking += [(f"money labelled {kind} came in and the case gives no {fact}", asks) for kind, (fact, asks) in table.needs.items()
+    asking += [(f"money labelled {kind} came in and the case gives no {plain(fact)}", asks) for kind, (fact, asks) in table.needs.items()
                if any(c.kind == kind for c in found) and not is_given(given, proposed, fact)]
     labels = tuple((worded(c.amt, c.date, c.description), c.kind) for c in found)
     if any(asks in table.asking.values() for _, asks in asking): hint = f"answer a payment with one of: {', '.join(picked(table))}"

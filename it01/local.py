@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 from it01.helpers import IT01_DETECTOR, IT01_LABELLER, IT01_MODEL_FILE, IT01_RECOGNISER, IT01_TOKENISER, data
-from it01.tax import AMOUNTS, amount
+from it01.tax import AMOUNTS, amount, plain
 
 WORD = re.compile(r"\w+|[^\w\s]")
 SURE = 50
@@ -277,7 +277,7 @@ def tells(form:Form, seen:tuple[Found, ...]) -> tuple[tuple[Told, ...], tuple[As
     else:
       for where in mine:
         names = left[where]
-        asking = "which line is this" if len(names) > 1 else f"which of these is the {fact}"
+        asking = "which line is this" if len(names) > 1 else f"which of these is the {plain(fact)}"
         ask[where] = Asked(where[1], quotes[where], asking, tuple((n, desc[n]) for n in names))
   settled = {where: lines[0] for where, lines in left.items() if len(lines) == 1 and where not in ask}
   return tuple(ret), tuple(ask[where] for where in sorted(ask)), sums(form, fitted(form, kept, settled))
