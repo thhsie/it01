@@ -2,7 +2,7 @@ import hashlib, json
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
-from it01.tax import AMOUNTS, JSON_TYPES, ZERO, Facts, Figure, amount, assess, from_json, is_amount
+from it01.tax import JSON_TYPES, PLACES, ZERO, Facts, Figure, amount, assess, from_json, is_amount
 
 TITLES = {"documents": "documents you read", "labels": "how money paid in was labelled", "answers": "questions you answered",
           "pending": "questions still open"}
@@ -27,9 +27,15 @@ def wording(raw:dict[str, Any], name:str) -> dict[str, str]:
     raise ValueError(f"{name} must be a JSON object of text, with nothing left blank")
   return held
 
+def at(given:dict[str, Any], name:str) -> Any:
+  part, _, field = name.partition(".")
+  if not field: return given.get(part)
+  if not isinstance(block := given.get(part, {}), dict): raise ValueError(f"{part} must be a JSON object")
+  return block.get(field)
+
 def offered(raw:dict[str, Any]) -> dict[str, Decimal]:
   if not isinstance(held := raw.get("proposed", {}), dict): raise ValueError("proposed must be a JSON object of figures")
-  if unknown := sorted(set(held) - set(AMOUNTS)): raise ValueError(f"proposed names figures that are not facts {unknown}")
+  if unknown := sorted(set(held) - set(PLACES)): raise ValueError(f"proposed names figures that are not facts {unknown}")
   ret = {}
   for name, value in held.items():
     if type(value) not in JSON_TYPES[Decimal] or not is_amount(Decimal(value)): raise ValueError(f"invalid proposed {name} {value}")
@@ -40,8 +46,8 @@ def apart(raw:Any) -> tuple[dict[str, Any], dict[str, dict[str, str]], dict[str,
   if not isinstance(raw, dict): raise ValueError("facts must be a JSON object")
   held, proposed = {name: wording(raw, name) for name in WORDING}, offered(raw)
   given = {k: v for k, v in raw.items() if k not in ASIDE}
-  if both := sorted(set(proposed) & set(given)): raise ValueError(f"proposed repeats facts already given {both}")
-  if unknown := sorted(set(held["sources"]) - set(given) - set(proposed)):
+  if both := sorted(n for n in proposed if at(given, n) is not None): raise ValueError(f"proposed repeats facts already given {both}")
+  if unknown := sorted(n for n in held["sources"] if at(given, n) is None and n not in proposed):
     raise ValueError(f"sources name neither a fact nor a proposed figure {unknown}")
   if nested := sorted(k for k in held["sources"] if isinstance(given.get(k), (dict, list))): raise ValueError(f"sources cannot name {nested}")
   return given, held, proposed
@@ -77,12 +83,12 @@ def as_file(given:dict[str, Any], held:dict[str, dict[str, str]], proposed:dict[
 
 def noted(text:str, seen:dict[str, tuple[Decimal, str]], doc:Document, asking:list[tuple[str, str]],
           labels:tuple[tuple[str, str], ...]=()) -> tuple[str, Noted]:
-  assert set(seen) <= set(AMOUNTS)
+  assert set(seen) <= set(PLACES)
   given, held, proposed = apart(loaded(text))
   wrote, ask = [], list(asking)
   for name, (amt, quote) in seen.items():
-    if name in given:
-      ask.append((f"{name} read as {amt:,} in {quote}, and the file already gives {amount(given[name]):,}",
+    if (was := at(given, name)) is not None:
+      ask.append((f"{name} read as {amt:,} in {quote}, and the file already gives {amount(was):,}",
                   "add it to the fact, or leave the fact if this is the same money read twice"))
     else:
       proposed[name] = proposed.get(name, ZERO) + amt
@@ -105,7 +111,9 @@ def noted(text:str, seen:dict[str, tuple[Decimal, str]], doc:Document, asking:li
 def confirm(text:str, name:str) -> str:
   given, held, proposed = apart(loaded(text))
   if name not in proposed: raise ValueError(f"nothing is proposed for {name}")
-  given |= {name: proposed.pop(name)}
+  part, _, field = name.partition(".")
+  amt = proposed.pop(name)
+  given |= {part: (given.get(part) or {}) | {field: amt} if field else amt}
   return as_file(given, held, proposed)
 
 def answer(text:str, question:str, said:str) -> str:
@@ -140,11 +148,12 @@ def stated(name:str, value:Any, deep:int) -> list[str]:
 def states(given:dict[str, Any], deep:int) -> list[str]:
   return [line for name, value in given.items() for line in stated(name, value, deep)]
 
-def with_wording(given:dict[str, Any], sources:dict[str, str]) -> list[str]:
+def with_wording(given:dict[str, Any], sources:dict[str, str], deep:int=1, prefix:str="") -> list[str]:
   ret = []
   for name, value in given.items():
-    ret += stated(name, value, 1)
-    if said := sources.get(name): ret.append(f"      {said}")
+    if isinstance(value, dict): ret += [f"{'  ' * deep}{name}"] + with_wording(value, sources, deep + 1, f"{prefix}{name}.")
+    else: ret += stated(name, value, deep)
+    if said := sources.get(f"{prefix}{name}"): ret.append(f"{'  ' * (deep + 2)}{said}")
   return ret
 
 def texted(value:Any) -> Any:

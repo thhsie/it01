@@ -3,7 +3,7 @@ from decimal import Decimal
 from unittest import mock
 from it01.rows import Check
 from it01.credits import ADRIFT, asked, fed, label, listed, named, received, spoken, totals
-from it01.tax import AMOUNTS
+from it01.tax import PLACES
 
 PAID_IN = """\
 Date        Description                    Debit       Credit      Balance
@@ -68,7 +68,7 @@ class TestCredits(unittest.TestCase):
     for kind, fact in FEEDS.items():
       with self.subTest(kind):
         self.assertIn(kind, KINDS)
-        self.assertIn(fact, AMOUNTS)
+        self.assertIn(fact, PLACES)
         self.assertNotIn(kind, ASKING)
 
   def test_only_money_paid_in_is_labelled(self):

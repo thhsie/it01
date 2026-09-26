@@ -129,6 +129,7 @@ class Facts:
   def emoluments(self) -> Decimal: return self.salary + self.taxable_transport_allowance + self.performance_bonus + self.statutory_bonus
 
 AMOUNTS = amount_names(Facts)
+PLACES = (*AMOUNTS, *(f"business.{n}" for n in amount_names(Business)))
 QUARTERLY = ("rent", "losses_brought_forward", "tax_deducted_at_source")
 
 def from_json[T:(Facts, Business, Asset)](cls:type[T], raw:Any) -> T:
