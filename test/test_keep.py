@@ -182,9 +182,9 @@ class TestKeep(unittest.TestCase):
     self.assertEqual(loaded(text).get("pending"), FACTS["pending"])
     self.assertEqual((how.asked, how.answered), ((), (was,)))
 
-  def test_the_text_a_document_held_is_remembered_by_its_fingerprint(self):
-    text, _ = noted(written(), {}, Document(name="payslip.txt", path="in/payslip.txt", mark=fingerprint("a line"), kind="payslip"), [])
-    self.assertEqual(loaded(text)["texts"], {fingerprint("a line"): "payslip.txt"})
+  def test_a_document_is_remembered_by_its_fingerprint(self):
+    text, _ = noted(written(), {}, Document(name="payslip.txt", path="in/payslip.txt", mark=fingerprint(b"a line"), kind="payslip"), [])
+    self.assertEqual(loaded(text)["texts"], {fingerprint(b"a line"): "payslip.txt"})
 
   def test_each_credit_is_kept_with_its_label_under_its_document(self):
     salary, interest = "5,000.00 paid in on 02/07/2025, SALARY", "12.50 paid in on 05/07/2025, INTEREST"

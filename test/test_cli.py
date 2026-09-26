@@ -130,7 +130,7 @@ class TestCli(unittest.TestCase):
   def cased(self, paper:str, said:str) -> str:
     name = pathlib.Path(paper).name
     here = on_disk(json.dumps({"resident": True, "documents": {name: "payslip"}, "paths": {name: paper},
-                               "texts": {fingerprint(said): name}}))
+                               "texts": {fingerprint(said.encode()): name}}))
     self.addCleanup(os.unlink, here)
     return here
 
@@ -240,16 +240,23 @@ class TestCli(unittest.TestCase):
       pending = json.loads(pathlib.Path(here).read_text()).get("pending", {})
       self.assertEqual(len([q for q in pending if "the case gives no salary" in q]), asked)
 
-  def test_the_same_text_under_another_name_is_not_read_twice(self):
+  def test_the_same_file_under_another_name_is_not_read_twice(self):
     said = "Total emoluments        1,107,000.00\n"
-    was = json.dumps({"resident": True, "documents": {"payslip.txt": "payslip"}, "texts": {fingerprint(said): "payslip.txt"}})
+    was = json.dumps({"resident": True, "documents": {"payslip.txt": "payslip"}, "texts": {fingerprint(said.encode()): "payslip.txt"}})
     name = on_disk(was)
     self.addCleanup(os.unlink, name)
     with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as f: f.write(said)
     self.addCleanup(os.unlink, paper := f.name)
     ret = run("add", name, paper)
     self.assertEqual((ret.returncode, pathlib.Path(name).read_text()), (0, was))
-    self.assertIn("same text as payslip.txt", ret.stdout)
+    self.assertIn("same file as payslip.txt", ret.stdout)
+
+  def test_a_copy_is_refused_before_it_is_read(self):
+    here = on_disk(json.dumps({"resident": True, "texts": {fingerprint(STATEMENT.encode()): "first.txt"}}))
+    self.addCleanup(os.unlink, here)
+    with mock.patch("it01.__main__.source", side_effect=AssertionError("read")):
+      said = added(pathlib.Path(here), self.saved_document(STATEMENT))
+    self.assertIn("same file as first.txt", said[0])
 
   def test_confirming_moves_a_figure_into_the_facts(self):
     name = on_disk(json.dumps({"resident": True, "salary": 1200000, "proposed": {"other_income": 40000},

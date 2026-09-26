@@ -1,4 +1,5 @@
 import json, pathlib, tempfile, unittest
+from unittest import mock
 from it01.__main__ import opened, source
 from it01.keep import fingerprint
 from it01.rows import breaks
@@ -38,6 +39,15 @@ class TestPaper(unittest.TestCase):
     self.addCleanup(here.unlink)
     self.assertEqual(source(here), "Total emoluments  1,107,000.00\n")
 
+  def test_a_file_read_differently_since_is_still_shown(self):
+    here = saved(b"Total emoluments  1,107,000.00\n", ".txt")
+    self.addCleanup(here.unlink)
+    facts = {"resident": True, "paths": {here.name: str(here)}, "texts": {fingerprint(here.read_bytes()): here.name}}
+    held_at = saved(json.dumps(facts).encode(), ".json")
+    self.addCleanup(held_at.unlink)
+    with mock.patch("it01.__main__.source", return_value="Total emoluments  1,107,000.60"):
+      self.assertEqual(opened(held_at, here.name), ["Total emoluments  1,107,000.60"])
+
 @unittest.skipIf(MISSING, f"the pdf extra is not installed: {MISSING}")
 class TestPdf(unittest.TestCase):
   def test_a_pdf_gives_up_its_lines(self):
@@ -48,7 +58,7 @@ class TestPdf(unittest.TestCase):
   def test_a_pdf_a_case_read_is_shown_line_by_line(self):
     here = saved(written(LINES), ".pdf")
     self.addCleanup(here.unlink)
-    facts = {"resident": True, "paths": {here.name: str(here)}, "texts": {fingerprint(to_text(here)): here.name}}
+    facts = {"resident": True, "paths": {here.name: str(here)}, "texts": {fingerprint(here.read_bytes()): here.name}}
     held_at = saved(json.dumps(facts).encode(), ".json")
     self.addCleanup(held_at.unlink)
     self.assertEqual(opened(held_at, here.name), [line.decode() for line in LINES])

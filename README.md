@@ -52,7 +52,7 @@ A document is read as text. Installing `it01[pdf]` lets a PDF be given instead, 
 
 What it finds goes to `proposed`, with a note of where it came from. What it cannot place goes to `pending` as a question. A question you have already answered is not asked again, and the command says so. A figure for a name already proposed is added to it, and both notes are kept.
 
-A document whose name is already in `documents` is not read at all, and the file is left alone. A document holding text that was read before is refused the same way, whatever it is called. A copy under another name is refused when its text comes out identical. A figure for a fact you have confirmed becomes a question, so a second document never changes a confirmed figure on its own.
+A document whose name is already in `documents` is not read at all, and the file is left alone. A file identical to one read before is refused the same way, whatever it is called. A figure for a fact you have confirmed becomes a question, so a second document never changes a confirmed figure on its own.
 
 `keep` prints everything processed so far. `confirm` moves one figure into the facts, and nothing else does. `data` prints the same case as JSON, with every number as text.
 
@@ -116,7 +116,7 @@ tax_deducted_at_source       quarterly_tax_paid
 
 Seven keys are set aside before the computation and none of them reaches it: `proposed`, `sources`, `documents`, `texts`, `paths`, `answers`, `pending`.
 
-`paths` holds the full path each document was read from, so `it01 show` can print the document. `it01 show` refuses a document that is no longer at that path, and one whose text has changed since it was read.
+`paths` holds the full path each document was read from, so `it01 show` can print the document. `it01 show` refuses a document that is no longer at that path, and one whose file has changed since it was read.
 
 ## Keep your own copies
 
