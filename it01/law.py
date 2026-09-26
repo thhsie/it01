@@ -30,6 +30,8 @@ FAIR_SHARE_SRC = (Source("ita", "s.16B", 35), Source("ita", "s.16C", 37))
 CREDITS_SRC = (Source("ita", "s.93(1)", 115), Source("ita", "s.103", 121), Source("ita", "s.111(2)", 123), Source("ita", "s.111G", 129),
                Source("ita", "s.152(1)", 222))
 LOSSES_SRC = (Source("ita", "s.20", 40),)
+YEAR_STARTS = 7
+YEAR_SRC = (Source("ita", "s.2", 19), Source("ita", "s.2", 26))
 QUARTER_BANDS = ((Decimal(125000), Decimal(0)), (Decimal(125000), Decimal("0.10")), (Decimal("Infinity"), Decimal("0.20")))
 QUARTER_BANDS_SRC = (Source("ita", "s.108", 123), Source("cps", "9. Calculation of Tax", 6))
 QUARTER_INCOME_SRC = (Source("ita", "s.105", 121), Source("ita", "s.107(2)", 122))
