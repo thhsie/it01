@@ -24,13 +24,14 @@ Date        Description                    Debit       Credit      Balance
 06/07/2025  RENT SEPTEMBER                           2,000.00      5,600.00
 """
 
-CALLED, KINDS, FEEDS, ASKING, NEEDS = spoken("labelling")
+TABLE = spoken("labelling")
+KINDS, FEEDS, ASKING = TABLE.kinds, TABLE.feeds, TABLE.asking
 
 def reply(*names:str) -> str: return json.dumps({str(n): name for n, name in enumerate(names, 1)})
 
 class TestCredits(unittest.TestCase):
   def test_a_labelling_file_says_what_it_reads(self):
-    self.assertEqual(CALLED, "bank statement")
+    self.assertEqual(TABLE.name, "bank statement")
 
   def test_a_kind_that_feeds_a_fact_totals_its_credits(self):
     found = named(received(PAID_IN), reply("rent", "rent", "cash"), KINDS)
@@ -62,7 +63,7 @@ class TestCredits(unittest.TestCase):
 
   def test_a_labelling_file_with_no_feeds_proposes_nothing(self):
     base = {"name": "a statement", "kinds": {"one": "a"}, "asking": {"one": "what is this"}}
-    with mock.patch("it01.credits.data", return_value=base): self.assertEqual(spoken("labelling")[2], {})
+    with mock.patch("it01.credits.data", return_value=base): self.assertEqual(spoken("labelling").feeds, {})
 
   def test_a_needs_table_that_does_not_hold_up_is_refused(self):
     base = {"name": "a statement", "kinds": {"one": "a", "two": "b"}, "feeds": {"one": "rent"}, "asking": {"two": "what is this"}}

@@ -111,11 +111,12 @@ def added(here:pathlib.Path, document:str) -> list[str]:
   seen:dict[str, tuple[Decimal, str]] = {}
   labels:tuple[tuple[str, str], ...] = ()
   if is_statement(src):
-    was, _, feeds, _, needs = spoken("labelling")
+    table = spoken("labelling")
+    was = table.name
     found, questions = label(src)
-    seen, adrift = fed(found, feeds)
+    seen, adrift = fed(found, table.feeds)
     asking = questioned(questions + adrift)
-    asking += [(f"money labelled {kind} came in and the case gives no {fact}", asks) for kind, (fact, asks) in needs.items()
+    asking += [(f"money labelled {kind} came in and the case gives no {fact}", asks) for kind, (fact, asks) in table.needs.items()
                if any(c.kind == kind for c in found) and not is_given(given, proposed, fact)]
     labels = tuple((worded(c.amt, c.date, c.description), c.kind) for c in found)
   else:
