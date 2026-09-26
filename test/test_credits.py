@@ -2,7 +2,8 @@ import importlib.util, json, unittest
 from decimal import Decimal
 from unittest import mock
 from it01.rows import Check
-from it01.credits import ADRIFT, asked, fed, label, listed, named, picked, received, spoken, totals
+from it01.credits import ADRIFT, asked, fed, label, listed, named, received, totals
+from it01.kinds import picked, spoken
 from it01.tax import PLACES
 
 PAID_IN = """\
@@ -58,12 +59,12 @@ class TestCredits(unittest.TestCase):
     for feeds, says in (({"nope": "salary"}, "feeds from unknown kinds"), ({"one": "nope"}, "feeds unknown facts"),
                         ({"three": "salary"}, "both feeds and asks about"), ({"one": "salary", "two": "salary"}, "more than one kind"),
                         ("not an object", "object of names")):
-      with self.subTest(says), mock.patch("it01.credits.data", return_value=base | {"feeds": feeds}):
+      with self.subTest(says), mock.patch("it01.kinds.data", return_value=base | {"feeds": feeds}):
         with self.assertRaisesRegex(ValueError, says): spoken("labelling")
 
   def test_a_labelling_file_with_no_feeds_proposes_nothing(self):
     base = {"name": "a statement", "kinds": {"one": "a"}, "asking": {"one": "what is this"}}
-    with mock.patch("it01.credits.data", return_value=base): self.assertEqual(spoken("labelling").feeds, {})
+    with mock.patch("it01.kinds.data", return_value=base): self.assertEqual(spoken("labelling").feeds, {})
 
   def test_a_needs_table_that_does_not_hold_up_is_refused(self):
     base = {"name": "a statement", "kinds": {"one": "a", "two": "b"}, "feeds": {"one": "rent"}, "asking": {"two": "what is this"}}
@@ -72,7 +73,7 @@ class TestCredits(unittest.TestCase):
                         ({"nope": {"fact": "salary", "asking": ask}}, r"unknown kinds \['nope'\]"),
                         ({"one": {"fact": "nope", "asking": ask}}, r"unknown facts \['nope'\]"),
                         ({"one": {"fact": "rent", "asking": ask}}, "feeds and needs"), ([], "needs as an object")):
-      with self.subTest(says), mock.patch("it01.credits.data", return_value=base | {"needs": needs}):
+      with self.subTest(says), mock.patch("it01.kinds.data", return_value=base | {"needs": needs}):
         with self.assertRaisesRegex(ValueError, says): spoken("labelling")
 
   def test_an_exempt_table_that_does_not_hold_up_is_refused(self):
@@ -82,7 +83,7 @@ class TestCredits(unittest.TestCase):
                          ({"one": good | {"page": "1"}}, "document, section and page"),
                          ({"nope": good}, r"exempts unknown kinds \['nope'\]"),
                          ({"two": good}, "both exempts and uses"), ([], "exempt as an object")):
-      with self.subTest(exempt), mock.patch("it01.credits.data", return_value=base | {"exempt": exempt}):
+      with self.subTest(exempt), mock.patch("it01.kinds.data", return_value=base | {"exempt": exempt}):
         with self.assertRaisesRegex(ValueError, says): spoken("labelling")
 
   def test_interest_is_exempt_under_the_schedule_that_says_so(self):
@@ -92,7 +93,7 @@ class TestCredits(unittest.TestCase):
     base = {"name": "a statement", "kinds": {"one": "a"}, "asking": {"one": "what is this"}}
     for examples, says in (("x", "examples as a list"), ([["x", ""]], r"example \['x', ''\] that is not a credit"),
                            ([["x", "nope"]], r"unknown kinds \['nope'\]")):
-      with self.subTest(examples), mock.patch("it01.credits.data", return_value=base | {"examples": examples}):
+      with self.subTest(examples), mock.patch("it01.kinds.data", return_value=base | {"examples": examples}):
         with self.assertRaisesRegex(ValueError, says): spoken("labelling")
 
   @unittest.skipIf(any(importlib.util.find_spec(m) is None for m in ("numpy", "onnxruntime", "tokenizers")), "the local extra is not installed")

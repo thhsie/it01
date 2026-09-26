@@ -2,7 +2,8 @@ import pathlib, sys
 from collections.abc import Callable
 from decimal import Decimal
 from typing import TYPE_CHECKING
-from it01.credits import Question, fed, label, picked, spoken, totals
+from it01.credits import Question, fed, label, totals
+from it01.kinds import picked, spoken
 from it01.keep import Document, answer, apart, case, confirm, dumped, figures, fingerprint, is_given, keep, labelled, loaded, noted, relabelled
 from it01.keep import PAID_IN, worded
 from it01.read import read
