@@ -124,14 +124,16 @@ def windows(tok:Any, said:tuple[tuple[str, int, int], ...], form:Form, shape:Sha
     at += max(cnt - max(cnt // QUARTER, 1), 1)
   return ret
 
-def sizes(session:Any, shape:Shape) -> dict[str, int]:
+def fixed(session:Any, takes:tuple[str, ...], roles:tuple[str, ...], where:str) -> dict[str, int]:
   held = {}
   for d in session.get_inputs():
     if len(d.shape) != 2: raise ValueError(f"the model file takes {d.name} in {len(d.shape)} dimensions and this gives 2")
     if not isinstance(size := d.shape[1], int): raise ValueError(f"the model file leaves {d.name} unsized, and this reads a model of fixed size")
     held[d.name] = size
-  if set(held) != set(shape.takes): raise ValueError(f"the model file wants {sorted(held)} and model.json names {list(shape.takes)}")
-  return {role: held[name] for role, name in zip(ROLES, shape.takes)}
+  if set(held) != set(takes): raise ValueError(f"the model file wants {sorted(held)} and {where} names {list(takes)}")
+  return {role: held[name] for role, name in zip(roles, takes)}
+
+def sizes(session:Any, shape:Shape) -> dict[str, int]: return fixed(session, shape.takes, ROLES, "model.json")
 
 def filled(values:list[int], size:int, name:str) -> tuple[np.ndarray, np.ndarray]:
   if len(values) > size: raise ValueError(f"this needs room for {len(values)} {name} and the model file takes {size}")
@@ -298,11 +300,13 @@ def shaped() -> Shape:
   return Shape(tuple(text(takes, role, "model.json, under takes") for role in ROLES),
                tuple(text(gives, role, "model.json, under gives") for role, _ in ANSWERS), schema, line, written_at, start)
 
-def reader() -> tuple[Any, Any]:
-  for path, flag in ((IT01_MODEL_FILE, "IT01_MODEL_FILE"), (IT01_TOKENISER, "IT01_TOKENISER")):
-    if not path: raise ValueError(f"set {flag} to read with a model of your own")
+def loaded(model:str, key:str) -> tuple[Any, Any]:
+  for path, flag in ((model, key), (IT01_TOKENISER, "IT01_TOKENISER")):
+    if not path: raise ValueError(f"set {flag} to use a model of your own")
     if not pathlib.Path(path).is_file(): raise ValueError(f"{flag} names {path}, which is not a file")
-  return onnxruntime.InferenceSession(IT01_MODEL_FILE, providers=["CPUExecutionProvider"]), tokenizers.Tokenizer.from_file(IT01_TOKENISER)
+  return onnxruntime.InferenceSession(model, providers=["CPUExecutionProvider"]), tokenizers.Tokenizer.from_file(IT01_TOKENISER)
+
+def reader() -> tuple[Any, Any]: return loaded(IT01_MODEL_FILE, "IT01_MODEL_FILE")
 
 def figure(quote:str) -> Decimal|None:
   try: return amount(quote)
