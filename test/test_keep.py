@@ -102,6 +102,34 @@ class TestKeep(unittest.TestCase):
     two = written(proposed={"other_income": 40000, "other_reliefs": 5000})
     self.assertEqual(loaded(confirm(two, "other_income"))["proposed"], {"other_reliefs": Decimal(5000)})
 
+  def test_business_income_is_proposed_under_the_business(self):
+    text, how = noted(written(proposed={}), {"business.gross_income": (Decimal(20975), "2 labelled business")}, STATEMENT, [])
+    self.assertEqual((how.proposed, loaded(text)["proposed"]), (("business.gross_income",), {"business.gross_income": Decimal(20975)}))
+
+  def test_confirmed_business_income_joins_the_business_block(self):
+    for given, want in (({}, {"gross_income": 20975}), ({"business": {"wages": 5000}}, {"wages": 5000, "gross_income": 20975})):
+      with self.subTest(given):
+        sources = {"business.gross_income": "2 labelled business"}
+        text = confirm(written(proposed={"business.gross_income": 20975}, sources=sources, **given), "business.gross_income")
+        self.assertEqual((loaded(text)["business"], case(text)["sources"]), (want, sources))
+
+  def test_the_record_shows_where_confirmed_business_income_came_from(self):
+    name, said = "business.gross_income", "2 labelled business"
+    lines = keep(confirm(written(proposed={name: 7000}, sources={name: said}), name))
+    idx = lines.index("  business")
+    self.assertEqual(lines[idx + 1:idx + 3], [f"    {'gross_income':<42}{'7,000':>14}", f"        {said}"])
+
+  def test_a_dotted_name_over_something_that_is_not_a_block_is_refused(self):
+    for raw in ({"resident": True, "salary": 5, "sources": {"salary.x": "y"}},
+                {"resident": True, "business": 5, "proposed": {"business.gross_income": 1}}):
+      with self.subTest(raw): self.assertRaisesRegex(ValueError, "must be a JSON object", apart, raw)
+
+  def test_business_income_already_given_is_asked_about(self):
+    given = written(proposed={}, business={"gross_income": 100000})
+    text, how = noted(given, {"business.gross_income": (Decimal(975), "1 labelled business")}, STATEMENT, [])
+    self.assertEqual((how.proposed, len(how.asked)), ((), 1))
+    self.assertIn("already gives 100,000", how.asked[0])
+
   def test_confirming_a_figure_that_was_not_proposed_is_refused(self):
     with self.assertRaisesRegex(ValueError, "nothing is proposed for rent"): confirm(written(), "rent")
 

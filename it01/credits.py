@@ -5,7 +5,7 @@ from typing import Any
 from it01.helpers import data, instruction
 from it01.llm import ask
 from it01.rows import Check, Entry, entries
-from it01.tax import AMOUNTS
+from it01.tax import PLACES
 
 ADRIFT = "the balance after this does not agree, so it is left out"
 
@@ -39,7 +39,7 @@ def spoken(name:str) -> tuple[str, dict[str, str], dict[str, str], dict[str, str
   feeds = {str(k): v for k, v in given.items()}
   for part, what in ((feeds, "feeds from"), (asking, "asks about")):
     if unknown := sorted(set(part) - set(kinds)): raise ValueError(f"{name}.json {what} unknown kinds {unknown}")
-  if unknown := sorted(set(feeds.values()) - set(AMOUNTS)): raise ValueError(f"{name}.json feeds unknown facts {unknown}")
+  if unknown := sorted(set(feeds.values()) - set(PLACES)): raise ValueError(f"{name}.json feeds unknown facts {unknown}")
   if both := sorted(set(feeds) & set(asking)): raise ValueError(f"{name}.json both feeds and asks about {both}")
   fills = list(feeds.values())
   if twice := sorted({f for f in fills if fills.count(f) > 1}): raise ValueError(f"{name}.json feeds {twice} from more than one kind")

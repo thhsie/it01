@@ -12,6 +12,7 @@
     "unclear": "The wording does not say where the money came from."
   },
   "feeds": {
+    "business": "business.gross_income",
     "dividend": "resident_dividends",
     "rent": "rent"
   },
