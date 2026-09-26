@@ -110,6 +110,7 @@ def added(here:pathlib.Path, document:str) -> list[str]:
   if (mark := fingerprint(src)) in held["texts"]: return [f"{paper.name} holds the same text as {held['texts'][mark]}, so nothing changed"]
   seen:dict[str, tuple[Decimal, str]] = {}
   labels:tuple[tuple[str, str], ...] = ()
+  freed:list[str] = []
   if is_statement(src):
     table = spoken("labelling")
     was = table.name
@@ -119,12 +120,15 @@ def added(here:pathlib.Path, document:str) -> list[str]:
     asking += [(f"money labelled {kind} came in and the case gives no {fact}", asks) for kind, (fact, asks) in table.needs.items()
                if any(c.kind == kind for c in found) and not is_given(given, proposed, fact)]
     labels = tuple((worded(c.amt, c.date, c.description), c.kind) for c in found)
+    freed = [line for kind, amt in totals(found).items() if (why := table.exempt.get(kind))
+             for line in (f"  {kind:<32}{amt:>16,}", f"    {why.section:<42}{why.url}")]
   else:
     form, told, asked, _ = reading(src)
     was, seen, asking = form.name, *shaped(told, asked)
   text, how = noted(here.read_text(), seen, Document(name=paper.name, path=str(paper.resolve()), mark=mark, kind=was), asking, labels)
   rewritten(here, text)
   ret = [f"{paper.name} read as {was}"]
+  if freed: ret += ["", "exempt"] + freed
   if how.proposed: ret += ["", "proposed"] + [f"  {name:<32}{seen[name][0]:>16,}" for name in how.proposed]
   if how.asked: ret += ["", "questions"] + [f"  {question}" for question in how.asked]
   if how.answered: ret += ["", "asked before and answered"] + [f"  {question}" for question in how.answered]

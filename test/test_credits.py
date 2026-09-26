@@ -75,6 +75,19 @@ class TestCredits(unittest.TestCase):
       with self.subTest(says), mock.patch("it01.credits.data", return_value=base | {"needs": needs}):
         with self.assertRaisesRegex(ValueError, says): spoken("labelling")
 
+  def test_an_exempt_table_that_does_not_hold_up_is_refused(self):
+    base = {"name": "a statement", "kinds": {"one": "a", "two": "b"}, "asking": {"two": "what is this"}}
+    good = {"doc": "ita", "section": "s.1", "page": 1}
+    for exempt, says in (({"one": good | {"doc": "nope"}}, "document, section and page"),
+                         ({"one": good | {"page": "1"}}, "document, section and page"),
+                         ({"nope": good}, r"exempts unknown kinds \['nope'\]"),
+                         ({"two": good}, "both exempts and uses"), ([], "exempt as an object")):
+      with self.subTest(exempt), mock.patch("it01.credits.data", return_value=base | {"exempt": exempt}):
+        with self.assertRaisesRegex(ValueError, says): spoken("labelling")
+
+  def test_interest_is_exempt_under_the_schedule_that_says_so(self):
+    self.assertEqual(TABLE.exempt["interest"].url, "https://www.mra.mu/download/ITAConsolidated.pdf#page=267")
+
   def test_the_shipped_table_feeds_only_kinds_and_facts(self):
     for kind, fact in FEEDS.items():
       with self.subTest(kind):

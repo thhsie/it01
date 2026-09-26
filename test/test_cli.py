@@ -172,6 +172,13 @@ class TestCli(unittest.TestCase):
     self.assertEqual((ret.returncode, pathlib.Path(name).read_text()), (0, was))
     self.assertIn("was read before", ret.stdout)
 
+  def test_adding_a_statement_says_which_money_is_exempt_and_why(self):
+    here = on_disk(json.dumps({"resident": True, "salary": 1200000}))
+    self.addCleanup(os.unlink, here)
+    found = (Credit("05/07/2025", Decimal("12.50"), "Interest", "interest", Check.AGREES),)
+    with mock.patch("it01.__main__.label", return_value=(found, ())): said = added(pathlib.Path(here), self.saved_document(STATEMENT))
+    self.assertEqual(said[1:5], ["", "exempt", f"  {'interest':<32}{'12.50':>16}", f"    {'Second Schedule Part II Sub-Part B item 3(c)':<42}https://www.mra.mu/download/ITAConsolidated.pdf#page=267"])
+
   def test_pay_in_two_statements_asks_once(self):
     here = on_disk(json.dumps({"resident": True}))
     self.addCleanup(os.unlink, here)
