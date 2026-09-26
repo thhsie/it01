@@ -104,6 +104,8 @@ def named(paid:tuple[Entry, ...], reply:str, kinds:dict[str, str]) -> tuple[Cred
     ret.append(Credit(e.date, e.paid_in, e.description, kind, e.check))
   return tuple(ret)
 
+def picked(table:Table) -> tuple[str, ...]: return tuple(kind for kind in table.kinds if kind not in table.asking)
+
 def asked(found:tuple[Credit, ...], asking:dict[str, str]) -> tuple[Question, ...]:
   return tuple(Question(c.date, c.amt, c.description, asking[c.kind]) for c in found if c.kind in asking)
 

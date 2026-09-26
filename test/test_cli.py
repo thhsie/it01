@@ -2,7 +2,7 @@ import importlib, json, os, pathlib, subprocess, sys, tempfile, tomllib, unittes
 from dataclasses import dataclass
 from decimal import Decimal
 from unittest import mock
-from it01.__main__ import added, questioned, shaped
+from it01.__main__ import added, questioned, responded, shaped
 from it01.credits import Credit
 from it01.keep import fingerprint
 from it01.rows import Check
@@ -178,6 +178,50 @@ class TestCli(unittest.TestCase):
     found = (Credit("05/07/2025", Decimal("12.50"), "Interest", "interest", Check.AGREES),)
     with mock.patch("it01.__main__.label", return_value=(found, ())): said = added(pathlib.Path(here), self.saved_document(STATEMENT))
     self.assertEqual(said[1:5], ["", "exempt", f"  {'interest':<32}{'12.50':>16}", f"    {'Second Schedule Part II Sub-Part B item 3(c)':<42}https://www.mra.mu/download/ITAConsolidated.pdf#page=267"])
+
+  PAYMENT = "20,000.00 paid in on 12/01/2026, WALLET TRANSFER"
+
+  def answered_with(self, said:str, keys:tuple[str, ...]=(f"bank.pdf, {PAYMENT}",), asking:str="what was this payment for", **given:object) -> dict:
+    here = on_disk(json.dumps({"resident": True, "labels": dict.fromkeys(keys, "unclear"),
+                               "pending": {self.PAYMENT: asking}} | given))
+    self.addCleanup(os.unlink, here)
+    responded(pathlib.Path(here), self.PAYMENT, said)
+    return json.loads(pathlib.Path(here).read_text())
+
+  def test_a_payment_answered_with_a_kind_is_relabelled_and_counted(self):
+    held = self.answered_with("business")
+    self.assertEqual((held["labels"], held["proposed"]), ({"bank.pdf, 20,000.00 paid in on 12/01/2026, WALLET TRANSFER": "business"},
+                                                        {"business.gross_income": 20000}))
+    self.assertIn("answered 20,000.00 paid in", held["sources"]["business.gross_income"])
+
+  def test_a_payment_answered_with_a_kind_that_counts_nothing_is_only_relabelled(self):
+    held = self.answered_with("other")
+    self.assertEqual((list(held["labels"].values()), "proposed" in held), (["other"], False))
+
+  def test_a_payment_answered_in_words_is_kept_as_a_note(self):
+    held = self.answered_with("a gift from my sister")
+    said = (list(held["labels"].values()), "proposed" in held, list(held["answers"].values()))
+    self.assertEqual(said, (["unclear"], False, ["a gift from my sister"]))
+
+  def test_identical_payments_in_one_statement_are_all_counted(self):
+    held = self.answered_with("business", keys=(f"bank.pdf, {self.PAYMENT}", f"bank.pdf, {self.PAYMENT} (2)"))
+    self.assertEqual((held["proposed"], set(held["labels"].values())), ({"business.gross_income": 40000}, {"business"}))
+
+  def test_the_same_payment_in_two_statements_is_refused(self):
+    with self.assertRaisesRegex(ValueError, "more than one document"):
+      self.answered_with("business", keys=(f"a.pdf, {self.PAYMENT}", f"b.pdf, {self.PAYMENT}"))
+
+  def test_a_payment_left_out_for_its_balance_stays_a_note(self):
+    held = self.answered_with("business", asking="the balance after this does not agree, so it is left out")
+    self.assertEqual((list(held["labels"].values()), "proposed" in held), (["unclear"], False))
+
+  def test_a_case_without_labels_keeps_the_answer_as_a_note(self):
+    held = self.answered_with("business", keys=())
+    self.assertEqual((held["answers"], "proposed" in held), ({self.PAYMENT: "business"}, False))
+
+  def test_a_payment_answered_with_a_kind_already_confirmed_becomes_a_question(self):
+    held = self.answered_with("business", business={"gross_income": 100000})
+    self.assertEqual(("proposed" in held, len(held["pending"])), (False, 1))
 
   def test_pay_in_two_statements_asks_once(self):
     here = on_disk(json.dumps({"resident": True}))
