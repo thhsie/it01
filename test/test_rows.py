@@ -119,6 +119,21 @@ class TestRows(unittest.TestCase):
     got = entries(TWO_LINES)
     self.assertEqual((got[0].date, got[0].description), ("02 Jul 25", "DIRECT CREDIT ACME LTD"))
 
+  def test_a_row_printed_without_a_date_takes_the_date_above_it(self):
+    undated = SIDE_BY_SIDE.replace("04/07/2025  Fees  ", "            Fees  ")
+    self.assertEqual([e.date for e in entries(undated)], ["02/07/2025", "03/07/2025", "03/07/2025", "05/07/2025"])
+
+  def test_a_date_inside_the_description_stays_there(self):
+    period = SIDE_BY_SIDE.replace("05/07/2025  Interest                  ", "            Int 1/6/25 to 30/6/25     ")
+    got = entries(period)[-1]
+    self.assertEqual((got.date, got.description), ("04/07/2025", "Int 1/6/25 to 30/6/25"))
+
+  def test_a_row_at_the_top_of_a_page_keeps_its_own_date(self):
+    for start in ("\f", " "):
+      with self.subTest(repr(start)):
+        got = entries(SIDE_BY_SIDE.replace("05/07/2025  Interest", f"{start}05/07/2025  Interest"))[-1]
+        self.assertEqual((got.date, got.description), ("05/07/2025", "Interest"))
+
   def test_an_amount_with_no_balance_to_check_it_is_marked(self):
     trailing = SIDE_BY_SIDE + "06/07/2025  Cheque                          400.00\n"
     self.assertEqual(entries(trailing)[-1].check, Check.UNCHECKED)
