@@ -24,7 +24,15 @@ class Question:
   description: str
   asking: str
 
-def spoken(name:str) -> tuple[str, dict[str, str], dict[str, str], dict[str, str], dict[str, tuple[str, str]]]:
+@dataclass(frozen=True)
+class Table:
+  name: str
+  kinds: dict[str, str]
+  feeds: dict[str, str]
+  asking: dict[str, str]
+  needs: dict[str, tuple[str, str]]
+
+def spoken(name:str) -> Table:
   held = data(name)
   if not isinstance(called := held.get("name"), str) or not called.strip(): raise ValueError(f"{name}.json must say what it reads")
   ret = []
@@ -52,7 +60,7 @@ def spoken(name:str) -> tuple[str, dict[str, str], dict[str, str], dict[str, str
   if unknown := sorted(set(needs) - set(kinds)): raise ValueError(f"{name}.json needs unknown kinds {unknown}")
   if unknown := sorted({f for f, _ in needs.values()} - set(PLACES)): raise ValueError(f"{name}.json needs unknown facts {unknown}")
   if both := sorted({f for f, _ in needs.values()} & set(fills)): raise ValueError(f"{name}.json both feeds and needs {both}")
-  return called, kinds, feeds, asking, needs
+  return Table(called, kinds, feeds, asking, needs)
 
 def received(text:str) -> tuple[Entry, ...]: return tuple(e for e in entries(text) if e.paid_in is not None)
 
@@ -97,7 +105,8 @@ def totals(found:tuple[Credit, ...]) -> dict[str, Decimal]:
   return ret
 
 def label(text:str) -> tuple[tuple[Credit, ...], tuple[Question, ...]]:
-  _, kinds, _, asking, _ = spoken("labelling")
+  table = spoken("labelling")
   if not (paid := received(text)): return (), ()
-  said = "\n".join(f"{kind}: {means}" for kind, means in kinds.items())
-  return (found := named(paid, ask(instruction("labelling") + "\n" + said, listed(paid), answers(paid, kinds)), kinds)), asked(found, asking)
+  said = "\n".join(f"{kind}: {means}" for kind, means in table.kinds.items())
+  reply = ask(instruction("labelling") + "\n" + said, listed(paid), answers(paid, table.kinds))
+  return (found := named(paid, reply, table.kinds)), asked(found, table.asking)
