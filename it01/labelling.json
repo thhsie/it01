@@ -22,6 +22,9 @@
       "asking": "the bank shows pay after tax and deductions, so add the statement of emoluments, which gives the salary and the tax withheld"
     }
   },
+  "exempt": {
+    "interest": {"doc": "ita", "section": "Second Schedule Part II Sub-Part B item 3(c)", "page": 267}
+  },
   "asking": {
     "cash": "where did this cash come from",
     "unclear": "what was this payment for"

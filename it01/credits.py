@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 from it01.helpers import data, instruction
+from it01.law import DOCS, Source
 from it01.llm import ask
 from it01.rows import Check, Entry, entries
 from it01.tax import PLACES
@@ -31,6 +32,7 @@ class Table:
   feeds: dict[str, str]
   asking: dict[str, str]
   needs: dict[str, tuple[str, str]]
+  exempt: dict[str, Source]
 
 def spoken(name:str) -> Table:
   held = data(name)
@@ -60,7 +62,16 @@ def spoken(name:str) -> Table:
   if unknown := sorted(set(needs) - set(kinds)): raise ValueError(f"{name}.json needs unknown kinds {unknown}")
   if unknown := sorted({f for f, _ in needs.values()} - set(PLACES)): raise ValueError(f"{name}.json needs unknown facts {unknown}")
   if both := sorted({f for f, _ in needs.values()} & set(fills)): raise ValueError(f"{name}.json both feeds and needs {both}")
-  return Table(called, kinds, feeds, asking, needs)
+  if not isinstance(freed := held.get("exempt", {}), dict): raise ValueError(f"{name}.json must hold exempt as an object")
+  exempt = {}
+  for kind, src in freed.items():
+    said = src.get("section") if isinstance(src, dict) else None
+    if not isinstance(src, dict) or src.get("doc") not in DOCS or not isinstance(said, str) or not said.strip() or type(src.get("page")) is not int:
+      raise ValueError(f"{name}.json must give the document, section and page that exempt {kind}")
+    exempt[str(kind)] = Source(src["doc"], src["section"], src["page"])
+  if unknown := sorted(set(exempt) - set(kinds)): raise ValueError(f"{name}.json exempts unknown kinds {unknown}")
+  if both := sorted(set(exempt) & (set(feeds) | set(needs) | set(asking))): raise ValueError(f"{name}.json both exempts and uses {both}")
+  return Table(called, kinds, feeds, asking, needs, exempt)
 
 def received(text:str) -> tuple[Entry, ...]: return tuple(e for e in entries(text) if e.paid_in is not None)
 
