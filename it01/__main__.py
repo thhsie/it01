@@ -90,20 +90,28 @@ def accepted(here:pathlib.Path, name:str) -> list[str]:
   rewritten(here, confirm(here.read_text(), name))
   return [f"{name} is now a fact in {here.name}"]
 
+def matched(held:dict[str, str], asked:str, what:str) -> str:
+  hit = [asked] if asked in held else [q for q in held if q.lower().startswith(asked.lower())]
+  if len(hit) != 1: raise ValueError(f"{len(hit)} {what} questions match {asked}")
+  return hit[0]
+
+def kinded(text:str, question:str, keys:list[str], kind:str, fact:str|None) -> tuple[str, list[str]]:
+  if len({k.split(", ", 1)[0] for k in keys}) > 1: raise ValueError(f"{question} was read in more than one document, so say which in words")
+  if not (paid := PAID_IN.match(question)): return text, []
+  text, how = relabelled(text, keys, kind, {fact: (amount(paid["amt"]) * len(keys), f"answered {question}")} if fact else {})
+  return text, [f"labelled {kind}"] + [f"  proposed {name}" for name in how.proposed] + [f"  asked {q}" for q in how.asked]
+
 def responded(here:pathlib.Path, asked:str, said:str) -> list[str]:
   if not (asked := asked.strip()): raise ValueError("the question to answer is blank")
   text = here.read_text()
   pending = apart(loaded(text))[1]["pending"]
-  hit = [asked] if asked in pending else [q for q in pending if q.lower().startswith(asked.lower())]
-  if len(hit) != 1: raise ValueError(f"{len(hit)} open questions match {asked}")
-  table, ret = spoken("labelling"), [f"answered {hit[0]}", f"  {said}"]
-  keys = labelled(text, hit[0]) if pending[hit[0]] in table.asking.values() and (kind := said.strip()) in picked(table) else []
-  if len({k.split(", ", 1)[0] for k in keys}) > 1: raise ValueError(f"{hit[0]} was read in more than one document, so say which in words")
-  text = answer(text, hit[0], said)
-  if keys and (paid := PAID_IN.match(hit[0])):
-    fact = table.feeds.get(kind)
-    text, how = relabelled(text, keys, kind, {fact: (amount(paid["amt"]) * len(keys), f"answered {hit[0]}")} if fact else {})
-    ret += [f"labelled {kind}"] + [f"  proposed {name}" for name in how.proposed] + [f"  asked {q}" for q in how.asked]
+  question = matched(pending, asked, "open")
+  table, ret = spoken("labelling"), [f"answered {question}", f"  {said}"]
+  keys = labelled(text, question) if pending[question] in table.asking.values() and (kind := said.strip()) in picked(table) else []
+  text = answer(text, question, said)
+  if keys:
+    text, lines = kinded(text, question, keys, kind, table.feeds.get(kind))
+    ret += lines
   rewritten(here, text)
   return ret
 
