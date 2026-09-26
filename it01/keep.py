@@ -123,13 +123,14 @@ def noted(text:str, seen:dict[str, tuple[Decimal, str]], doc:Document, asking:li
   held["paths"][doc.name] = doc.path
   return as_file(given, held, proposed), how
 
+def put(given:dict[str, Any], name:str, amt:Decimal) -> dict[str, Any]:
+  part, _, field = name.partition(".")
+  return given | {part: (given.get(part) or {}) | {field: amt} if field else amt}
+
 def confirm(text:str, name:str) -> str:
   given, held, proposed = apart(loaded(text))
   if name not in proposed: raise ValueError(f"nothing is proposed for {name}")
-  part, _, field = name.partition(".")
-  amt = proposed.pop(name)
-  given |= {part: (given.get(part) or {}) | {field: amt} if field else amt}
-  return as_file(given, held, proposed)
+  return as_file(put(given, name, proposed.pop(name)), held, proposed)
 
 def answer(text:str, question:str, said:str) -> str:
   given, held, proposed = apart(loaded(text))
