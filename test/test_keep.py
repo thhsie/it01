@@ -1,6 +1,7 @@
 import json, unittest
 from decimal import Decimal
-from it01.keep import ASIDE, TITLES, WORDING, Document, answer, apart, case, confirm, dumped, figures, fingerprint, keep, loaded, noted, shown
+from it01.keep import (ASIDE, TITLES, WORDING, Document, answer, apart, case, confirm, dumped, figures, fingerprint, keep, loaded, noted,
+                       received, shown)
 
 STATEMENT = Document(name="bank.txt", path="in/bank.txt", mark="a", kind="bank statement")
 FACTS = {"resident": True, "dependants": 1, "salary": 1107000, "paye_withheld": 71401,
@@ -289,5 +290,40 @@ class TestAnswer(unittest.TestCase):
   def test_a_question_that_is_open_and_already_answered_keeps_the_first_words(self):
     both = written(answers={ASKED: "sold my old bicycle"})
     with self.assertRaisesRegex(ValueError, f"already answered {ASKED}"): answer(both, ASKED, "a loan from my brother")
+
+class TestReceived(unittest.TestCase):
+  LABELS = {"day.pdf, 1,000.00 paid in on 14/02/2025, SALARY": "pay", "day.pdf, 1,000.00 paid in on 03/03/2025, SALARY": "pay",
+            "day.pdf, 250.50 paid in on 03/03/2025, SALARY (2)": "business", "day.pdf, 12.25 paid in on 29 Jun 25, INTEREST": "interest",
+            "month.pdf, 5.00 paid in on 02/15/2025, REFUND": "other", "month.pdf, 7.00 paid in on 04/01/2025, REFUND": "other",
+            "either.pdf, 400.00 paid in on 05/06/2025, TRANSFER": "other", "gone.pdf, 1.00 paid in on 01/01/2025, X": "other",
+            "day.pdf, a lot paid in on 01/01/2025, X": "other"}
+
+  def held(self): return {"documents": dict.fromkeys(("day.pdf", "month.pdf", "either.pdf"), "bank statement"), "labels": self.LABELS}
+
+  def test_money_in_is_summed_by_kind_with_the_largest_first(self):
+    self.assertEqual(received(self.held())["kinds"], {"pay": Decimal("2000.00"), "other": Decimal("412.00"), "business": Decimal("250.50"),
+                                                        "interest": Decimal("12.25")})
+
+  def test_a_statement_says_by_its_dates_which_part_is_the_month(self):
+    self.assertEqual(received(self.held())["months"], {"2025-02": {"pay": Decimal("1000.00"), "other": Decimal("5.00")},
+                                                         "2025-03": {"pay": Decimal("1000.00"), "business": Decimal("250.50")},
+                                                         "2025-04": {"other": Decimal("7.00")}, "2025-06": {"interest": Decimal("12.25")}})
+
+  def test_a_date_that_reads_both_ways_is_not_placed_in_a_month(self):
+    self.assertEqual(received(self.held())["undated"], ["either.pdf, 400.00 paid in on 05/06/2025, TRANSFER"])
+
+  def test_a_label_that_does_not_read_as_money_paid_in_is_named(self):
+    self.assertEqual(received(self.held())["unread"], ["gone.pdf, 1.00 paid in on 01/01/2025, X", "day.pdf, a lot paid in on 01/01/2025, X"])
+
+  def test_keep_prints_money_in_and_names_what_it_left_out(self):
+    text = dumped({"resident": True, "documents": self.held()["documents"], "labels": self.LABELS})
+    out = keep(text)
+    self.assertIn(f"  {'pay':<44}{'2,000.00':>14}", out)
+    self.assertIn(f"  {'2025-03':<44}{'1,250.50':>14}", out)
+    self.assertEqual(out[out.index("money paid in with a date whose month is not clear") + 1], "  either.pdf, 400.00 paid in on 05/06/2025, TRANSFER")
+
+  def test_the_case_as_json_carries_money_in_as_text(self):
+    text = dumped({"resident": True, "documents": self.held()["documents"], "labels": self.LABELS})
+    self.assertEqual(case(text)["received"]["months"]["2025-04"], {"other": "7.00"})
 
 if __name__ == "__main__": unittest.main()

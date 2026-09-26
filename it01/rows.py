@@ -10,6 +10,10 @@ MONEY = re.compile(r"(?<![\d.,])\(?-?(?:\d{1,3}(?:,\d{3})+\.\d{2}|\d{1,3}(?:\.\d
 DATE = re.compile(r"\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{1,2} [A-Za-z]{3,9} \d{2,4}")
 GAP = re.compile(r"\s{2,}")
 LEADING = re.compile(rf"^\s*(?:(?:{DATE.pattern})\s*)+")
+NUMERIC = re.compile(r"(\d{1,2})[/-](\d{1,2})[/-](\d{2}|\d{4})")
+WORDED = re.compile(r"(\d{1,2}) ([A-Za-z]+) (\d{2}|\d{4})")
+MONTHS = ("january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december")
+ORDER = {(True, False): 2, (False, True): 1}
 SIGN = re.compile(r"[()-]")
 ZERO = Decimal(0)
 SPREAD = 3
@@ -212,3 +216,19 @@ def entries(text:str) -> tuple[Entry, ...]:
     entry, running = settle(rows, tuple(moves), None, running, flip)
     ret.append(entry)
   return tuple(itertools.accumulate(ret, lambda was, entry: entry if entry.date else replace(entry, date=was.date)))
+
+def year(said:str) -> int: return int(said) + (2000 if len(said) == 2 else 0)
+
+def is_day(said:str) -> bool: return 1 <= int(said) <= 31
+
+def month_number(word:str) -> int: return next((n for n, full in enumerate(MONTHS, 1) if word.lower() in (full, full[:3])), 0)
+
+def month_of(date:str, place:int) -> str|None:
+  if (m := WORDED.fullmatch(date)) and (at := month_number(m[2])) and is_day(m[1]): return f"{year(m[3])}-{at:02d}"
+  if not (m := NUMERIC.fullmatch(date)) or not place: return None
+  return f"{year(m[3])}-{int(m[place]):02d}" if 1 <= int(m[place]) <= 12 and is_day(m[3 - place]) else None
+
+def months(dates:tuple[str, ...]) -> dict[str, str|None]:
+  split = [(int(m[1]), int(m[2])) for d in dates if (m := NUMERIC.fullmatch(d))]
+  place = ORDER.get((any(12 < a <= 31 for a, _ in split), any(12 < b <= 31 for _, b in split)), 0)
+  return {d: month_of(d, place) for d in dates}
