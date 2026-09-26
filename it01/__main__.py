@@ -63,7 +63,7 @@ def to_local(text:str) -> list[str]:
   return ret or ["no facts found in the document"]
 
 def to_transactions(text:str) -> list[str]:
-  ret = [f"{e.date:<12}{money(e.paid_out):>14}{money(e.paid_in):>14}{money(e.balance):>14}  {MARKS[e.check]:<15}{e.description}"
+  ret = [f"{e.line + 1:>6}  {e.date:<12}{money(e.paid_out):>14}{money(e.paid_in):>14}{money(e.balance):>14}  {MARKS[e.check]:<15}{e.description}"
          for e in entries(text)]
   if left := dropped(text): ret += [""] + [f"{n} amount{'s' if n > 1 else ''} on page {page} left out" for page, n in left.items()]
   return ret
