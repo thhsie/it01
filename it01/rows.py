@@ -1,6 +1,6 @@
-import re
+import itertools, re
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal
 from enum import Enum, auto
 from it01.tax import to_decimal
@@ -9,6 +9,7 @@ MONEY = re.compile(r"(?<![\d.,])\(?-?(?:\d{1,3}(?:,\d{3})+\.\d{2}|\d{1,3}(?:\.\d
                    r"|\d{1,3}(?: \d{3})+[.,]\d{2}|\d+[.,]\d{2})\)?-?(?![\d.,%])")
 DATE = re.compile(r"\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{1,2} [A-Za-z]{3,9} \d{2,4}")
 GAP = re.compile(r"\s{2,}")
+LEADING = re.compile(rf"^\s*(?:(?:{DATE.pattern})\s*)+")
 SIGN = re.compile(r"[()-]")
 ZERO = Decimal(0)
 SPREAD = 3
@@ -143,11 +144,11 @@ def headings(rows:list[str], starts:tuple[int, ...], found:tuple[Amount, ...], m
   return agree, oppose
 
 def described(rows:list[str], first:int, last:int) -> str:
-  said = " ".join(GAP.sub(" ", DATE.sub(" ", MONEY.sub(" ", rows[i]))).strip() for i in range(first, last + 1))
+  said = " ".join(LEADING.sub("", piece) for i in range(first, last + 1) for piece, _ in cells(MONEY.sub(" ", rows[i])))
   return GAP.sub(" ", said).replace("\f", "").strip()
 
 def dated(rows:list[str], first:int, last:int) -> str:
-  return next((m.group() for i in range(first, last + 1) if (m := DATE.search(rows[i]))), "")
+  return next((m.group() for i in range(first, last + 1) for piece, _ in cells(rows[i]) if (m := DATE.match(piece.strip()))), "")
 
 def settle(rows:list[str], moves:tuple[tuple[Amount, Kind], ...], balance:Amount|None, running:Decimal|None, flip:bool) -> tuple[Entry, Decimal|None]:
   out = sum((abs(a.value) for a, kind in moves if kind is Kind.PAID_OUT), ZERO) if any(k is Kind.PAID_OUT for _, k in moves) else None
@@ -208,4 +209,4 @@ def entries(text:str) -> tuple[Entry, ...]:
   if moves and (not summed or dated(rows, moves[0][0].line, moves[-1][0].line)):
     entry, running = settle(rows, tuple(moves), None, running, flip)
     ret.append(entry)
-  return tuple(ret)
+  return tuple(itertools.accumulate(ret, lambda was, entry: entry if entry.date else replace(entry, date=was.date)))
