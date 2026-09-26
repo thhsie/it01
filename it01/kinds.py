@@ -12,6 +12,7 @@ class Table:
   needs: dict[str, tuple[str, str]]
   exempt: dict[str, Source]
   examples: tuple[tuple[str, str], ...]
+  not_income: tuple[str, ...]
 
 def spoken(name:str) -> Table:
   held = data(name)
@@ -55,6 +56,14 @@ def spoken(name:str) -> Table:
   if bad := next((e for e in shown if not (isinstance(e, list) and len(e) == 2 and all(isinstance(x, str) and x.strip() for x in e))), None):
     raise ValueError(f"{name}.json gives an example {bad!r} that is not a credit and its kind")
   if unknown := sorted({k for _, k in shown} - set(kinds)): raise ValueError(f"{name}.json gives examples of unknown kinds {unknown}")
-  return Table(called, kinds, feeds, asking, needs, exempt, tuple((t, k) for t, k in shown))
+  aside = held.get("not_income", [])
+  if not isinstance(aside, list) or not all(isinstance(k, str) for k in aside):
+    raise ValueError(f"{name}.json must hold not_income as a list of kinds")
+  if unknown := sorted(set(aside) - set(kinds)): raise ValueError(f"{name}.json calls unknown kinds not income {unknown}")
+  if both := sorted(set(aside) & (set(feeds) | set(needs) | set(asking) | set(exempt))):
+    raise ValueError(f"{name}.json both uses and sets aside {both}")
+  if loose := sorted(set(kinds) - set(feeds) - set(needs) - set(asking) - set(exempt) - set(aside)):
+    raise ValueError(f"{name}.json says nothing of how {loose} count")
+  return Table(called, kinds, feeds, asking, needs, exempt, tuple((t, k) for t, k in shown), tuple(aside))
 
 def picked(table:Table) -> tuple[str, ...]: return tuple(kind for kind in table.kinds if kind not in table.asking)

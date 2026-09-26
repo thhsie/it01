@@ -56,7 +56,7 @@ A document whose name is already in `documents` is not read at all, and the file
 
 `keep` prints everything processed so far. `confirm` moves one figure into the facts, and nothing else does. `data` prints the same case as JSON, with every number as text.
 
-`keep` also adds up the money paid in, by the kind it was labelled and by month. A label that does not read as money paid in is listed, not counted. `data` carries the same totals.
+`keep` also adds up the money paid in, by the kind it was labelled and by month. It also sums it by what it counts as: income, exempt, still to sort, or not income. A label that does not read as money paid in is listed, not counted. `data` carries the same totals.
 
 The dates of a statement's labelled payments say which part is the month. A first part from 13 to 31 means the day comes first, and a second part from 13 to 31 means the month comes first. When the dates do not show the order, no payment from that statement is placed in a month, and `keep` lists them. A two-digit year is read as 20yy.
 
@@ -106,6 +106,8 @@ it01 credits statement.txt
 `rows` finds the columns from the arithmetic, checks each balance against the running total and marks each transaction `ok`, `does not agree` or `not checked`. Each transaction starts with the number of the line it was read from, counting from 1, as `it01 show` prints it. An amount it cannot place is counted, per page.
 
 `credits` labels every payment in through your endpoint, or your model file when `IT01_LABELLER` is set. The kinds are in `it01/labelling.json`. `feeds` says which fact each kind adds to, and `asking` says which kinds it asks you about.
+
+`not_income` names the kinds that are not income. Every kind must be fed, needed, exempt, asked about or not income.
 
 ## Label bank credits with a model file of your own
 

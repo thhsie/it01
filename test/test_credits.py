@@ -86,6 +86,13 @@ class TestCredits(unittest.TestCase):
       with self.subTest(exempt), mock.patch("it01.kinds.data", return_value=base | {"exempt": exempt}):
         with self.assertRaisesRegex(ValueError, says): spoken("labelling")
 
+  def test_every_kind_must_say_how_it_counts(self):
+    base = {"name": "a statement", "kinds": {"one": "a", "two": "b"}, "asking": {"one": "what is this"}}
+    for aside, says in (([], r"says nothing of how \['two'\] count"), (["one", "two"], r"both uses and sets aside \['one'\]"),
+                        (["nope", "two"], r"unknown kinds not income \['nope'\]"), ("two", "not_income as a list")):
+      with self.subTest(aside), mock.patch("it01.kinds.data", return_value=base | {"not_income": aside}):
+        with self.assertRaisesRegex(ValueError, says): spoken("labelling")
+
   def test_interest_is_exempt_under_the_schedule_that_says_so(self):
     self.assertEqual(TABLE.exempt["interest"].url, "https://www.mra.mu/download/ITAConsolidated.pdf#page=267")
 
