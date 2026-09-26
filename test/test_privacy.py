@@ -6,7 +6,7 @@ NETWORK_ALLOWED = {"it01/llm.py"}
 NETWORK_REACH_ALLOWED = {"it01/llm.py", "it01/read.py", "it01/credits.py", "it01/__main__.py"}
 RUNTIME = {"numpy", "onnxruntime", "tokenizers"}
 RUNTIME_ALLOWED = {"it01/local.py"}
-PAPER = {"pypdf"}
+PAPER = {"pypdf", "pypdfium2"}
 PAPER_ALLOWED = {"it01/paper.py"}
 
 def modules(tree:ast.Module) -> set[str]:
