@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 from it01.credits import Question, fed, label, totals
 from it01.kinds import picked, spoken
 from it01.keep import Document, answer, apart, case, confirm, dumped, figures, fingerprint, is_given, keep, labelled, loaded, noted, relabelled
-from it01.keep import PAID_IN, reanswered, worded
+from it01.keep import BOTH, PAID_IN, TWICE, increased, reanswered, worded
 from it01.read import read
 from it01.rows import Check, dropped, entries, is_statement
 from it01.tax import amount, plain
@@ -109,7 +109,9 @@ def responded(here:pathlib.Path, asked:str, said:str) -> list[str]:
   question = matched(pending, asked, "open")
   table, ret = spoken("labelling"), [f"answered {question}", f"  {said}"]
   keys = labelled(text, question) if pending[question] in table.asking.values() and (kind := said.strip()) in picked(table) else []
+  if (twice := TWICE.fullmatch(question)) and said.strip() not in BOTH: raise ValueError(f"answer {question} with one of: {', '.join(BOTH)}")
   text = answer(text, question, said)
+  if twice and said.strip() == "add": text = increased(text, question)
   if keys:
     text, lines = kinded(text, question, keys, kind, table.feeds.get(kind))
     ret += lines

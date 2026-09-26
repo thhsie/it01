@@ -198,6 +198,10 @@ class TestCli(unittest.TestCase):
     held = self.answered_with("other")
     self.assertEqual((list(held["labels"].values()), "proposed" in held), (["other"], False))
 
+  def test_add_answering_another_question_is_kept_as_a_note(self):
+    held = self.answered_with("add")
+    self.assertEqual((held["answers"], "proposed" in held), ({self.PAYMENT: "add"}, False))
+
   def test_a_payment_answered_in_words_is_kept_as_a_note(self):
     held = self.answered_with("a gift from my sister")
     said = (list(held["labels"].values()), "proposed" in held, list(held["answers"].values()))
@@ -222,6 +226,23 @@ class TestCli(unittest.TestCase):
   def test_a_payment_answered_with_a_kind_already_confirmed_becomes_a_question(self):
     held = self.answered_with("business", business={"gross_income": 100000})
     self.assertEqual(("proposed" in held, len(held["pending"])), (False, 1))
+
+  def settled(self, said:str) -> tuple[dict, str]:
+    here = on_disk(json.dumps({"resident": True, "business": {"gross_income": 100000}, "labels": {f"bank.pdf, {self.PAYMENT}": "unclear"},
+                               "pending": {self.PAYMENT: "what was this payment for"}}))
+    self.addCleanup(os.unlink, here)
+    responded(pathlib.Path(here), self.PAYMENT, "business")
+    responded(pathlib.Path(here), "business gross income", said)
+    return json.loads(pathlib.Path(here).read_text()), pathlib.Path(here).read_text()
+
+  def test_a_figure_already_confirmed_grows_only_when_the_answer_is_add(self):
+    for said, gross in (("add", 120000), ("leave", 100000)):
+      with self.subTest(said):
+        held, _ = self.settled(said)
+        self.assertEqual((held["business"]["gross_income"], "pending" in held), (gross, False))
+
+  def test_a_figure_already_confirmed_is_answered_only_with_add_or_leave(self):
+    with self.assertRaisesRegex(ValueError, "with one of: add, leave"): self.settled("yes please")
 
   def changed_to(self, first:str, then:str, **given:object) -> dict:
     here = on_disk(json.dumps({"resident": True, "labels": {f"bank.pdf, {self.PAYMENT}": "unclear"},

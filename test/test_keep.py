@@ -1,7 +1,7 @@
 import json, unittest
 from decimal import Decimal
-from it01.keep import (ASIDE, TITLES, WORDING, Document, answer, apart, case, confirm, dumped, figures, fingerprint, keep, loaded, noted,
-                       reanswered, received, shown)
+from it01.keep import (ASIDE, TITLES, WORDING, Document, answer, apart, case, confirm, dumped, figures, fingerprint, increased, keep, loaded,
+                       noted, reanswered, received, shown)
 from it01.kinds import spoken
 
 STATEMENT = Document(name="bank.txt", path="in/bank.txt", mark="a", kind="bank statement")
@@ -167,13 +167,24 @@ class TestKeep(unittest.TestCase):
       with self.subTest(amt):
         text, how = noted(written(), {"salary": (amt, "a payslip line")}, STATEMENT, [])
         asked = f"salary read as {amt:,} in a payslip line, and the case already gives 1,107,000"
-        self.assertEqual(loaded(text)["pending"][asked], "add it to the fact, or leave the fact if this is the same money read twice")
+        told = ("add it if this is more money, or leave it if the same money was read twice: "
+                f"add (it becomes {amt + 1107000:,}); leave (it stays 1,107,000)")
+        self.assertEqual(loaded(text)["pending"][asked], told)
         self.assertEqual((how.proposed, how.asked), ((), (asked,)))
 
   def test_a_question_names_a_fact_in_words(self):
     given = written(business={"gross_income": 5000})
     text, _ = noted(given, {"business.gross_income": (Decimal(1200), "a statement line")}, STATEMENT, [])
     self.assertIn("business gross income read as 1,200 in a statement line, and the case already gives 5,000", loaded(text)["pending"])
+
+  def test_an_answer_of_add_adds_to_the_figure_and_names_the_source(self):
+    asked = "salary read as 9 in a payslip line, and the case already gives 1,107,000"
+    held = loaded(increased(written(), asked))
+    self.assertEqual((held["salary"], held["sources"]["salary"]), (Decimal(1107009), f"{FACTS['sources']['salary']}, a payslip line"))
+
+  def test_add_is_refused_once_the_figure_has_changed(self):
+    asked = "salary read as 9 in a payslip line, and the case already gives 1,000,000"
+    with self.assertRaisesRegex(ValueError, "salary is no longer 1,000,000"): increased(written(), asked)
 
   def test_the_same_question_worded_differently_is_refused(self):
     asked = [("cash of 1,200.00 on 12/08/2025", "a different wording")]
