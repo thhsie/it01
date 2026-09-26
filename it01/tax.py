@@ -191,11 +191,12 @@ def assess(f:Facts) -> tuple[Figure, ...]:
   losses = Figure("losses carried forward", net_income_and_losses(f)[1], LOSSES_SRC)
   ret:tuple[Figure, ...]
   if f.period is Period.QUARTER:
-    ret = (ci, tax, Figure("balance of tax", tax.amt - f.tax_deducted_at_source, tax.src + QUARTER_CREDIT_SRC), losses)
+    paid = Figure("tax already paid", f.tax_deducted_at_source, QUARTER_CREDIT_SRC)
+    ret = (ci, tax, paid, Figure("balance of tax", tax.amt - paid.amt, tax.src + QUARTER_CREDIT_SRC), losses)
     return ret if (b := f.business) == Business() else (*ret, *business_figures(b, ALLOWANCE_RULES[f.period]))
   share = Figure("fair share contribution", rupees(max(ZERO, ci.amt + f.resident_dividends - FAIR_SHARE_THRESHOLD) * FAIR_SHARE_RATE), FAIR_SHARE_SRC)
   total = Figure("total tax", tax.amt + share.amt, tax.src + share.src)
-  paid = f.paye_withheld + f.tax_deducted_at_source + f.quarterly_tax_paid
-  balance = Figure("balance of tax", total.amt - paid, total.src + CREDITS_SRC)
-  ret = (ci, tax, share, total, balance, losses)
+  paid = Figure("tax already paid", f.paye_withheld + f.tax_deducted_at_source + f.quarterly_tax_paid, CREDITS_SRC)
+  balance = Figure("balance of tax", total.amt - paid.amt, total.src + CREDITS_SRC)
+  ret = (ci, tax, share, total, paid, balance, losses)
   return ret if (b := f.business) == Business() else (*ret, *business_figures(b, ALLOWANCE_RULES[f.period]))
