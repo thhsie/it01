@@ -6,7 +6,7 @@ from it01.helpers import IT01_LABELLER, data, instruction
 from it01.law import DOCS, Source
 from it01.llm import ask
 from it01.rows import Check, Entry, entries
-from it01.tax import PLACES
+from it01.tax import PLACES, summed
 
 ADRIFT = "the balance after this does not agree, so it is left out"
 
@@ -118,10 +118,7 @@ def fed(found:tuple[Credit, ...], feeds:dict[str, str]) -> tuple[dict[str, tuple
   adrift = tuple(Question(c.date, c.amt, c.description, ADRIFT) for c in found if c.kind in feeds and c.check is Check.DIFFERS)
   return ret, adrift
 
-def totals(found:tuple[Credit, ...]) -> dict[str, Decimal]:
-  ret:dict[str, Decimal] = {}
-  for c in found: ret[c.kind] = ret.get(c.kind, Decimal(0)) + c.amt
-  return ret
+def totals(found:tuple[Credit, ...]) -> dict[str, Decimal]: return summed([(c.kind, c.amt) for c in found])
 
 def by_file(paid:tuple[Entry, ...], table:Table) -> tuple[Credit, ...]:
   try: from it01.local import classified

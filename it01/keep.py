@@ -8,6 +8,7 @@ TITLES = {"documents": "documents you read", "labels": "how money paid in was la
           "pending": "questions still open"}
 WORDING = ("sources", "texts", "paths", *TITLES)
 ASIDE = ("proposed", *WORDING)
+PAID_IN = re.compile(r"(?P<amt>\S+) paid in on [^,]*, ")
 
 def once(pairs:list[tuple[str, Any]]) -> dict[str, Any]:
   ret:dict[str, Any] = {}
@@ -17,6 +18,8 @@ def once(pairs:list[tuple[str, Any]]) -> dict[str, Any]:
   return ret
 
 def loaded(text:str) -> Any: return json.loads(text, parse_float=Decimal, object_pairs_hook=once)
+
+def worded(amt:Decimal, date:str, description:str) -> str: return f"{amt:,} paid in on {date}, {description}"
 
 def fingerprint(raw:bytes) -> str: return hashlib.sha256(raw).hexdigest()[:32]
 
