@@ -44,6 +44,7 @@ class Entry:
   paid_in: Decimal|None
   balance: Decimal|None
   check: Check
+  line: int
 
 def to_signed(text:str) -> Decimal:
   raw = text.strip()
@@ -157,9 +158,10 @@ def settle(rows:list[str], moves:tuple[tuple[Amount, Kind], ...], balance:Amount
   if balance is None or carried is None: check = Check.UNCHECKED
   else: check = Check.AGREES if balance.value == carried else Check.DIFFERS
   spans = [a.line for a, _ in moves] + ([balance.line] if balance is not None else [])
+  first, last = min(spans), max(spans)
   paid_out, paid_in = (into, out) if flip else (out, into)
-  entry = Entry(dated(rows, min(spans), max(spans)), described(rows, min(spans), max(spans)),
-                paid_out, paid_in, balance.value if balance is not None else None, check)
+  entry = Entry(dated(rows, first, last), described(rows, first, last),
+                paid_out, paid_in, balance.value if balance is not None else None, check, first)
   return entry, balance.value if balance is not None else running
 
 def balanced(maps:tuple[tuple[dict[int, Kind], bool], ...]) -> bool: return any(Kind.BALANCE in named.values() for named, _ in maps)

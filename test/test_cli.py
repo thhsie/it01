@@ -337,6 +337,9 @@ class TestCli(unittest.TestCase):
     out = saved(OUTGOINGS, ".txt", "credits")
     self.assertEqual((out.returncode, out.stdout.strip()), (0, "no money was paid into the account"))
 
+  def test_each_transaction_names_the_line_it_starts_on(self):
+    self.assertEqual([row.split()[0] for row in statement(STATEMENT).stdout.splitlines()], ["3", "4"])
+
   def test_refuses_a_statement_it_cannot_check(self):
     ret = statement("Salary 5,000.00\nRent 1,500.00\n")
     self.assertEqual((ret.returncode, ret.stderr), (1, "error: no running balance column in the statement\n"))
