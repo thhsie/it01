@@ -2,6 +2,7 @@ import hashlib, json, re
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
+from it01.kinds import Table, spoken
 from it01.rows import months
 from it01.tax import JSON_TYPES, PLACES, ZERO, Facts, Figure, amount, assess, from_json, is_amount, summed
 
@@ -9,6 +10,8 @@ TITLES = {"documents": "documents you read", "labels": "how money paid in was la
           "pending": "questions still open"}
 WORDING = ("sources", "texts", "paths", *TITLES)
 ASIDE = ("proposed", *WORDING)
+NIL = Decimal("0.00")
+GROUPS = {"income": "counts as income", "exempt": "exempt", "unsorted": "still to sort", "other": "not income"}
 PAID_IN = re.compile(r"(?P<amt>\S+) paid in on (?P<date>[^,]*), ")
 
 def once(pairs:list[tuple[str, Any]]) -> dict[str, Any]:
@@ -189,7 +192,7 @@ def case(text:str) -> dict[str, Any]:
   worked = [{"rule": fig.rule, "amount": str(fig.amt),
              "sources": [{"doc": s.doc, "section": s.section, "page": s.page, "url": s.url} for s in fig.src]}
             for fig in assessed(given)]
-  return {"facts": texted(given), "proposed": texted(proposed)} | held | {"figures": worked, "received": texted(received(held))}
+  return {"facts": texted(given), "proposed": texted(proposed)} | held | {"figures": worked, "received": texted(received(held, spoken("labelling")))}
 
 @dataclass(frozen=True)
 class Paid:
@@ -199,20 +202,23 @@ class Paid:
   date: str
   kind: str
 
-def credited(key:str, kind:str, docs:list[str]) -> Paid|None:
+def credited(key:str, kind:str, docs:list[str], table:Table) -> Paid|None:
   doc = next((d for d in docs if key.startswith(f"{d}, ")), None)
-  if doc is None or not (m := PAID_IN.match(key[len(doc) + 2:])): return None
+  if doc is None or kind not in table.kinds or not (m := PAID_IN.match(key[len(doc) + 2:])): return None
   try: return Paid(key, doc, amount(m["amt"]), m["date"], kind)
   except ValueError: return None
 
-def received(held:dict[str, dict[str, str]]) -> dict[str, Any]:
+def received(held:dict[str, dict[str, str]], table:Table) -> dict[str, Any]:
+  where = {kind: group for group, kinds in (("income", (*table.feeds, *table.needs)), ("exempt", table.exempt), ("unsorted", table.asking),
+                                             ("other", table.not_income)) for kind in kinds}
   docs = sorted(held["documents"], key=len, reverse=True)
-  read = {key: credited(key, kind, docs) for key, kind in held["labels"].items()}
+  read = {key: credited(key, kind, docs, table) for key, kind in held["labels"].items()}
   found = [p for p in read.values() if p is not None]
   ways = {doc: months(tuple(p.date for p in found if p.doc == doc)) for doc in {p.doc for p in found}}
   dated = [(p, ways[p.doc][p.date]) for p in found]
   kinds = summed([(p.kind, p.amt) for p in found])
-  return {"kinds": dict(sorted(kinds.items(), key=lambda one: -one[1])),
+  groups = summed([(where[p.kind], p.amt) for p in found])
+  return {"groups": {group: groups.get(group, NIL) for group in GROUPS}, "kinds": dict(sorted(kinds.items(), key=lambda one: -one[1])),
           "months": {m: summed([(p.kind, p.amt) for p, at in dated if at == m]) for m in sorted({at for _, at in dated if at})},
           "undated": [p.key for p, at in dated if at is None], "unread": [key for key, p in read.items() if p is None]}
 
@@ -221,8 +227,13 @@ def keep(text:str) -> list[str]:
   worked = figures(given)
   ret = ["facts you confirmed"] + with_wording(given, held["sources"]) + ["", "figures"] + ["  " + line for line in worked]
   if proposed: ret += ["", "figures proposed, not confirmed"] + with_wording(proposed, held["sources"])
-  money = received(held)
-  if money["kinds"]: ret += ["", "money paid in, by the kind it was labelled"] + [f"  {kind:<44}{amt:>14,}" for kind, amt in money["kinds"].items()]
+  table = spoken("labelling")
+  money = received(held, table)
+  if money["kinds"]:
+    freed = [f"    {s.doc} {s.section} page {s.page}" for s in table.exempt.values()]
+    ret += ["", "money paid in, by what it counts as, as labelled"]
+    ret += [line for group, amt in money["groups"].items() for line in [f"  {GROUPS[group]:<44}{amt:>14,}"] + (freed if group == "exempt" else [])]
+    ret += ["", "money paid in, by the kind it was labelled"] + [f"  {kind:<44}{amt:>14,}" for kind, amt in money["kinds"].items()]
   if money["months"]: ret += ["", "money paid in, by month"] + [f"  {m:<44}{sum(k.values(), ZERO):>14,}" for m, k in money["months"].items()]
   if money["undated"]: ret += ["", "money paid in with a date whose month is not clear"] + [f"  {key}" for key in money["undated"]]
   if money["unread"]: ret += ["", "labels that do not read as money paid in"] + [f"  {key}" for key in money["unread"]]

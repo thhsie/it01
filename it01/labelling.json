@@ -35,6 +35,7 @@
   "exempt": {
     "interest": {"doc": "ita", "section": "Second Schedule Part II Sub-Part B item 3(c)", "page": 267}
   },
+  "not_income": ["other"],
   "asking": {
     "cash": "where did this cash come from",
     "unclear": "what was this payment for"
