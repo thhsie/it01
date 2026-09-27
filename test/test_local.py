@@ -1,11 +1,14 @@
-import unittest
+import contextlib, unittest
+from collections.abc import Iterator
 from decimal import Decimal
+from typing import Any
 from unittest import mock
 
 try:
   import numpy as np
-  from it01.local import Form, Found, Working, batched, filled, found, prompt, reader, room
-  from it01.local import classified, pieces, shaped, sizes, sorter, spans, sums, tells, wanted, windows, words, written
+  from it01.form import Form, Working, wanted
+  from it01.local import Found, batched, filled, found, prompt, reader, room
+  from it01.local import classified, pieces, shaped, sizes, sorter, spans, sums, tells, windows, words, written
   from it01.local import blobs, laid, looked
   FORM = Form("statement_of_emoluments", (("salary", "the gross pay"),))
   SHAPE = shaped()
@@ -20,6 +23,10 @@ try:
             | {"task": SORT.task, "instruction": SORT.asking} | SORT.marks | SORT.fills)
   MISSING = ""
 except ImportError as e: MISSING = str(e)
+
+@contextlib.contextmanager
+def fed(fxn:Any) -> Iterator[None]:
+  with mock.patch("it01.local.data", fxn), mock.patch("it01.form.data", fxn): yield
 
 class Coded:
   def __init__(self, ids, tokens): self.ids, self.tokens = ids, tokens
@@ -166,48 +173,48 @@ class TestLocal(unittest.TestCase):
 
   def test_the_same_words_seen_from_two_windows_are_reported_once(self):
     with mock.patch("it01.local.reader", lambda: (Model(cap=15, each=[(10, 11), (1, 2)]), Fake())), \
-         mock.patch("it01.local.data", lambda name: HELD if name == "reading" else SHOWN):
+         fed(lambda name: HELD if name == "reading" else SHOWN):
       self.assertEqual([(f.field, str(f.amt)) for f in found(" ".join(str(n % 10) for n in range(15)))], [("salary", "0")])
 
   def test_the_same_figure_in_two_places_is_reported_twice(self):
     with mock.patch("it01.local.reader", lambda: (Model(cap=15, each=[(1, 2), (1, 2)]), Fake())), \
-         mock.patch("it01.local.data", lambda name: HELD if name == "reading" else SHOWN):
+         fed(lambda name: HELD if name == "reading" else SHOWN):
       seen = found(" ".join(["1"] * 15))
       self.assertEqual([str(f.amt) for f in seen], ["1", "1"])
       self.assertEqual(len({f.at for f in seen}), 2)
 
   def test_a_span_cut_by_the_start_of_a_window_is_left_out(self):
     with mock.patch("it01.local.reader", lambda: (Model(cap=15, each=[(1, 2), (0, 1)]), Fake())), \
-         mock.patch("it01.local.data", lambda name: HELD if name == "reading" else SHOWN):
+         fed(lambda name: HELD if name == "reading" else SHOWN):
       self.assertEqual([str(f.amt) for f in found(" ".join(["1"] * 15))], ["1"])
 
   def test_a_span_on_the_first_word_of_the_document_is_kept(self):
     with mock.patch("it01.local.reader", lambda: (Model(cap=15, each=[(0, 1), (5, 6)]), Fake())), \
-         mock.patch("it01.local.data", lambda name: HELD if name == "reading" else SHOWN):
+         fed(lambda name: HELD if name == "reading" else SHOWN):
       seen = found(" ".join(["1"] * 15))
       self.assertEqual([str(f.amt) for f in seen], ["1", "1"])
       self.assertEqual(len({f.at for f in seen}), 2)
 
   def test_a_span_on_the_last_word_of_the_document_is_kept(self):
     with mock.patch("it01.local.reader", lambda: (Model(cap=15, each=[(1, 2), (5, 6)]), Fake())), \
-         mock.patch("it01.local.data", lambda name: HELD if name == "reading" else SHOWN):
+         fed(lambda name: HELD if name == "reading" else SHOWN):
       seen = found(" ".join(["1"] * 15))
       self.assertEqual([str(f.amt) for f in seen], ["1", "1"])
       self.assertEqual(len({f.at for f in seen}), 2)
 
   def test_a_span_cut_by_the_end_of_a_window_is_left_out(self):
     with mock.patch("it01.local.reader", lambda: (Model(cap=15, each=[(11, 12), (1, 2)]), Fake())), \
-         mock.patch("it01.local.data", lambda name: HELD if name == "reading" else SHOWN):
+         fed(lambda name: HELD if name == "reading" else SHOWN):
       self.assertEqual([str(f.amt) for f in found(" ".join(["1"] * 15))], ["1"])
 
   def test_a_document_is_read_into_facts(self):
     with mock.patch("it01.local.reader", lambda: (Model(), Fake())), \
-         mock.patch("it01.local.data", lambda name: HELD if name == "reading" else SHOWN):
+         fed(lambda name: HELD if name == "reading" else SHOWN):
       self.assertEqual([(f.field, str(f.amt), f.sure) for f in found("pay 1,200.00")], [("salary", "1200.00", 100)])
 
   def test_a_span_that_holds_no_figure_is_left_out(self):
     with mock.patch("it01.local.reader", lambda: (Model(last=2), Fake())), \
-         mock.patch("it01.local.data", lambda name: HELD if name == "reading" else SHOWN):
+         fed(lambda name: HELD if name == "reading" else SHOWN):
       self.assertEqual(found("pay emoluments"), ())
 
   def test_a_document_with_no_words_is_refused(self):
@@ -226,19 +233,19 @@ class TestLocal(unittest.TestCase):
     self.assertIn(shipped.line_mark, said)
 
   def test_a_form_with_no_name_is_refused(self):
-    with mock.patch("it01.local.data", lambda name: {"form": {"fields": {"salary": "pay"}}}):
+    with fed(lambda name: {"form": {"fields": {"salary": "pay"}}}):
       with self.assertRaisesRegex(ValueError, "must hold name"): wanted()
 
   def test_lines_that_carry_no_description_are_refused(self):
-    with mock.patch("it01.local.data", lambda name: {"form": {"name": "soe", "fields": {"salary": ""}}}):
+    with fed(lambda name: {"form": {"name": "soe", "fields": {"salary": ""}}}):
       with self.assertRaisesRegex(ValueError, "an object of descriptions"): wanted()
 
   def test_a_feed_naming_a_line_the_form_does_not_have_is_refused(self):
-    with mock.patch("it01.local.data", lambda name: {"form": {"name": "soe", "fields": {"salary": "pay"}, "feeds": {"wages": "salary"}}}):
+    with fed(lambda name: {"form": {"name": "soe", "fields": {"salary": "pay"}, "feeds": {"wages": "salary"}}}):
       with self.assertRaisesRegex(ValueError, "feeds lines the form does not have"): wanted()
 
   def test_a_feed_naming_a_fact_the_package_does_not_know_is_refused(self):
-    with mock.patch("it01.local.data", lambda name: {"form": {"name": "soe", "fields": {"salary": "pay"}, "feeds": {"salary": "wages"}}}):
+    with fed(lambda name: {"form": {"name": "soe", "fields": {"salary": "pay"}, "feeds": {"salary": "wages"}}}):
       with self.assertRaisesRegex(ValueError, "feeds facts the package does not know"): wanted()
 
   def test_a_sum_says_whether_the_figures_come_out(self):
@@ -359,30 +366,30 @@ class TestLocal(unittest.TestCase):
 
   def test_a_check_naming_a_line_the_form_does_not_have_is_refused(self):
     held = {"form": {"name": "soe", "fields": {"salary": "pay"}, "checks": [{"is": "salary", "plus": ["wages"]}]}}
-    with mock.patch("it01.local.data", lambda name: held):
+    with fed(lambda name: held):
       with self.assertRaisesRegex(ValueError, "names lines the form does not have"): wanted()
 
   def test_a_check_that_does_not_say_which_line_it_works_out_is_refused(self):
     for one in ({"plus": ["salary"]}, {"is": 5}, {"is": "salary", "spare": []}, "salary", 5):
-      with mock.patch("it01.local.data", lambda name: {"form": {"name": "soe", "fields": {"salary": "pay"}, "checks": [one]}}):
+      with fed(lambda name: {"form": {"name": "soe", "fields": {"salary": "pay"}, "checks": [one]}}):
         with self.assertRaisesRegex(ValueError, "must say which line it works out"): wanted()
 
   def test_a_check_whose_sides_are_not_lists_of_names_is_refused(self):
     for one in ({"is": "salary", "plus": "salary"}, {"is": "salary", "plus": 5}, {"is": "salary", "less": [["salary"]]}):
-      with mock.patch("it01.local.data", lambda name: {"form": {"name": "soe", "fields": {"salary": "pay"}, "checks": [one]}}):
+      with fed(lambda name: {"form": {"name": "soe", "fields": {"salary": "pay"}, "checks": [one]}}):
         with self.assertRaisesRegex(ValueError, "lists of line names"): wanted()
 
   def test_a_check_that_works_a_line_out_from_itself_is_refused(self):
     held = {"form": {"name": "soe", "fields": {"salary": "pay"}, "checks": [{"is": "salary", "plus": ["salary"]}]}}
-    with mock.patch("it01.local.data", lambda name: held):
+    with fed(lambda name: held):
       with self.assertRaisesRegex(ValueError, "works it out from itself"): wanted()
 
   def test_a_check_that_adds_and_takes_away_nothing_is_refused(self):
-    with mock.patch("it01.local.data", lambda name: {"form": {"name": "soe", "fields": {"salary": "pay"}, "checks": [{"is": "salary"}]}}):
+    with fed(lambda name: {"form": {"name": "soe", "fields": {"salary": "pay"}, "checks": [{"is": "salary"}]}}):
       with self.assertRaisesRegex(ValueError, "adds and takes away nothing"): wanted()
 
   def test_checks_that_are_not_a_list_are_refused(self):
-    with mock.patch("it01.local.data", lambda name: {"form": {"name": "soe", "fields": {"salary": "pay"}, "checks": {}}}):
+    with fed(lambda name: {"form": {"name": "soe", "fields": {"salary": "pay"}, "checks": {}}}):
       with self.assertRaisesRegex(ValueError, "a list of sums"): wanted()
 
   def test_the_check_the_package_ships_works_the_net_line_out(self):
@@ -393,19 +400,19 @@ class TestLocal(unittest.TestCase):
     self.assertEqual(checks[0].plus[:2], ("salary", "bonus"))
 
   def test_a_feed_that_is_not_a_name_is_refused(self):
-    with mock.patch("it01.local.data", lambda name: {"form": {"name": "soe", "fields": {"salary": "pay"}, "feeds": {"salary": ["salary"]}}}):
+    with fed(lambda name: {"form": {"name": "soe", "fields": {"salary": "pay"}, "feeds": {"salary": ["salary"]}}}):
       with self.assertRaisesRegex(ValueError, "an object from a line to a fact"): wanted()
 
   def test_two_lines_feeding_one_fact_are_refused(self):
     held = {"form": {"name": "soe", "fields": {"salary": "pay", "total": "the total"}, "feeds": {"salary": "salary", "total": "salary"}}}
-    with mock.patch("it01.local.data", lambda name: held):
+    with fed(lambda name: held):
       with self.assertRaisesRegex(ValueError, "feeds one fact from more than one line"): wanted()
 
   def test_the_feeds_the_package_ships_are_the_two_lines_that_carry_a_fact(self):
     self.assertEqual(dict(wanted().feeds), {"net_emoluments": "salary", "tax_withheld": "paye_withheld"})
 
   def test_the_form_is_read_in_the_order_it_is_written(self):
-    with mock.patch("it01.local.data", lambda name: {"form": {"name": "soe", "fields": {"total": "the total", "salary": "the pay"}}}):
+    with fed(lambda name: {"form": {"name": "soe", "fields": {"total": "the total", "salary": "the pay"}}}):
       self.assertEqual(wanted(), Form("soe", (("total", "the total"), ("salary", "the pay"))))
 
   def test_a_shape_that_names_other_roles_is_refused(self):
