@@ -64,8 +64,8 @@ class TestQuarter(unittest.TestCase):
 
   def test_quarter_shows_the_business_working(self):
     figs = assess(Facts(True, business=biz(gross_income=900000), period=Period.QUARTER))
-    self.assertEqual([x.rule for x in figs][-4:],
-                     ["gross profit", "net profit per accounts", "non-allowable expenses", "net income from business"])
+    self.assertEqual([x.rule for x in figs][-5:], ["gross profit", "net profit per accounts", "non-allowable expenses",
+                                                   "a quarter of the annual allowance on business assets", "net income from business"])
 
   def test_quarter_allowance_keeps_its_cents(self):
     self.assertEqual(asset("computer", "50000").allowance(Decimal("0.25")), Decimal("12500.00"))
@@ -335,6 +335,14 @@ class TestAccounts(unittest.TestCase):
     self.assertNotIn("gross profit", [x.rule for x in assess(Facts(True, salary=Decimal(1000000)))])
 
 class TestAnnualAllowance(unittest.TestCase):
+  def test_allowances_are_totalled_with_their_sources(self):
+    f = Facts(True, rent=Decimal(100000), letting=Letting(assets=(asset("furniture", "50000"),)),
+              business=biz(gross_income=900000, assets=(asset("computer", "100000"), asset("furniture", "50000"))))
+    figs = assess(f)
+    self.assertEqual((fig(figs, "annual allowance on business assets").amt, fig(figs, "annual allowance on let property").amt), (100000, 50000))
+    for rule in ("annual allowance on business assets", "annual allowance on let property"):
+      with self.subTest(rule): self.assertIn(Source("ita", "s.24", 43), fig(figs, rule).src)
+
   def test_a_small_plant_keeps_its_cents(self):
     self.assertEqual(asset("computer", "59999.55").allowance(Decimal(1)), Decimal("59999.55"))
 

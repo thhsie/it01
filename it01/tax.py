@@ -377,6 +377,7 @@ def business_figures(b:Business, rule:AllowanceRule) -> tuple[Figure, ...]:
   each = tuple(Figure(f"{rule.wording} {a.kind.name.lower().replace('_', ' ')}", a.allowance(rule.part), ALLOWANCE_SRC + rule.src) for a in b.assets)
   return (Figure("gross profit", b.gross_profit, BUSINESS_SRC), Figure("net profit per accounts", b.net_profit, BUSINESS_SRC),
           Figure("non-allowable expenses", b.non_allowable, DISALLOWED_SRC), *each,
+          Figure(f"{rule.wording} business assets", allowances(b.assets, rule.part), ALLOWANCE_SRC + rule.src),
           Figure("net income from business", b.net_income(rule.part), BUSINESS_SRC + DISALLOWED_SRC + ALLOWANCE_SRC + rule.src))
 
 def assess(f:Facts) -> tuple[Figure, ...]:
@@ -394,7 +395,9 @@ def assess(f:Facts) -> tuple[Figure, ...]:
   balance = Figure("balance of tax", total.amt - paid.amt, total.src + CREDITS_SRC)
   ret = (ci, tax, share, total, paid, balance, losses)
   if f.letting != Letting():
-    ret = (*ret, Figure("net income from rent", net_rent(f, ALLOWANCE_RULES[f.period].part), LETTING_SRC + ALLOWANCE_SRC))
+    rule = ALLOWANCE_RULES[f.period]
+    ret = (*ret, Figure(f"{rule.wording} let property", allowances(f.letting.assets, rule.part), ALLOWANCE_SRC + rule.src),
+           Figure("net income from rent", net_rent(f, rule.part), LETTING_SRC + ALLOWANCE_SRC))
   ret = (*ret, *(Figure(f"{plain(name)} allowance carried forward", left, INVESTMENTS[name]) for name, _, left in claimed(f, relieved(f)[0])))
   if f.farming != Farming(): ret = (*ret, Figure("net income from agriculture", f.farming.net, BUSINESS_SRC))
   if f.tuition != Tuition(): ret = (*ret, Figure("net income from private tuition", f.tuition.net, BUSINESS_SRC))
