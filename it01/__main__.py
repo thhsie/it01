@@ -3,12 +3,14 @@ from collections.abc import Callable
 from decimal import Decimal
 from typing import TYPE_CHECKING
 from it01.credits import Question, fed, label, totals
+from it01.helpers import data
 from it01.kinds import picked, spoken
 from it01.keep import Document, answer, apart, case, confirm, dumped, figures, fingerprint, is_given, keep, labelled, loaded, noted, relabelled
 from it01.keep import BOTH, PAID_IN, TWICE, increased, reanswered, worded
 from it01.read import read
 from it01.rows import Check, dropped, entries, is_statement
-from it01.tax import amount, plain
+from it01.sheet import sheet, untyped
+from it01.tax import Facts, amount, from_json, plain
 if TYPE_CHECKING: from it01.local import Asked, Form, Sum, Told
 
 MARKS = {Check.AGREES: "ok", Check.DIFFERS: "does not agree", Check.UNCHECKED: "not checked"}
@@ -18,7 +20,7 @@ USAGE = ("usage: it01 FACTS.json\n       it01 read DOCUMENT\n"
          "       it01 confirm FACTS.json FACT\n       it01 add FACTS.json DOCUMENT\n"
          "       it01 show FACTS.json DOCUMENT\n"
          "       it01 answer FACTS.json QUESTION ANSWER\n       it01 change FACTS.json QUESTION KIND\n"
-         "       it01 data FACTS.json")
+         "       it01 data FACTS.json\n       it01 sheet FACTS.json")
 
 def money(amt:Decimal|None) -> str: return f"{amt:,}" if amt is not None else ""
 
@@ -178,7 +180,15 @@ def added(here:pathlib.Path, document:str) -> list[str]:
 
 def to_data(text:str) -> list[str]: return [dumped(case(text))]
 
-VERBS = {"read": to_proposals, "rows": to_transactions, "credits": to_credits, "keep": keep, "local": to_local, "data": to_data}
+def to_sheet(text:str) -> list[str]:
+  f = from_json(Facts, apart(loaded(text))[0])
+  table = data("portal")
+  ret = [f"{field:<24}{value:>16}" + ("  filled in by the return, check it" if field in table["prefilled"] else "")
+         + ("  the total of all rows" if field in table["rows"] else "") for field, value in sheet(f)]
+  if notes := untyped(f): ret += ["", "not on the sheet"] + [f"  {note}" for note in notes]
+  return ret
+
+VERBS = {"read": to_proposals, "rows": to_transactions, "credits": to_credits, "keep": keep, "local": to_local, "data": to_data, "sheet": to_sheet}
 ON_CASE:dict[str, tuple[Callable[..., list[str]], int]] = {"confirm": (accepted, 2), "add": (added, 2), "answer": (responded, 3),
                                                            "change": (changed, 3), "show": (opened, 2)}
 
