@@ -72,6 +72,8 @@ Give the start of the question's wording after the file. When it matches no ques
 
 The question moves from `pending` to `answers` with the words you used. No figure moves. A question already answered is refused, so your first words are kept.
 
+`it01 keep` prints what each answer would change in the tax to pay. It does this for a payment asked about and for a figure read twice. The change is worked out from the facts you confirmed.
+
 ## Change a payment's kind
 
 ```sh

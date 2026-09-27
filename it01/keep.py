@@ -2,7 +2,7 @@ import hashlib, json, re
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
-from it01.kinds import Table, spoken
+from it01.kinds import Table, picked, spoken
 from it01.law import YEAR_SRC, YEAR_STARTS, Source
 from it01.rows import months
 from it01.tax import JSON_TYPES, PLACES, ZERO, Facts, Figure, amount, assess, from_json, is_amount, plain, summed
@@ -187,6 +187,22 @@ def shown(value:Any) -> str:
 
 def assessed(given:dict[str, Any]) -> tuple[Figure, ...]: return assess(from_json(Facts, given))
 
+def balance(given:dict[str, Any]) -> Figure: return next(fig for fig in assessed(given) if fig.rule == "balance of tax")
+
+def priced(text:str) -> dict[str, dict[str, Figure]]:
+  given, held, _ = apart(loaded(text))
+  table, before, ret = spoken("labelling"), balance(given), {}
+  def worth(choice:str, name:str|None, amt:Decimal) -> Figure:
+    after = balance(put(given, name, (ZERO if (was := at(given, name)) is None else amount(was)) + amt)) if name else before
+    return Figure(choice, after.amt - before.amt, after.src)
+  for question, asks in held["pending"].items():
+    if (twice := TWICE.fullmatch(question)) and (added := next((n for n in PLACES if plain(n) == twice["name"]), None)):
+      if (was := at(given, added)) is None or amount(was) != amount(twice["was"]): continue
+      ret[question] = {"add": worth("add", added, amount(twice["amt"])), "leave": worth("leave", None, ZERO)}
+    elif (paid := PAID_IN.match(question)) and asks in table.asking.values():
+      ret[question] = {kind: worth(kind, table.feeds.get(kind), amount(paid["amt"])) for kind in picked(table) if kind not in table.needs}
+  return ret
+
 def figures(given:dict[str, Any]) -> list[str]:
   ret = []
   for fig in assessed(given):
@@ -222,7 +238,9 @@ def case(text:str) -> dict[str, Any]:
   given, held, proposed = apart(loaded(text))
   worked = [{"rule": fig.rule, "amount": str(fig.amt), "sources": [cited(s) for s in fig.src]} for fig in assessed(given)]
   money = texted(received(held, spoken("labelling"))) | {"year_sources": [cited(s) for s in YEAR_SRC]}
-  return {"facts": texted(given), "proposed": texted(proposed)} | held | {"figures": worked, "received": money}
+  priced_out = {question: {choice: {"amount": str(fig.amt), "sources": [cited(s) for s in fig.src]} for choice, fig in each.items()}
+                for question, each in priced(text).items()}
+  return {"facts": texted(given), "proposed": texted(proposed)} | held | {"figures": worked, "received": money, "prices": priced_out}
 
 @dataclass(frozen=True)
 class Paid:
@@ -287,4 +305,9 @@ def keep(text:str) -> list[str]:
     if not held[name]: continue
     ret += ["", title]
     for key, value in held[name].items(): ret += [f"  {key}", f"      {value}"]
+  if worths := priced(text):
+    ret += ["", "what each answer changes in the tax to pay"]
+    for question, each in worths.items():
+      ret.append(f"  {question}")
+      for choice, fig in each.items(): ret += [f"    {choice:<30}{fig.amt:>+14,}"] + [f"      {s.section:<40}{s.url}" for s in fig.src]
   return ret

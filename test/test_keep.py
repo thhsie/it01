@@ -1,8 +1,9 @@
 import json, unittest
 from decimal import Decimal
 from it01.keep import (ASIDE, TITLES, WORDING, Document, answer, apart, case, confirm, dumped, figures, fingerprint, increased, keep, loaded,
-                       noted, reanswered, received, shown)
+                       noted, priced, reanswered, received, shown)
 from it01.kinds import spoken
+from it01.law import Source
 
 STATEMENT = Document(name="bank.txt", path="in/bank.txt", mark="a", kind="bank statement")
 FACTS = {"resident": True, "dependants": 1, "salary": 1107000, "paye_withheld": 71401,
@@ -401,5 +402,40 @@ class TestReanswered(unittest.TestCase):
   def test_a_note_that_cannot_be_told_apart_is_refused(self):
     notes = f"answered {self.SALE}, answered {self.SALE}"
     with self.assertRaisesRegex(ValueError, "does not name .* once"): reanswered(self.text(notes), self.SALE, "other", "rent", Decimal(50))
+
+class TestPriced(unittest.TestCase):
+  CASE = {"resident": True, "salary": 1000000, "business": {"gross_income": 100000}}
+
+  def test_a_payment_is_priced_by_the_kind_it_could_be(self):
+    text = json.dumps(self.CASE | {"pending": {"20,000.00 paid in on 12/01/2026, Transfer": "what was this payment for"}})
+    got = priced(text)["20,000.00 paid in on 12/01/2026, Transfer"]
+    self.assertEqual({k: v.amt for k, v in got.items()}, {"business": 4000, "interest": 0, "dividend": 0, "rent": 4000, "other": 0})
+
+  def test_a_figure_read_twice_is_priced_by_adding_it(self):
+    question = "business gross income read as 10,000.00 in a line, and the case already gives 100,000"
+    got = priced(json.dumps(self.CASE | {"pending": {question: "add or leave"}}))[question]
+    self.assertEqual({k: v.amt for k, v in got.items()}, {"add": 2000, "leave": 0})
+
+  def test_keep_prints_each_answer_with_its_price(self):
+    question = "business gross income read as 10,000.00 in a line, and the case already gives 100,000"
+    lines = keep(json.dumps(self.CASE | {"pending": {question: "add or leave"}}))
+    shown = lines[lines.index("what each answer changes in the tax to pay") + 1:]
+    self.assertEqual(shown[:2], [f"  {question}", f"    {'add':<30}{'+2,000':>14}"])
+    self.assertIn(f"    {'leave':<30}{'+0':>14}", shown)
+    self.assertTrue(shown[2].strip().startswith("s."))
+
+  def test_proposed_figures_stay_out_of_the_base(self):
+    text = json.dumps({"resident": True, "salary": 400000, "proposed": {"rent": 100000},
+                       "pending": {"20,000.00 paid in on 12/01/2026, Transfer": "what was this payment for"}})
+    self.assertEqual(priced(text)["20,000.00 paid in on 12/01/2026, Transfer"]["rent"].amt, 0)
+
+  def test_an_add_the_engine_would_refuse_is_not_priced(self):
+    question = "business gross income read as 10,000.00 in a line, and the case already gives 90,000"
+    self.assertEqual(priced(json.dumps(self.CASE | {"pending": {question: "add or leave"}})), {})
+
+  def test_each_price_names_the_law_behind_it(self):
+    question = "business gross income read as 10,000.00 in a line, and the case already gives 100,000"
+    src = priced(json.dumps(self.CASE | {"pending": {question: "add or leave"}}))[question]["add"].src
+    self.assertIn(Source("ita", "s.4", 26), src)
 
 if __name__ == "__main__": unittest.main()
