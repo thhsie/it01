@@ -74,6 +74,20 @@ The question moves from `pending` to `answers` with the words you used. No figur
 
 `it01 keep` prints what each answer would change in the tax to pay. It does this for a payment asked about and for a figure read twice. The change is worked out from the facts you confirmed.
 
+## Fill in the return
+
+```sh
+it01 sheet facts.json
+```
+
+This prints what to type in the return, one field a line, in the order the return asks for them. Each line gives the return's own field id and the value. The table that maps facts to fields is `it01/portal.json`.
+
+The last lines are the return's own totals, so you can check them after typing. The return keeps whole amounts and drops the fraction as you type.
+
+Some lines end with `filled in by the return, check it`. The return fills those fields itself. Check that each figure matches your document. A line ending with `the total of all rows` belongs to a table with one row per employer or payer, so split it across the rows as your documents do.
+
+Facts the return has no single field for are listed last, with where to enter them. The sheet refuses a quarter, because the return takes a year.
+
 ## Change a payment's kind
 
 ```sh

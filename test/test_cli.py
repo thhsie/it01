@@ -74,6 +74,11 @@ REFUSED = [
 ]
 
 class TestCli(unittest.TestCase):
+  def test_sheet_marks_what_the_return_fills_in_and_what_it_leaves_out(self):
+    out = saved(json.dumps({"resident": True, "salary": 1200000, "other_income": 5}), ".json", "sheet").stdout
+    self.assertIn(f"{'B_D_ENEXINC1':<24}{'1200000':>16}  filled in by the return, check it  the total of all rows", out)
+    self.assertIn("  other_income has no field of its own", out)
+
   def test_prints_figures_with_links(self):
     out = assess(json.dumps({"resident": True, "dependants": 1, "salary": 1200000})).stdout
     self.assertIn(f"{'total tax':<46}{'68,000':>14}", out)
