@@ -1,7 +1,8 @@
 import json, unittest
 from decimal import Decimal
 from it01.law import DEPENDANTS, HEADS, Addition, AssetKind, Period, Source
-from it01.tax import AMOUNTS, Asset, Business, Facts, Figure, Letting, Student, amount, assess, chargeable_income, figures, from_json, income_tax
+from it01.tax import (AMOUNTS, RECORDS, Asset, Business, Facts, Farming, Figure, Lending, Letting, Student, Tuition, amount,
+                       assess, chargeable_income, figures, from_json, income_tax)
 from test.helpers import ROOT
 
 CASES = json.loads((ROOT/"test"/"cases"/"calculator.json").read_text(), parse_float=Decimal)
@@ -10,7 +11,7 @@ OUTPUTS = ("chargeable_income", "income_tax", "fair_share", "total")
 def facts(c:dict) -> Facts: return from_json(Facts, {k: v for k, v in c.items() if k not in OUTPUTS + ("case",)})
 def fig(figs:tuple[Figure, ...], rule:str) -> Figure: return next(x for x in figs if x.rule == rule)
 
-def amounts(kw:dict) -> dict: return {k: v if isinstance(v, (Business, Letting, tuple, Addition)) else Decimal(v) for k, v in kw.items()}
+def amounts(kw:dict) -> dict: return {k: v if isinstance(v, (*RECORDS, tuple, Addition)) else Decimal(v) for k, v in kw.items()}
 def biz(**kw) -> Business: return Business(**amounts(kw))
 
 def net(**kw) -> tuple[Decimal, Decimal]:
@@ -123,8 +124,9 @@ class TestChargeableIncome(unittest.TestCase):
     for addition, salary, relief in ((Addition.RETIRED, 40000, 50000), (Addition.RETIRED, 60000, 0), (Addition.DISABLED, 1000000, 50000)):
       with self.subTest(addition, salary=salary):
         self.assertEqual(ci(salary=salary, other_income=1000000, additional_deduction=addition), salary + 1000000 - relief)
-    trading = ci(salary=40000, business=biz(gross_income=1000), additional_deduction=Addition.RETIRED)
-    self.assertEqual(trading, 41000)
+    for held in ({"business": biz(gross_income=1000)}, {"farming": Farming(Decimal(1000))}, {"tuition": Tuition(Decimal(1000))},
+                 {"lending": Lending(Decimal(5000))}):
+      with self.subTest(held): self.assertEqual(ci(salary=40000, additional_deduction=Addition.RETIRED, **held), 41000)
 
   def test_reliefs_name_no_more_children_than_the_case(self):
     student = Student(True, True, Decimal(0), 1)
@@ -197,6 +199,30 @@ class TestIncomeHeads(unittest.TestCase):
 
   def test_quarter_refuses_the_heads(self):
     with self.assertRaisesRegex(ValueError, "a quarter does not take"): Facts(True, taxable_interest=Decimal(1), period=Period.QUARTER)
+
+class TestNettedHeads(unittest.TestCase):
+  def test_agriculture_profit_adds_and_loss_carries(self):
+    self.assertEqual(net(salary=1000000, farming=Farming(**amounts(dict(gross_income=300000, labour=100000, fertilizers_and_pesticides=50000)))),
+                     (1150000, 0))
+    self.assertEqual(net(salary=1000000, taxable_interest=10000, farming=Farming(**amounts(dict(gross_income=10000, other_expenses=50000)))),
+                     (1000000, 30000))
+
+  def test_tuition_loss_counts_as_zero(self):
+    for gross, expenses, added in ((200000, 50000, 150000), (20000, 50000, 0)):
+      with self.subTest(gross): self.assertEqual(net(salary=1000000, tuition=Tuition(**amounts(dict(gross_income=gross, expenses=expenses)))),
+                                                 (1000000 + added, 0))
+
+  def test_peer_to_peer_interest_is_a_fifth_less_bad_debts(self):
+    for interest, bad, taxable, carried in ((100000, 0, 20000, 0), (100000, 5000, 15000, 0), (100000, 30000, 0, 0), (10000, 25000, 0, 15000)):
+      with self.subTest(interest=interest, bad=bad):
+        figs = assess(Facts(True, lending=Lending(**amounts(dict(interest=interest, bad_debts=bad)))))
+        self.assertEqual((fig(figs, "net interest from peer to peer lending").amt, fig(figs, "peer to peer bad debts carried forward").amt),
+                         (taxable, carried))
+
+  def test_netted_heads_read_from_json(self):
+    raw = {"resident": True, "farming": {"gross_income": 1000}, "tuition": {"gross_income": 2000}, "lending": {"interest": 3000}}
+    got = from_json(Facts, raw)
+    self.assertEqual((got.farming.net, got.tuition.net, got.lending.taxable), (1000, 2000, 600))
 
 class TestLetting(unittest.TestCase):
   def test_expenses_reduce_rent(self):
