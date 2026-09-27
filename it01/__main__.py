@@ -3,6 +3,7 @@ from collections.abc import Callable
 from decimal import Decimal
 from typing import TYPE_CHECKING
 from it01.credits import Question, fed, label, totals
+from it01.form import Form, wanted
 from it01.helpers import data
 from it01.kinds import picked, spoken
 from it01.keep import Document, answer, apart, case, confirm, dumped, figures, fingerprint, is_given, keep, labelled, loaded, noted, relabelled
@@ -11,7 +12,7 @@ from it01.read import read
 from it01.rows import Check, dropped, entries, is_statement
 from it01.sheet import sheet, untyped
 from it01.tax import Facts, amount, from_json, plain
-if TYPE_CHECKING: from it01.local import Asked, Form, Sum, Told
+if TYPE_CHECKING: from it01.local import Asked, Sum, Told
 
 MARKS = {Check.AGREES: "ok", Check.DIFFERS: "does not agree", Check.UNCHECKED: "not checked"}
 USAGE = ("usage: it01 FACTS.json\n       it01 read DOCUMENT\n"
@@ -42,8 +43,8 @@ def source(here:pathlib.Path) -> str:
     raise ValueError(f"nothing could be read on {here.name} page {', '.join(blank)}")
   return "\n\f".join(pages)
 
-def reading(text:str) -> tuple["Form", tuple["Told", ...], tuple["Asked", ...], tuple["Sum", ...]]:
-  try: from it01.local import found, tells, wanted
+def reading(text:str) -> tuple[Form, tuple["Told", ...], tuple["Asked", ...], tuple["Sum", ...]]:
+  try: from it01.local import found, tells
   except ImportError as e: raise ValueError(f"reading with a model file needs pip install 'it01[local]' ({e})") from e
   form = wanted()
   return (form, *tells(form, found(text)))
