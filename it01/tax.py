@@ -8,7 +8,8 @@ from it01.law import (CHARGEABLE_SRC, DEPENDANTS, DEPENDANTS_SRC, INTEREST_BAR, 
                       ALLOWANCE_RULES, AllowanceRule, Period, QUARTER_CREDIT_SRC, QUARTER_INCOME_SRC, QUARTER_RELIEF, RATES,
                       MOTOR_VEHICLE_CAP, SMALL_PLANT, AssetKind, Basis, BUSINESS_SRC, DISALLOWED, DISALLOWED_SRC,
                       ADDITION, ADDITION_SRC, CAPPED, RETIRED_EMOLUMENTS, TERTIARY, TERTIARY_CHILDREN, TERTIARY_TUITION, TERTIARY_SRC,
-                      TERTIARY_YEARS, Addition, LETTING_SRC, HEADS, ABROAD, LENDING_EXEMPT, LENDING_SRC, BAD_DEBT_SRC)
+                      TERTIARY_YEARS, Addition, LETTING_SRC, HEADS, ABROAD, LENDING_EXEMPT, LENDING_SRC, BAD_DEBT_SRC, DEPENDANT_LIMITS,
+                      DEPENDANT_INCOME_SRC)
 
 ZERO = Decimal(0)
 AMOUNT_LIMIT = Decimal(10) ** 15
@@ -162,6 +163,19 @@ class Lending:
   def carried(self) -> Decimal: return max(ZERO, self.bad_debts - self.interest)
 
 @dataclass(frozen=True)
+class Dependant:
+  income: Decimal
+  exempt: Decimal = ZERO
+  emoluments: Decimal = ZERO
+
+  def __post_init__(self) -> None:
+    check_amounts(self)
+    if self.exempt + self.emoluments > self.income: raise ValueError(f"exempt income and emoluments exceed the income {self.income}")
+
+  @property
+  def other(self) -> Decimal: return self.income - self.exempt - self.emoluments
+
+@dataclass(frozen=True)
 class Student:
   abroad: bool
   undergraduate: bool
@@ -205,6 +219,7 @@ class Facts:
   losses_brought_forward: Decimal = ZERO
   resident_dividends: Decimal = ZERO
   housing_loan_interest: Decimal = ZERO
+  dependant_income: tuple[Dependant, ...] = ()
   medical_insurance: tuple[Decimal, ...] = ()
   other_reliefs: Decimal = ZERO
   additional_deduction: Addition = Addition.NONE
@@ -228,6 +243,11 @@ class Facts:
       raise ValueError(f"medical_insurance names {len(self.medical_insurance)} people, at most {most} can be insured")
     if (children := len(self.school_fees) + len(self.students)) > self.dependants:
       raise ValueError(f"school_fees and students name {children} children, more than the {self.dependants} dependants")
+    if len(self.dependant_income) > (most := min(self.dependants, len(DEPENDANT_LIMITS))):
+      raise ValueError(f"dependant_income names {len(self.dependant_income)} dependants, at most {most} can have income")
+    for idx, (one, limit) in enumerate(zip(self.dependant_income, DEPENDANT_LIMITS), 1):
+      if one.income > limit: raise ValueError(f"dependant {idx} has {one.income:,} of income, above {limit:,}, so cannot be claimed")
+    if not self.resident and self.dependant_income: raise ValueError("a non-resident cannot claim dependant_income")
     if len(self.students) > TERTIARY_CHILDREN:
       raise ValueError(f"students names {len(self.students)} children, at most {TERTIARY_CHILDREN} can be claimed")
     if not self.resident and (abroad := [n for n in ABROAD if getattr(self, n)]):
@@ -247,7 +267,7 @@ def plain(name:str) -> str: return name.replace(".", " ").replace("_", " ")
 
 RECORDS = (Business, Letting, Farming, Tuition, Lending)
 
-def from_json[T:(Facts, Business, Asset, Student, Letting, Farming, Tuition, Lending)](cls:type[T], raw:Any) -> T:
+def from_json[T:(Facts, Business, Asset, Student, Dependant, Letting, Farming, Tuition, Lending)](cls:type[T], raw:Any) -> T:
   name = cls.__name__.lower()
   if not isinstance(raw, dict): raise ValueError(f"{name} must be a JSON object")
   types = {f.name: f.type for f in fields(cls)}
@@ -278,9 +298,9 @@ def net_income_and_losses(f:Facts) -> tuple[Decimal, Decimal]:
   letting = net_rent(f, part)
   signed = (letting, business, f.farming.net)
   own = f.tuition.net + f.lending.taxable + sum((max(ZERO, x) for x in signed), ZERO)
-  other = f.other_income + sum((getattr(f, n) for n in HEADS), ZERO) + own
+  other = f.other_income + sum((getattr(f, n) for n in HEADS), ZERO) + own + sum((d.other for d in f.dependant_income), ZERO)
   used = min(other, losses := f.losses_brought_forward + sum((max(ZERO, -x) for x in signed), ZERO))
-  return f.emoluments + other - used, losses - used
+  return f.emoluments + sum((d.emoluments for d in f.dependant_income), ZERO) + other - used, losses - used
 
 def reliefs(f:Facts) -> list[tuple[Decimal, tuple[Source, ...]]]:
   ret:list[tuple[Decimal, tuple[Source, ...]]] = []
@@ -296,6 +316,7 @@ def reliefs(f:Facts) -> list[tuple[Decimal, tuple[Source, ...]]]:
 
 def chargeable_income(f:Facts) -> Figure:
   amt, src = net_income_and_losses(f)[0], list(CHARGEABLE_SRC + RESIDENT_SRC + LOSSES_SRC)
+  if f.dependant_income: src += DEPENDANT_INCOME_SRC
   src += list(dict.fromkeys(cited for n, heads in HEADS.items() if getattr(f, n) for cited in heads))
   if f.period is Period.QUARTER: src += QUARTER_INCOME_SRC
   if f.resident:

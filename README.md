@@ -153,6 +153,10 @@ The income heads follow the return. Each adds to income other than emoluments, s
 
 The reliefs follow the return. `school_fees` lists the private school fees paid for each child, and each counts up to 60,000. `electronic_donations` counts up to 100,000, `pension_contributions` up to 50,000 and `carer_wages` up to 30,000. `additional_deduction` is `retired` or `disabled` and adds 50,000. A retired person with emoluments above 50,000, or with any business, agriculture, private tuition or peer to peer lending, gets nothing.
 
+`dependant_income` lists the income of each dependant, in order, as an object with `income`, `exempt` and `emoluments`. `income` is their net income and exempt income together. What is neither exempt nor emoluments adds to your other income, and their emoluments add to yours. A dependant whose income is above 110,000, 80,000, 85,000 or 80,000, for the first to the fourth, cannot be claimed.
+
+Leave out of `income` any state benefit paid to a child or a bedridden relative you claim.
+
 `students` lists each child at a university, as an object with `abroad`, `undergraduate`, `tuition` and `year`. Each gives 500,000, for at most four children and six years. An undergraduate course that is not abroad counts only when the tuition is at least 34,800.
 
 `salary` holds all emoluments. `other_income` holds income that is neither emoluments, rent nor business. `business` holds the accounts line by line as the return lists them, with an `assets` list for annual allowances.
