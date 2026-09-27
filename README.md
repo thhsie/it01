@@ -149,7 +149,9 @@ The reliefs follow the return. `school_fees` lists the private school fees paid 
 
 `students` lists each child at a university, as an object with `abroad`, `undergraduate`, `tuition` and `year`. Each gives 500,000, for at most four children and six years. An undergraduate course that is not abroad counts only when the tuition is at least 34,800.
 
-`salary` holds all emoluments. `rent` holds income from letting. `other_income` holds income that is neither emoluments, rent nor business. `business` holds the accounts line by line as the return lists them, with an `assets` list for annual allowances.
+`salary` holds all emoluments. `other_income` holds income that is neither emoluments, rent nor business. `business` holds the accounts line by line as the return lists them, with an `assets` list for annual allowances.
+
+`rent` holds income from letting, before expenses. `letting` holds what was spent to earn it: `repairs`, `interest`, `syndic_fees`, `other_expenses`, and an `assets` list as in `business`. A rent loss is set against other income and carried forward like a business loss.
 
 Seven keys are set aside before the computation and none of them reaches it: `proposed`, `sources`, `documents`, `texts`, `paths`, `answers`, `pending`.
 

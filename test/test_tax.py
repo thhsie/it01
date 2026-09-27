@@ -1,7 +1,7 @@
 import json, unittest
 from decimal import Decimal
 from it01.law import DEPENDANTS, Addition, AssetKind, Period, Source
-from it01.tax import AMOUNTS, Asset, Business, Facts, Figure, Student, amount, assess, chargeable_income, figures, from_json, income_tax
+from it01.tax import AMOUNTS, Asset, Business, Facts, Figure, Letting, Student, amount, assess, chargeable_income, figures, from_json, income_tax
 from test.helpers import ROOT
 
 CASES = json.loads((ROOT/"test"/"cases"/"calculator.json").read_text(), parse_float=Decimal)
@@ -10,7 +10,7 @@ OUTPUTS = ("chargeable_income", "income_tax", "fair_share", "total")
 def facts(c:dict) -> Facts: return from_json(Facts, {k: v for k, v in c.items() if k not in OUTPUTS + ("case",)})
 def fig(figs:tuple[Figure, ...], rule:str) -> Figure: return next(x for x in figs if x.rule == rule)
 
-def amounts(kw:dict) -> dict: return {k: v if isinstance(v, (Business, tuple, Addition)) else Decimal(v) for k, v in kw.items()}
+def amounts(kw:dict) -> dict: return {k: v if isinstance(v, (Business, Letting, tuple, Addition)) else Decimal(v) for k, v in kw.items()}
 def biz(**kw) -> Business: return Business(**amounts(kw))
 
 def net(**kw) -> tuple[Decimal, Decimal]:
@@ -175,6 +175,27 @@ class TestBusinessIncome(unittest.TestCase):
   def test_cites_the_loss_rules(self): self.assertEqual(fig(assess(Facts(True)), "losses carried forward").src, (Source("ita", "s.20", 40),))
 
 def asset(kind:str, cost:str, before:str="0") -> Asset: return Asset(AssetKind[kind.upper()], Decimal(cost), Decimal(before))
+
+class TestLetting(unittest.TestCase):
+  def test_expenses_reduce_rent(self):
+    held = Letting(Decimal(20000), Decimal(30000), Decimal(6000), Decimal(4000), (asset("commercial_premises", "1000000"),))
+    self.assertEqual(net(salary=1000000, rent=300000, letting=held), (1000000 + 300000 - 60000 - 50000, 0))
+
+  def test_loss_reduces_other_income_and_carries_forward(self):
+    self.assertEqual(net(salary=1000000, rent=100000, other_income=50000, letting=Letting(repairs=Decimal(200000))), (1000000, 50000))
+
+  def test_net_rent_is_shown_with_its_sources(self):
+    got = fig(assess(Facts(True, rent=Decimal(300000), letting=Letting(interest=Decimal(1000)))), "net income from rent")
+    self.assertEqual((got.amt, got.src[:4]), (299000, (Source("ita", "s.10(1)(c)", 31), Source("ita", "s.18(1)", 38),
+                                                         Source("ita", "s.18(3)", 38), Source("ita", "s.19(1)", 40))))
+
+  def test_quarter_refuses_letting_expenses(self):
+    with self.assertRaisesRegex(ValueError, "a quarter does not take"):
+      Facts(True, rent=Decimal(1), letting=Letting(repairs=Decimal(1)), period=Period.QUARTER)
+
+  def test_letting_reads_from_json(self):
+    raw = {"resident": True, "rent": 300000, "letting": {"repairs": 20000, "assets": [{"kind": "commercial_premises", "cost": 1000000}]}}
+    self.assertEqual(from_json(Facts, raw).letting, Letting(repairs=Decimal(20000), assets=(asset("commercial_premises", "1000000"),)))
 
 class TestAccounts(unittest.TestCase):
   LINES = biz(gross_income=1000000, cost_of_sales=300000, other_income=50000, wages=100000, rent=60000, depreciation=20000,
