@@ -8,7 +8,7 @@ from it01.law import (CHARGEABLE_SRC, DEPENDANTS, DEPENDANTS_SRC, INTEREST_BAR, 
                       ALLOWANCE_RULES, AllowanceRule, Period, QUARTER_CREDIT_SRC, QUARTER_INCOME_SRC, QUARTER_RELIEF, RATES,
                       MOTOR_VEHICLE_CAP, SMALL_PLANT, AssetKind, Basis, BUSINESS_SRC, DISALLOWED, DISALLOWED_SRC,
                       ADDITION, ADDITION_SRC, CAPPED, RETIRED_EMOLUMENTS, TERTIARY, TERTIARY_CHILDREN, TERTIARY_TUITION, TERTIARY_SRC,
-                      TERTIARY_YEARS, Addition)
+                      TERTIARY_YEARS, Addition, LETTING_SRC)
 
 ZERO = Decimal(0)
 AMOUNT_LIMIT = Decimal(10) ** 15
@@ -108,6 +108,19 @@ class Business:
     return self.net_profit + self.income_not_in_accounts + self.non_allowable - sum((a.allowance(part) for a in self.assets), ZERO)
 
 @dataclass(frozen=True)
+class Letting:
+  repairs: Decimal = ZERO
+  interest: Decimal = ZERO
+  syndic_fees: Decimal = ZERO
+  other_expenses: Decimal = ZERO
+  assets: tuple[Asset, ...] = ()
+
+  def __post_init__(self) -> None: check_amounts(self)
+
+  def expenses(self, part:Decimal) -> Decimal:
+    return self.repairs + self.interest + self.syndic_fees + self.other_expenses + sum((a.allowance(part) for a in self.assets), ZERO)
+
+@dataclass(frozen=True)
 class Student:
   abroad: bool
   undergraduate: bool
@@ -131,6 +144,7 @@ class Facts:
   statutory_bonus: Decimal = ZERO
   other_income: Decimal = ZERO
   rent: Decimal = ZERO
+  letting: Letting = Letting()
   losses_brought_forward: Decimal = ZERO
   resident_dividends: Decimal = ZERO
   housing_loan_interest: Decimal = ZERO
@@ -172,7 +186,7 @@ QUARTER_TAKES = ("resident", "dependants", "rent", "losses_brought_forward", "ta
 
 def plain(name:str) -> str: return name.replace(".", " ").replace("_", " ")
 
-def from_json[T:(Facts, Business, Asset, Student)](cls:type[T], raw:Any) -> T:
+def from_json[T:(Facts, Business, Asset, Student, Letting)](cls:type[T], raw:Any) -> T:
   name = cls.__name__.lower()
   if not isinstance(raw, dict): raise ValueError(f"{name} must be a JSON object")
   types = {f.name: f.type for f in fields(cls)}
@@ -186,7 +200,7 @@ def from_json[T:(Facts, Business, Asset, Student)](cls:type[T], raw:Any) -> T:
       elif (bad := next((x for x in v if type(x) not in JSON_TYPES[Decimal]), None)) is not None:
         raise ValueError(f"invalid {k} {bad} of type {type(bad).__name__}")
       else: vals[k] = tuple(Decimal(x) for x in v)
-    elif t is Business: vals[k] = from_json(Business, v)
+    elif t in (Business, Letting): vals[k] = from_json(t, v)
     elif isinstance(t, type) and issubclass(t, Enum):
       if (m := {x.name.lower(): x for x in t}.get(v)) is None: raise ValueError(f"unknown {k} {v}")
       vals[k] = m
@@ -196,10 +210,13 @@ def from_json[T:(Facts, Business, Asset, Student)](cls:type[T], raw:Any) -> T:
 
 def rupees(x:Decimal) -> Decimal: return x.quantize(Decimal(1), ROUND_HALF_UP)
 
+def net_rent(f:Facts, part:Decimal) -> Decimal: return f.rent - f.letting.expenses(part)
+
 def net_income_and_losses(f:Facts) -> tuple[Decimal, Decimal]:
-  business = f.business.net_income(ALLOWANCE_RULES[f.period].part)
-  other = f.other_income + f.rent + max(ZERO, business)
-  used = min(other, losses := f.losses_brought_forward + max(ZERO, -business))
+  business = f.business.net_income(part := ALLOWANCE_RULES[f.period].part)
+  letting = net_rent(f, part)
+  other = f.other_income + max(ZERO, letting) + max(ZERO, business)
+  used = min(other, losses := f.losses_brought_forward + max(ZERO, -business) + max(ZERO, -letting))
   return f.emoluments + other - used, losses - used
 
 def reliefs(f:Facts) -> list[tuple[Decimal, tuple[Source, ...]]]:
@@ -256,4 +273,6 @@ def assess(f:Facts) -> tuple[Figure, ...]:
   paid = Figure("tax already paid", f.paye_withheld + f.tax_deducted_at_source + f.quarterly_tax_paid, CREDITS_SRC)
   balance = Figure("balance of tax", total.amt - paid.amt, total.src + CREDITS_SRC)
   ret = (ci, tax, share, total, paid, balance, losses)
+  if f.letting != Letting():
+    ret = (*ret, Figure("net income from rent", net_rent(f, ALLOWANCE_RULES[f.period].part), LETTING_SRC + ALLOWANCE_SRC))
   return ret if (b := f.business) == Business() else (*ret, *business_figures(b, ALLOWANCE_RULES[f.period]))
