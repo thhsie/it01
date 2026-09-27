@@ -1,7 +1,7 @@
 import json, unittest
 from decimal import Decimal
-from it01.law import DEPENDANTS, AssetKind, Period, Source
-from it01.tax import AMOUNTS, Asset, Business, Facts, Figure, amount, assess, chargeable_income, figures, from_json, income_tax
+from it01.law import DEPENDANTS, Addition, AssetKind, Period, Source
+from it01.tax import AMOUNTS, Asset, Business, Facts, Figure, Student, amount, assess, chargeable_income, figures, from_json, income_tax
 from test.helpers import ROOT
 
 CASES = json.loads((ROOT/"test"/"cases"/"calculator.json").read_text(), parse_float=Decimal)
@@ -10,7 +10,7 @@ OUTPUTS = ("chargeable_income", "income_tax", "fair_share", "total")
 def facts(c:dict) -> Facts: return from_json(Facts, {k: v for k, v in c.items() if k not in OUTPUTS + ("case",)})
 def fig(figs:tuple[Figure, ...], rule:str) -> Figure: return next(x for x in figs if x.rule == rule)
 
-def amounts(kw:dict) -> dict: return {k: v if isinstance(v, (Business, tuple)) else Decimal(v) for k, v in kw.items()}
+def amounts(kw:dict) -> dict: return {k: v if isinstance(v, (Business, tuple, Addition)) else Decimal(v) for k, v in kw.items()}
 def biz(**kw) -> Business: return Business(**amounts(kw))
 
 def net(**kw) -> tuple[Decimal, Decimal]:
@@ -24,6 +24,11 @@ class TestQuarter(unittest.TestCase):
     for amt, tax in ((Decimal(125000), 0), (Decimal(250000), 12500), (Decimal(400000), 42500),
                      (Decimal(125019), 1), (Decimal(250019), 12503)):
       with self.subTest(amt): self.assertEqual(income_tax(amt, Period.QUARTER).amt, tax)
+
+  def test_quarter_refuses_reliefs_of_the_year(self):
+    for kw in ({"school_fees": (Decimal(1),)}, {"electronic_donations": Decimal(1)}, {"additional_deduction": Addition.DISABLED},
+               {"students": (Student(True, True, Decimal(0), 1),)}):
+      with self.subTest(kw), self.assertRaisesRegex(ValueError, "a quarter does not take"): Facts(True, 1, period=Period.QUARTER, **kw)
 
   def test_quarter_reliefs(self):
     held = Facts(True, 1, rent=Decimal(400000), period=Period.QUARTER)
@@ -99,6 +104,40 @@ class TestChargeableIncome(unittest.TestCase):
   def test_medical_relief_names_no_more_people_than_the_case(self):
     with self.assertRaisesRegex(ValueError, "medical_insurance names 3 people, at most 2 can be insured"):
       Facts(True, 1, medical_insurance=(Decimal(1), Decimal(1), Decimal(1)))
+
+  def test_capped_reliefs(self):
+    for kw, relief in (({"school_fees": (Decimal(70000), Decimal(30000))}, 90000), ({"electronic_donations": 150000}, 100000),
+                       ({"pension_contributions": 60000}, 50000), ({"carer_wages": 40000}, 30000), ({"carer_wages": 20000}, 20000)):
+      with self.subTest(kw): self.assertEqual(ci(2, salary=1000000, **kw), 1000000 - DEPENDANTS[2] - relief)
+
+  def test_tertiary_deduction_follows_the_schedule(self):
+    for student, relief in ((Student(True, True, Decimal(0), 1), 500000), (Student(False, True, Decimal(30000), 1), 0),
+                            (Student(False, True, Decimal(34800), 3), 500000), (Student(False, False, Decimal(0), 1), 500000),
+                            (Student(True, False, Decimal(0), 7), 0)):
+      with self.subTest(student): self.assertEqual(ci(1, salary=2000000, students=(student,)), 2000000 - DEPENDANTS[1] - relief)
+
+  def test_student_refuses_a_year_before_the_first(self):
+    with self.assertRaisesRegex(ValueError, "invalid year 0"): Student(True, True, Decimal(0), 0)
+
+  def test_additional_deduction_for_a_retired_or_disabled_person(self):
+    for addition, salary, relief in ((Addition.RETIRED, 40000, 50000), (Addition.RETIRED, 60000, 0), (Addition.DISABLED, 1000000, 50000)):
+      with self.subTest(addition, salary=salary):
+        self.assertEqual(ci(salary=salary, other_income=1000000, additional_deduction=addition), salary + 1000000 - relief)
+    trading = ci(salary=40000, business=biz(gross_income=1000), additional_deduction=Addition.RETIRED)
+    self.assertEqual(trading, 41000)
+
+  def test_reliefs_name_no_more_children_than_the_case(self):
+    student = Student(True, True, Decimal(0), 1)
+    for kw in ({"school_fees": (Decimal(1), Decimal(1))}, {"students": (student,) * 2}, {"school_fees": (Decimal(1),), "students": (student,)}):
+      with self.subTest(kw), self.assertRaisesRegex(ValueError, "school_fees and students name 2 children, more than the 1 dependants"):
+        Facts(True, 1, **kw)
+    with self.assertRaisesRegex(ValueError, "students names 5 children, at most 4 can be claimed"): Facts(True, 5, students=(student,) * 5)
+
+  def test_reliefs_read_from_json(self):
+    raw = {"resident": True, "dependants": 2, "additional_deduction": "disabled", "school_fees": [70000],
+           "students": [{"abroad": True, "undergraduate": True, "tuition": 0, "year": 2}]}
+    self.assertEqual(from_json(Facts, raw), Facts(True, 2, additional_deduction=Addition.DISABLED, school_fees=(Decimal(70000),),
+                                                  students=(Student(True, True, Decimal(0), 2),)))
 
   def test_interest_relief_barred_above_four_million(self):
     self.assertEqual(ci(salary=3000000, resident_dividends=1000000, housing_loan_interest=100000), 2900000)
