@@ -70,6 +70,8 @@ class Asset:
     if plant and base <= SMALL_PLANT: return base * part
     return min(base, (rate * (self.cost if basis is Basis.COST else base)).quantize(Decimal(1), ROUND_DOWN)) * part
 
+def allowances(assets:tuple[Asset, ...], part:Decimal) -> Decimal: return sum((a.allowance(part) for a in assets), ZERO)
+
 @dataclass(frozen=True)
 class Business:
   gross_income: Decimal = ZERO
@@ -106,7 +108,7 @@ class Business:
   def non_allowable(self) -> Decimal: return self.non_allowable_expenses + sum((getattr(self, n) for n in DISALLOWED), ZERO)
 
   def net_income(self, part:Decimal) -> Decimal:
-    return self.net_profit + self.income_not_in_accounts + self.non_allowable - sum((a.allowance(part) for a in self.assets), ZERO)
+    return self.net_profit + self.income_not_in_accounts + self.non_allowable - allowances(self.assets, part)
 
 @dataclass(frozen=True)
 class Letting:
@@ -119,7 +121,7 @@ class Letting:
   def __post_init__(self) -> None: check_amounts(self)
 
   def expenses(self, part:Decimal) -> Decimal:
-    return self.repairs + self.interest + self.syndic_fees + self.other_expenses + sum((a.allowance(part) for a in self.assets), ZERO)
+    return self.repairs + self.interest + self.syndic_fees + self.other_expenses + allowances(self.assets, part)
 
 @dataclass(frozen=True)
 class Farming:
