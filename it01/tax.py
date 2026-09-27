@@ -9,7 +9,7 @@ from it01.law import (CHARGEABLE_SRC, DEPENDANTS, DEPENDANTS_SRC, INTEREST_BAR, 
                       MOTOR_VEHICLE_CAP, SMALL_PLANT, AssetKind, Basis, BUSINESS_SRC, DISALLOWED, DISALLOWED_SRC,
                       ADDITION, ADDITION_SRC, CAPPED, RETIRED_EMOLUMENTS, TERTIARY, TERTIARY_CHILDREN, TERTIARY_TUITION, TERTIARY_SRC,
                       TERTIARY_YEARS, Addition, LETTING_SRC, HEADS, ABROAD, LENDING_EXEMPT, LENDING_SRC, BAD_DEBT_SRC, DEPENDANT_LIMITS,
-                      DEPENDANT_INCOME_SRC)
+                      DEPENDANT_INCOME_SRC, DUTY_SRC)
 
 ZERO = Decimal(0)
 AMOUNT_LIMIT = Decimal(10) ** 15
@@ -197,6 +197,7 @@ class Facts:
   taxable_transport_allowance: Decimal = ZERO
   performance_bonus: Decimal = ZERO
   statutory_bonus: Decimal = ZERO
+  duty_expenses: Decimal = ZERO
   other_income: Decimal = ZERO
   basic_retirement_pension: Decimal = ZERO
   state_pension: Decimal = ZERO
@@ -303,7 +304,7 @@ def net_income_and_losses(f:Facts) -> tuple[Decimal, Decimal]:
   own = f.tuition.net + f.lending.taxable + sum((max(ZERO, x) for x in signed), ZERO)
   other = f.other_income + sum((getattr(f, n) for n in HEADS), ZERO) + own + sum((d.other for d in f.dependant_income), ZERO)
   used = min(other, losses := f.losses_brought_forward + sum((max(ZERO, -x) for x in signed), ZERO))
-  return f.emoluments + sum((d.emoluments for d in f.dependant_income), ZERO) + other - used, losses - used
+  return max(ZERO, f.emoluments - f.duty_expenses) + sum((d.emoluments for d in f.dependant_income), ZERO) + other - used, losses - used
 
 def reliefs(f:Facts) -> list[tuple[Decimal, tuple[Source, ...]]]:
   ret:list[tuple[Decimal, tuple[Source, ...]]] = []
@@ -319,6 +320,7 @@ def reliefs(f:Facts) -> list[tuple[Decimal, tuple[Source, ...]]]:
 
 def chargeable_income(f:Facts) -> Figure:
   amt, src = net_income_and_losses(f)[0], list(CHARGEABLE_SRC + RESIDENT_SRC + LOSSES_SRC)
+  if f.duty_expenses: src += DUTY_SRC
   if f.dependant_income: src += DEPENDANT_INCOME_SRC
   src += list(dict.fromkeys(cited for n, heads in HEADS.items() if getattr(f, n) for cited in heads))
   if f.period is Period.QUARTER: src += QUARTER_INCOME_SRC

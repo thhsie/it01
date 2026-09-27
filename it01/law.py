@@ -18,6 +18,7 @@ BANDS = ((Decimal(500000), Decimal(0)), (Decimal(500000), Decimal("0.10")), (Dec
 BANDS_SRC = (Source("ita", "s.4", 26), Source("ita", "First Schedule Part I", 262))
 CHARGEABLE_SRC = (Source("ita", "s.2", 13), Source("ita", "s.10", 30), Source("ita", "Second Schedule Part II Sub-Part B item 1", 267))
 RESIDENT_SRC = (Source("ita", "s.27(1)", 47),)
+DUTY_SRC = (Source("ita", "s.17(1)", 37), Source("ita", "s.17(2)", 37))
 DEPENDANTS = (Decimal(0), Decimal(110000), Decimal(190000), Decimal(275000), Decimal(355000))
 DEPENDANTS_SRC = (Source("ita", "s.27(2)", 47), Source("ita", "Third Schedule Part I", 280))
 DEPENDANT_LIMITS = (Decimal(110000), Decimal(80000), Decimal(85000), Decimal(80000))
