@@ -151,13 +151,15 @@ foreign_interest             foreign_other
 
 The income heads follow the return. Each adds to income other than emoluments, so a loss can be set against it. The four `foreign_` heads hold income from abroad received here, and only a resident may have them. Put income from any other source in `other_source`. `other_income` is its older name and adds to the same total.
 
-The reliefs follow the return. `school_fees` lists the private school fees paid for each child, and each counts up to 60,000. `electronic_donations` counts up to 100,000, `pension_contributions` up to 50,000 and `carer_wages` up to 30,000. `additional_deduction` is `retired` or `disabled` and adds 50,000. A retired person with emoluments above 50,000 or any business gets nothing.
+The reliefs follow the return. `school_fees` lists the private school fees paid for each child, and each counts up to 60,000. `electronic_donations` counts up to 100,000, `pension_contributions` up to 50,000 and `carer_wages` up to 30,000. `additional_deduction` is `retired` or `disabled` and adds 50,000. A retired person with emoluments above 50,000, or with any business, agriculture, private tuition or peer to peer lending, gets nothing.
 
 `students` lists each child at a university, as an object with `abroad`, `undergraduate`, `tuition` and `year`. Each gives 500,000, for at most four children and six years. An undergraduate course that is not abroad counts only when the tuition is at least 34,800.
 
 `salary` holds all emoluments. `other_income` holds income that is neither emoluments, rent nor business. `business` holds the accounts line by line as the return lists them, with an `assets` list for annual allowances.
 
 `rent` holds income from letting, before expenses. `letting` holds what was spent to earn it: `repairs`, `interest`, `syndic_fees`, `other_expenses`, and an `assets` list as in `business`. A rent loss is set against other income and carried forward like a business loss.
+
+`farming` holds agriculture: `gross_income`, `labour`, `rent`, `fertilizers_and_pesticides`, `motor_vehicle_expenses` and `other_expenses`. A loss is treated like a business loss. `tuition` holds private tuition as `gross_income` and `expenses`. A tuition loss counts as zero. `lending` holds peer to peer lending as `interest` and `bad_debts`. 80% of the interest is exempt. The bad debts come off the rest. Bad debts above the whole interest are carried forward.
 
 Seven keys are set aside before the computation and none of them reaches it: `proposed`, `sources`, `documents`, `texts`, `paths`, `answers`, `pending`.
 
