@@ -141,8 +141,13 @@ salary                       taxable_transport_allowance  performance_bonus
 statutory_bonus              other_income                 rent
 losses_brought_forward       resident_dividends           housing_loan_interest
 other_reliefs                paye_withheld                tax_deducted_at_source
-quarterly_tax_paid
+quarterly_tax_paid           electronic_donations         pension_contributions
+carer_wages
 ```
+
+The reliefs follow the return. `school_fees` lists the private school fees paid for each child, and each counts up to 60,000. `electronic_donations` counts up to 100,000, `pension_contributions` up to 50,000 and `carer_wages` up to 30,000. `additional_deduction` is `retired` or `disabled` and adds 50,000. A retired person with emoluments above 50,000 or any business gets nothing.
+
+`students` lists each child at a university, as an object with `abroad`, `undergraduate`, `tuition` and `year`. Each gives 500,000, for at most four children and six years. An undergraduate course that is not abroad counts only when the tuition is at least 34,800.
 
 `salary` holds all emoluments. `rent` holds income from letting. `other_income` holds income that is neither emoluments, rent nor business. `business` holds the accounts line by line as the return lists them, with an `assets` list for annual allowances.
 

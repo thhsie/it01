@@ -6,7 +6,9 @@ from typing import Any, get_args, get_origin
 from it01.law import (CHARGEABLE_SRC, DEPENDANTS, DEPENDANTS_SRC, INTEREST_BAR, INTEREST_SRC, MEDICAL, MEDICAL_SRC, RESIDENT_SRC,
                       Source, CREDITS_SRC, FAIR_SHARE_RATE, FAIR_SHARE_SRC, FAIR_SHARE_THRESHOLD, LOSSES_SRC, ALLOWANCE_SRC, ALLOWANCES,
                       ALLOWANCE_RULES, AllowanceRule, Period, QUARTER_CREDIT_SRC, QUARTER_INCOME_SRC, QUARTER_RELIEF, RATES,
-                      MOTOR_VEHICLE_CAP, SMALL_PLANT, AssetKind, Basis, BUSINESS_SRC, DISALLOWED, DISALLOWED_SRC)
+                      MOTOR_VEHICLE_CAP, SMALL_PLANT, AssetKind, Basis, BUSINESS_SRC, DISALLOWED, DISALLOWED_SRC,
+                      ADDITION, ADDITION_SRC, CAPPED, RETIRED_EMOLUMENTS, TERTIARY, TERTIARY_CHILDREN, TERTIARY_TUITION, TERTIARY_SRC,
+                      TERTIARY_YEARS, Addition)
 
 ZERO = Decimal(0)
 AMOUNT_LIMIT = Decimal(10) ** 15
@@ -25,7 +27,6 @@ class Figure:
   src: tuple[Source, ...]
 
 def amount_names(obj:Any) -> tuple[str, ...]: return tuple(f.name for f in fields(obj) if f.type is Decimal)
-def list_names(obj:Any) -> tuple[str, ...]: return tuple(f.name for f in fields(obj) if f.type == tuple[Decimal, ...])
 
 def summed(pairs:list[tuple[str, Decimal]]) -> dict[str, Decimal]:
   ret:dict[str, Decimal] = {}
@@ -45,7 +46,7 @@ def amount(raw:object) -> Decimal:
   if not is_amount(value := to_decimal(text)): raise ValueError(f"invalid amount {raw}")
   return value
 
-def is_held(v:Decimal|tuple[Decimal, ...]) -> bool: return any(v) if isinstance(v, tuple) else bool(v)
+def is_held(v:object, default:object) -> bool: return any(v) if isinstance(v, tuple) else v != default
 
 def check_amounts(obj:Any) -> None:
   for name in amount_names(obj):
@@ -107,6 +108,20 @@ class Business:
     return self.net_profit + self.income_not_in_accounts + self.non_allowable - sum((a.allowance(part) for a in self.assets), ZERO)
 
 @dataclass(frozen=True)
+class Student:
+  abroad: bool
+  undergraduate: bool
+  tuition: Decimal
+  year: int
+
+  def __post_init__(self) -> None:
+    check_amounts(self)
+    if self.year < 1: raise ValueError(f"invalid year {self.year}")
+
+  @property
+  def is_allowed(self) -> bool: return self.year <= TERTIARY_YEARS and (self.abroad or not self.undergraduate or self.tuition >= TERTIARY_TUITION)
+
+@dataclass(frozen=True)
 class Facts:
   resident: bool
   dependants: int = 0
@@ -121,6 +136,12 @@ class Facts:
   housing_loan_interest: Decimal = ZERO
   medical_insurance: tuple[Decimal, ...] = ()
   other_reliefs: Decimal = ZERO
+  additional_deduction: Addition = Addition.NONE
+  students: tuple[Student, ...] = ()
+  school_fees: tuple[Decimal, ...] = ()
+  electronic_donations: Decimal = ZERO
+  pension_contributions: Decimal = ZERO
+  carer_wages: Decimal = ZERO
   paye_withheld: Decimal = ZERO
   tax_deducted_at_source: Decimal = ZERO
   quarterly_tax_paid: Decimal = ZERO
@@ -130,11 +151,16 @@ class Facts:
   def __post_init__(self) -> None:
     if self.dependants < 0: raise ValueError(f"invalid dependants {self.dependants}")
     check_amounts(self)
-    if (bad := next((v for v in self.medical_insurance if not is_amount(v)), None)) is not None: raise ValueError(f"invalid medical_insurance {bad}")
+    for name in ("medical_insurance", "school_fees"):
+      if (bad := next((v for v in getattr(self, name) if not is_amount(v)), None)) is not None: raise ValueError(f"invalid {name} {bad}")
     if len(self.medical_insurance) > (most := min(self.dependants, len(MEDICAL) - 1) + 1):
       raise ValueError(f"medical_insurance names {len(self.medical_insurance)} people, at most {most} can be insured")
+    if (children := len(self.school_fees) + len(self.students)) > self.dependants:
+      raise ValueError(f"school_fees and students name {children} children, more than the {self.dependants} dependants")
+    if len(self.students) > TERTIARY_CHILDREN:
+      raise ValueError(f"students names {len(self.students)} children, at most {TERTIARY_CHILDREN} can be claimed")
     if self.period is Period.YEAR: return
-    held = sorted(n for n in (*AMOUNTS, *list_names(self)) if n not in QUARTERLY and is_held(getattr(self, n)))
+    held = sorted(f.name for f in fields(self) if f.name not in QUARTER_TAKES and is_held(getattr(self, f.name), f.default))
     if held: raise ValueError(f"a quarter does not take {held}")
 
   @property
@@ -142,11 +168,11 @@ class Facts:
 
 AMOUNTS = amount_names(Facts)
 PLACES = (*AMOUNTS, *(f"business.{n}" for n in amount_names(Business)))
-QUARTERLY = ("rent", "losses_brought_forward", "tax_deducted_at_source")
+QUARTER_TAKES = ("resident", "dependants", "rent", "losses_brought_forward", "tax_deducted_at_source", "business", "period")
 
 def plain(name:str) -> str: return name.replace(".", " ").replace("_", " ")
 
-def from_json[T:(Facts, Business, Asset)](cls:type[T], raw:Any) -> T:
+def from_json[T:(Facts, Business, Asset, Student)](cls:type[T], raw:Any) -> T:
   name = cls.__name__.lower()
   if not isinstance(raw, dict): raise ValueError(f"{name} must be a JSON object")
   types = {f.name: f.type for f in fields(cls)}
@@ -176,6 +202,17 @@ def net_income_and_losses(f:Facts) -> tuple[Decimal, Decimal]:
   used = min(other, losses := f.losses_brought_forward + max(ZERO, -business))
   return f.emoluments + other - used, losses - used
 
+def reliefs(f:Facts) -> list[tuple[Decimal, tuple[Source, ...]]]:
+  ret:list[tuple[Decimal, tuple[Source, ...]]] = []
+  for name, (cap, cited) in CAPPED.items():
+    paid = held if isinstance(held := getattr(f, name), tuple) else (held,)
+    if any(paid): ret.append((sum((min(one, cap) for one in paid), ZERO), cited))
+  if f.students: ret.append((TERTIARY * sum(1 for s in f.students if s.is_allowed), TERTIARY_SRC))
+  if (addition := f.additional_deduction) is not Addition.NONE:
+    allowed = addition is Addition.DISABLED or (f.emoluments <= RETIRED_EMOLUMENTS and f.business == Business())
+    ret.append((ADDITION if allowed else ZERO, ADDITION_SRC))
+  return ret
+
 def chargeable_income(f:Facts) -> Figure:
   amt, src = net_income_and_losses(f)[0], list(CHARGEABLE_SRC + RESIDENT_SRC + LOSSES_SRC)
   if f.period is Period.QUARTER: src += QUARTER_INCOME_SRC
@@ -187,6 +224,8 @@ def chargeable_income(f:Facts) -> Figure:
       medical = sum((min(paid, cap) for paid, cap in zip(f.medical_insurance, MEDICAL)), ZERO)
       amt -= DEPENDANTS[cnt] + medical + interest + f.other_reliefs
       src += DEPENDANTS_SRC + MEDICAL_SRC + INTEREST_SRC
+      for relief, cited in reliefs(f):
+        amt, src = amt - relief, src + list(cited)
   return Figure("chargeable income", rupees(max(ZERO, amt)), tuple(src))
 
 def income_tax(chargeable:Decimal, period:Period) -> Figure:

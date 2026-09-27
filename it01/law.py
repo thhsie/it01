@@ -22,6 +22,25 @@ DEPENDANTS = (Decimal(0), Decimal(110000), Decimal(190000), Decimal(275000), Dec
 DEPENDANTS_SRC = (Source("ita", "s.27(2)", 47), Source("ita", "Third Schedule Part I", 280))
 MEDICAL = (Decimal(25000), Decimal(25000), Decimal(20000), Decimal(20000), Decimal(20000))
 MEDICAL_SRC = (Source("ita", "s.27B", 51), Source("ita", "Third Schedule Part II", 281))
+class Addition(Enum):
+  NONE = auto()
+  RETIRED = auto()
+  DISABLED = auto()
+
+ADDITION = Decimal(50000)
+RETIRED_EMOLUMENTS = Decimal(50000)
+ADDITION_SRC = (Source("ita", "s.27(2A)", 47), Source("ita", "s.27(7)", 49))
+TERTIARY = Decimal(500000)
+TERTIARY_TUITION = Decimal(34800)
+TERTIARY_YEARS = 6
+TERTIARY_CHILDREN = 4
+TERTIARY_SRC = (Source("ita", "s.27(6A)", 48), Source("ita", "Third Schedule Part I item 2", 280), Source("ita", "Third Schedule Part I item 3", 280))
+CAPPED: dict[str, tuple[Decimal, tuple[Source, ...]]] = {
+  "school_fees": (Decimal(60000), (Source("ita", "Third Schedule Part I item 4", 280),)),
+  "electronic_donations": (Decimal(100000), (Source("ita", "s.27DA", 52),)),
+  "pension_contributions": (Decimal(50000), (Source("ita", "s.27DB", 52),)),
+  "carer_wages": (Decimal(30000), (Source("ita", "s.27DC", 52),)),
+}
 INTEREST_BAR = Decimal(4000000)
 INTEREST_SRC = (Source("ita", "s.27A", 50), Source("ita", "s.27A(4)(c)", 51), Source("ita", "s.27A(5)", 51))
 FAIR_SHARE_THRESHOLD = Decimal(12000000)
