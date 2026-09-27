@@ -142,8 +142,14 @@ statutory_bonus              other_income                 rent
 losses_brought_forward       resident_dividends           housing_loan_interest
 other_reliefs                paye_withheld                tax_deducted_at_source
 quarterly_tax_paid           electronic_donations         pension_contributions
-carer_wages
+carer_wages                  basic_retirement_pension     state_pension
+social_retirement_benefit    taxable_interest             royalty
+premium                      annuity                      charges
+other_source                 foreign_dividend             foreign_rent
+foreign_interest             foreign_other
 ```
+
+The income heads follow the return. Each adds to income other than emoluments, so a loss can be set against it. The four `foreign_` heads hold income from abroad received here, and only a resident may have them. Put income from any other source in `other_source`. `other_income` is its older name and adds to the same total.
 
 The reliefs follow the return. `school_fees` lists the private school fees paid for each child, and each counts up to 60,000. `electronic_donations` counts up to 100,000, `pension_contributions` up to 50,000 and `carer_wages` up to 30,000. `additional_deduction` is `retired` or `disabled` and adds 50,000. A retired person with emoluments above 50,000 or any business gets nothing.
 
