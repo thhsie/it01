@@ -2,6 +2,7 @@ import hashlib, json, re
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
+from it01.form import wanted
 from it01.kinds import Table, picked, spoken
 from it01.law import YEAR_SRC, YEAR_STARTS, Source
 from it01.rows import months
@@ -16,6 +17,8 @@ GROUPS = {"income": "counts as income", "exempt": "exempt", "unsorted": "still t
 PAID_IN = re.compile(r"(?P<amt>\S+) paid in on (?P<date>[^,]*), ")
 TWICE = re.compile(r"(?P<name>.+) read as (?P<amt>\S+) in (?P<quote>.+), and the case already gives (?P<was>\S+)")
 BOTH = ("add", "leave")
+ON_LINE = re.compile(r"(?P<amt>\S+) on the line (?P<quote>.+)")
+LINES = re.compile(r"([^\s;(]+) \([^)]*\)")
 
 def once(pairs:list[tuple[str, Any]]) -> dict[str, Any]:
   ret:dict[str, Any] = {}
@@ -174,6 +177,14 @@ def labelled(text:str, credit:str) -> list[str]:
   mark = re.compile(re.escape(f", {credit}") + r"( \(\d+\))?$")
   return [k for k in apart(loaded(text))[1]["labels"] if mark.search(k)]
 
+def offering(asking:str, lines:tuple[tuple[str, str], ...]) -> str: return f"{asking}: " + "; ".join(f"{n} ({d})" for n, d in lines)
+def lines_of(asks:str) -> list[str]: return LINES.findall(asks.partition(": ")[2])
+
+def proposing(text:str, seen:dict[str, tuple[Decimal, str]]) -> tuple[str, Noted]:
+  given, held, proposed = apart(loaded(text))
+  how = placed(given, held, proposed, seen, [])
+  return as_file(given, held, proposed), how
+
 def relabelled(text:str, keys:list[str], kind:str, seen:dict[str, tuple[Decimal, str]]) -> tuple[str, Noted]:
   given, held, proposed = apart(loaded(text))
   for key in keys: held["labels"][key] = kind
@@ -201,6 +212,9 @@ def priced(text:str) -> dict[str, dict[str, Figure]]:
       ret[question] = {"add": worth("add", added, amount(twice["amt"])), "leave": worth("leave", None, ZERO)}
     elif (paid := PAID_IN.match(question)) and asks in table.asking.values():
       ret[question] = {kind: worth(kind, table.feeds.get(kind), amount(paid["amt"])) for kind in picked(table) if kind not in table.needs}
+    elif (read := ON_LINE.fullmatch(question)) and (lines := lines_of(asks)):
+      feeds = dict(wanted().feeds)
+      ret[question] = {line: worth(line, feeds.get(line), amount(read["amt"])) for line in lines}
   return ret
 
 def figures(given:dict[str, Any]) -> list[str]:

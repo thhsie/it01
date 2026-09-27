@@ -70,9 +70,9 @@ it01 answer facts.json "1,200.00 paid in on 12/08" "sold my old bicycle"
 
 Give the start of the question's wording after the file. When it matches no question, or more than one, nothing changes and the command says so.
 
-The question moves from `pending` to `answers` with the words you used. No figure moves. A question already answered is refused, so your first words are kept.
+The question moves from `pending` to `answers` with the words you used. An answer that names a kind of payment, or one of the listed lines that feeds a fact, proposes the amount under that fact. A line the question did not list is refused. Any other answer is kept as a note and moves no figure. A question already answered is refused, so your first words are kept.
 
-`it01 keep` prints what each answer would change in the tax to pay. It does this for a payment asked about and for a figure read twice. The change is worked out from the facts you confirmed.
+`it01 keep` prints what each answer would change in the tax to pay. It does this for a payment asked about, a figure read twice and a line of a form. The change is worked out from the facts you confirmed.
 
 ## Fill in the return
 
