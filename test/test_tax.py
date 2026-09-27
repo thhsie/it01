@@ -1,7 +1,7 @@
 import json, unittest
 from decimal import Decimal
 from it01.law import DEPENDANTS, HEADS, Addition, AssetKind, Period, Source
-from it01.tax import (AMOUNTS, RECORDS, Asset, Business, Facts, Farming, Figure, Lending, Letting, Student, Tuition, amount,
+from it01.tax import (AMOUNTS, RECORDS, Asset, Business, Dependant, Facts, Farming, Figure, Lending, Letting, Student, Tuition, amount,
                        assess, chargeable_income, figures, from_json, income_tax)
 from test.helpers import ROOT
 
@@ -137,8 +137,10 @@ class TestChargeableIncome(unittest.TestCase):
 
   def test_reliefs_read_from_json(self):
     raw = {"resident": True, "dependants": 2, "additional_deduction": "disabled", "school_fees": [70000],
+           "dependant_income": [{"income": 5000}],
            "students": [{"abroad": True, "undergraduate": True, "tuition": 0, "year": 2}]}
     self.assertEqual(from_json(Facts, raw), Facts(True, 2, additional_deduction=Addition.DISABLED, school_fees=(Decimal(70000),),
+                                                  dependant_income=(Dependant(Decimal(5000)),),
                                                   students=(Student(True, True, Decimal(0), 2),)))
 
   def test_interest_relief_barred_above_four_million(self):
@@ -199,6 +201,32 @@ class TestIncomeHeads(unittest.TestCase):
 
   def test_quarter_refuses_the_heads(self):
     with self.assertRaisesRegex(ValueError, "a quarter does not take"): Facts(True, taxable_interest=Decimal(1), period=Period.QUARTER)
+
+class TestDependantIncome(unittest.TestCase):
+  def test_income_of_a_dependant_counts_as_yours(self):
+    held = (Dependant(Decimal(100000), Decimal(20000), Decimal(30000)), Dependant(Decimal(50000)))
+    self.assertEqual(ci(2, salary=1000000, dependant_income=held), 1000000 + 30000 + 50000 + 50000 - DEPENDANTS[2])
+
+  def test_only_other_income_of_a_dependant_takes_losses(self):
+    held = Facts(True, 1, salary=Decimal(1000000), dependant_income=(Dependant(Decimal(60000), emoluments=Decimal(40000)),),
+                 business=biz(gross_income=0, other_expenses=50000))
+    self.assertEqual(fig(assess(held), "losses carried forward").amt, 30000)
+    self.assertEqual(chargeable_income(held).amt, 1040000 - DEPENDANTS[1])
+
+  def test_a_dependant_above_the_limit_cannot_be_claimed(self):
+    with self.assertRaisesRegex(ValueError, "dependant 2 has 80,001 of income, above 80,000, so cannot be claimed"):
+      Facts(True, 2, dependant_income=(Dependant(Decimal(0)), Dependant(Decimal(80001))))
+
+  def test_a_non_resident_claims_no_dependant_income(self):
+    with self.assertRaisesRegex(ValueError, "a non-resident cannot claim dependant_income"):
+      Facts(False, 1, dependant_income=(Dependant(Decimal(1)),))
+
+  def test_parts_cannot_exceed_the_income(self):
+    with self.assertRaisesRegex(ValueError, "exempt income and emoluments exceed the income 10"): Dependant(Decimal(10), Decimal(6), Decimal(5))
+
+  def test_no_more_incomes_than_dependants(self):
+    with self.assertRaisesRegex(ValueError, "dependant_income names 2 dependants, at most 1 can have income"):
+      Facts(True, 1, dependant_income=(Dependant(Decimal(0)),) * 2)
 
 class TestNettedHeads(unittest.TestCase):
   def test_agriculture_profit_adds_and_loss_carries(self):
