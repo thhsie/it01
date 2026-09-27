@@ -146,12 +146,15 @@ carer_wages                  basic_retirement_pension     state_pension
 social_retirement_benefit    taxable_interest             royalty
 premium                      annuity                      charges
 other_source                 foreign_dividend             foreign_rent
-foreign_interest             foreign_other
+foreign_interest             foreign_other                exempt_interest
+global_business_dividends
 ```
 
 The income heads follow the return. Each adds to income other than emoluments, so a loss can be set against it. The four `foreign_` heads hold income from abroad received here, and only a resident may have them. Put income from any other source in `other_source`. `other_income` is its older name and adds to the same total.
 
 The reliefs follow the return. `school_fees` lists the private school fees paid for each child, and each counts up to 60,000. `electronic_donations` counts up to 100,000, `pension_contributions` up to 50,000 and `carer_wages` up to 30,000. `additional_deduction` is `retired` or `disabled` and adds 50,000. A retired person with emoluments above 50,000, or with any business, agriculture, private tuition or peer to peer lending, gets nothing.
+
+`housing_loan_interest` is not deducted when your net income, `resident_dividends`, `global_business_dividends` and `exempt_interest` together exceed 4,000,000, or when `spouse_above_interest_bar` is true. Set it to true when your spouse's income, counted the same way, exceeds 4,000,000. `exempt_interest` is interest on savings and fixed deposits, on government securities and on central bank bills. None of the three adds to your income.
 
 `dependant_income` lists the income of each dependant, in order, as an object with `income`, `exempt` and `emoluments`. `income` is their net income and exempt income together. What is neither exempt nor emoluments adds to your other income, and their emoluments add to yours. A dependant whose income is above 110,000, 80,000, 85,000 or 80,000, for the first to the fourth, cannot be claimed.
 
