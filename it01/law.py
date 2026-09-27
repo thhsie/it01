@@ -22,6 +22,23 @@ DEPENDANTS = (Decimal(0), Decimal(110000), Decimal(190000), Decimal(275000), Dec
 DEPENDANTS_SRC = (Source("ita", "s.27(2)", 47), Source("ita", "Third Schedule Part I", 280))
 MEDICAL = (Decimal(25000), Decimal(25000), Decimal(20000), Decimal(20000), Decimal(20000))
 MEDICAL_SRC = (Source("ita", "s.27B", 51), Source("ita", "Third Schedule Part II", 281))
+HEADS: dict[str, tuple[Source, ...]] = {
+  "basic_retirement_pension": (Source("ita", "s.10(1)(e)", 31),),
+  "state_pension": (Source("ita", "s.10(1)(d)", 31),),
+  "social_retirement_benefit": (Source("ita", "s.10(1)(d)", 31),),
+  "taxable_interest": (Source("ita", "s.10(1)(d)", 31),),
+  "royalty": (Source("ita", "s.10(1)(c)", 31),),
+  "premium": (Source("ita", "s.10(1)(c)", 31),),
+  "annuity": (Source("ita", "s.10(1)(d)", 31),),
+  "charges": (Source("ita", "s.10(1)(d)", 31),),
+  "other_source": (Source("ita", "s.10(1)(g)", 31),),
+  "foreign_dividend": (Source("ita", "s.5(1)", 27), Source("ita", "s.5(3)", 28)),
+  "foreign_rent": (Source("ita", "s.5(1)", 27), Source("ita", "s.5(3)", 28)),
+  "foreign_interest": (Source("ita", "s.5(1)", 27), Source("ita", "s.5(3)", 28)),
+  "foreign_other": (Source("ita", "s.5(1)", 27), Source("ita", "s.5(3)", 28)),
+}
+ABROAD = ("foreign_dividend", "foreign_rent", "foreign_interest", "foreign_other")
+
 class Addition(Enum):
   NONE = auto()
   RETIRED = auto()

@@ -8,7 +8,7 @@ from it01.law import (CHARGEABLE_SRC, DEPENDANTS, DEPENDANTS_SRC, INTEREST_BAR, 
                       ALLOWANCE_RULES, AllowanceRule, Period, QUARTER_CREDIT_SRC, QUARTER_INCOME_SRC, QUARTER_RELIEF, RATES,
                       MOTOR_VEHICLE_CAP, SMALL_PLANT, AssetKind, Basis, BUSINESS_SRC, DISALLOWED, DISALLOWED_SRC,
                       ADDITION, ADDITION_SRC, CAPPED, RETIRED_EMOLUMENTS, TERTIARY, TERTIARY_CHILDREN, TERTIARY_TUITION, TERTIARY_SRC,
-                      TERTIARY_YEARS, Addition, LETTING_SRC)
+                      TERTIARY_YEARS, Addition, LETTING_SRC, HEADS, ABROAD)
 
 ZERO = Decimal(0)
 AMOUNT_LIMIT = Decimal(10) ** 15
@@ -143,6 +143,19 @@ class Facts:
   performance_bonus: Decimal = ZERO
   statutory_bonus: Decimal = ZERO
   other_income: Decimal = ZERO
+  basic_retirement_pension: Decimal = ZERO
+  state_pension: Decimal = ZERO
+  social_retirement_benefit: Decimal = ZERO
+  taxable_interest: Decimal = ZERO
+  royalty: Decimal = ZERO
+  premium: Decimal = ZERO
+  annuity: Decimal = ZERO
+  charges: Decimal = ZERO
+  other_source: Decimal = ZERO
+  foreign_dividend: Decimal = ZERO
+  foreign_rent: Decimal = ZERO
+  foreign_interest: Decimal = ZERO
+  foreign_other: Decimal = ZERO
   rent: Decimal = ZERO
   letting: Letting = Letting()
   losses_brought_forward: Decimal = ZERO
@@ -173,6 +186,8 @@ class Facts:
       raise ValueError(f"school_fees and students name {children} children, more than the {self.dependants} dependants")
     if len(self.students) > TERTIARY_CHILDREN:
       raise ValueError(f"students names {len(self.students)} children, at most {TERTIARY_CHILDREN} can be claimed")
+    if not self.resident and (abroad := [n for n in ABROAD if getattr(self, n)]):
+      raise ValueError(f"a non-resident cannot have income from abroad {abroad}")
     if self.period is Period.YEAR: return
     held = sorted(f.name for f in fields(self) if f.name not in QUARTER_TAKES and is_held(getattr(self, f.name), f.default))
     if held: raise ValueError(f"a quarter does not take {held}")
@@ -215,7 +230,7 @@ def net_rent(f:Facts, part:Decimal) -> Decimal: return f.rent - f.letting.expens
 def net_income_and_losses(f:Facts) -> tuple[Decimal, Decimal]:
   business = f.business.net_income(part := ALLOWANCE_RULES[f.period].part)
   letting = net_rent(f, part)
-  other = f.other_income + max(ZERO, letting) + max(ZERO, business)
+  other = f.other_income + sum((getattr(f, n) for n in HEADS), ZERO) + max(ZERO, letting) + max(ZERO, business)
   used = min(other, losses := f.losses_brought_forward + max(ZERO, -business) + max(ZERO, -letting))
   return f.emoluments + other - used, losses - used
 
@@ -232,6 +247,7 @@ def reliefs(f:Facts) -> list[tuple[Decimal, tuple[Source, ...]]]:
 
 def chargeable_income(f:Facts) -> Figure:
   amt, src = net_income_and_losses(f)[0], list(CHARGEABLE_SRC + RESIDENT_SRC + LOSSES_SRC)
+  src += list(dict.fromkeys(cited for n, heads in HEADS.items() if getattr(f, n) for cited in heads))
   if f.period is Period.QUARTER: src += QUARTER_INCOME_SRC
   if f.resident:
     cnt = min(f.dependants, len(DEPENDANTS) - 1)

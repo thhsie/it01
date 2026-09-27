@@ -1,6 +1,6 @@
 import json, unittest
 from decimal import Decimal
-from it01.law import DEPENDANTS, Addition, AssetKind, Period, Source
+from it01.law import DEPENDANTS, HEADS, Addition, AssetKind, Period, Source
 from it01.tax import AMOUNTS, Asset, Business, Facts, Figure, Letting, Student, amount, assess, chargeable_income, figures, from_json, income_tax
 from test.helpers import ROOT
 
@@ -175,6 +175,28 @@ class TestBusinessIncome(unittest.TestCase):
   def test_cites_the_loss_rules(self): self.assertEqual(fig(assess(Facts(True)), "losses carried forward").src, (Source("ita", "s.20", 40),))
 
 def asset(kind:str, cost:str, before:str="0") -> Asset: return Asset(AssetKind[kind.upper()], Decimal(cost), Decimal(before))
+
+class TestIncomeHeads(unittest.TestCase):
+  def test_heads_add_to_other_income_and_take_losses(self):
+    got = net(salary=1000000, basic_retirement_pension=100000, taxable_interest=20000, royalty=5000, foreign_dividend=15000,
+              business=biz(gross_income=10000, other_expenses=50000))
+    self.assertEqual(got, (1000000 + 140000 - 40000, 0))
+
+  def test_every_head_adds_to_income(self):
+    for name in HEADS:
+      with self.subTest(name): self.assertEqual(ci(**{name: 1000001}), 1000001)
+
+  def test_heads_cite_what_makes_them_income(self):
+    src = fig(assess(Facts(True, state_pension=Decimal(1), foreign_interest=Decimal(1))), "chargeable income").src
+    self.assertTrue({Source("ita", "s.10(1)(d)", 31), Source("ita", "s.5(3)", 28)} <= set(src))
+    self.assertNotIn(Source("ita", "s.10(1)(e)", 31), src)
+
+  def test_income_from_abroad_needs_residence(self):
+    with self.assertRaisesRegex(ValueError, r"a non-resident cannot have income from abroad \['foreign_rent'\]"):
+      Facts(False, foreign_rent=Decimal(1))
+
+  def test_quarter_refuses_the_heads(self):
+    with self.assertRaisesRegex(ValueError, "a quarter does not take"): Facts(True, taxable_interest=Decimal(1), period=Period.QUARTER)
 
 class TestLetting(unittest.TestCase):
   def test_expenses_reduce_rent(self):
