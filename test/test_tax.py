@@ -1,6 +1,6 @@
 import json, unittest
 from decimal import Decimal
-from it01.law import AssetKind, Period, Source
+from it01.law import DEPENDANTS, AssetKind, Period, Source
 from it01.tax import AMOUNTS, Asset, Business, Facts, Figure, amount, assess, chargeable_income, figures, from_json, income_tax
 from test.helpers import ROOT
 
@@ -91,9 +91,14 @@ class TestChargeableIncome(unittest.TestCase):
     for c in CASES:
       with self.subTest(c["case"]): self.assertEqual(chargeable_income(facts(c)).amt, c["chargeable_income"])
 
-  def test_medical_relief_is_capped(self):
-    self.assertEqual(ci(salary=1000000, medical_insurance=40000), 975000)
-    self.assertEqual(ci(salary=1000000, medical_insurance=200000, dependants=4), 1000000 - 355000 - 110000)
+  def test_medical_relief_is_capped_per_person(self):
+    for dependants, paid, relief in ((0, (40000,), 25000), (4, (50000,) * 5, 110000), (2, (40000,), 25000), (2, (0, 0, 30000), 20000)):
+      with self.subTest(paid):
+        self.assertEqual(ci(dependants, salary=1000000, medical_insurance=tuple(Decimal(x) for x in paid)), 1000000 - DEPENDANTS[dependants] - relief)
+
+  def test_medical_relief_names_no_more_people_than_the_case(self):
+    with self.assertRaisesRegex(ValueError, "medical_insurance names 3 people, at most 2 can be insured"):
+      Facts(True, 1, medical_insurance=(Decimal(1), Decimal(1), Decimal(1)))
 
   def test_interest_relief_barred_above_four_million(self):
     self.assertEqual(ci(salary=3000000, resident_dividends=1000000, housing_loan_interest=100000), 2900000)
