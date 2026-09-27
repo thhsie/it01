@@ -134,14 +134,14 @@ With `IT01_LABELLER` set, each credit is labelled by a classifier on this comput
 
 ## The facts file
 
-Only `resident` is required. `dependants` is a count and `business` is an object. The rest are amounts, written as numbers with at most two decimal places.
+Only `resident` is required. `dependants` is a count and `business` is an object. `medical_insurance` is a list of premiums, one per insured person: you first, then each dependant in order. It holds at most five, for you and four dependants. The rest are amounts, written as numbers with at most two decimal places.
 
 ```
 salary                       taxable_transport_allowance  performance_bonus
 statutory_bonus              other_income                 rent
 losses_brought_forward       resident_dividends           housing_loan_interest
-medical_insurance            other_reliefs                paye_withheld
-tax_deducted_at_source       quarterly_tax_paid
+other_reliefs                paye_withheld                tax_deducted_at_source
+quarterly_tax_paid
 ```
 
 `salary` holds all emoluments. `rent` holds income from letting. `other_income` holds income that is neither emoluments, rent nor business. `business` holds the accounts line by line as the return lists them, with an `assets` list for annual allowances.

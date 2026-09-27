@@ -25,6 +25,7 @@ class Figure:
   src: tuple[Source, ...]
 
 def amount_names(obj:Any) -> tuple[str, ...]: return tuple(f.name for f in fields(obj) if f.type is Decimal)
+def list_names(obj:Any) -> tuple[str, ...]: return tuple(f.name for f in fields(obj) if f.type == tuple[Decimal, ...])
 
 def summed(pairs:list[tuple[str, Decimal]]) -> dict[str, Decimal]:
   ret:dict[str, Decimal] = {}
@@ -43,6 +44,8 @@ def amount(raw:object) -> Decimal:
   if not FIGURE.fullmatch(text := str(raw).strip()): raise ValueError(f"not an amount {raw}")
   if not is_amount(value := to_decimal(text)): raise ValueError(f"invalid amount {raw}")
   return value
+
+def is_held(v:Decimal|tuple[Decimal, ...]) -> bool: return any(v) if isinstance(v, tuple) else bool(v)
 
 def check_amounts(obj:Any) -> None:
   for name in amount_names(obj):
@@ -116,7 +119,7 @@ class Facts:
   losses_brought_forward: Decimal = ZERO
   resident_dividends: Decimal = ZERO
   housing_loan_interest: Decimal = ZERO
-  medical_insurance: Decimal = ZERO
+  medical_insurance: tuple[Decimal, ...] = ()
   other_reliefs: Decimal = ZERO
   paye_withheld: Decimal = ZERO
   tax_deducted_at_source: Decimal = ZERO
@@ -127,8 +130,12 @@ class Facts:
   def __post_init__(self) -> None:
     if self.dependants < 0: raise ValueError(f"invalid dependants {self.dependants}")
     check_amounts(self)
+    if (bad := next((v for v in self.medical_insurance if not is_amount(v)), None)) is not None: raise ValueError(f"invalid medical_insurance {bad}")
+    if len(self.medical_insurance) > (most := min(self.dependants, len(MEDICAL) - 1) + 1):
+      raise ValueError(f"medical_insurance names {len(self.medical_insurance)} people, at most {most} can be insured")
     if self.period is Period.YEAR: return
-    if held := sorted(n for n in AMOUNTS if n not in QUARTERLY and getattr(self, n)): raise ValueError(f"a quarter does not take {held}")
+    held = sorted(n for n in (*AMOUNTS, *list_names(self)) if n not in QUARTERLY and is_held(getattr(self, n)))
+    if held: raise ValueError(f"a quarter does not take {held}")
 
   @property
   def emoluments(self) -> Decimal: return self.salary + self.taxable_transport_allowance + self.performance_bonus + self.statutory_bonus
@@ -149,7 +156,10 @@ def from_json[T:(Facts, Business, Asset)](cls:type[T], raw:Any) -> T:
   for k, v in raw.items():
     if get_origin(t := types[k]) is tuple:
       if not isinstance(v, list): raise ValueError(f"{k} must be a JSON list")
-      vals[k] = tuple(from_json(get_args(t)[0], x) for x in v)
+      if (item := get_args(t)[0]) is not Decimal: vals[k] = tuple(from_json(item, x) for x in v)
+      elif (bad := next((x for x in v if type(x) not in JSON_TYPES[Decimal]), None)) is not None:
+        raise ValueError(f"invalid {k} {bad} of type {type(bad).__name__}")
+      else: vals[k] = tuple(Decimal(x) for x in v)
     elif t is Business: vals[k] = from_json(Business, v)
     elif isinstance(t, type) and issubclass(t, Enum):
       if (m := {x.name.lower(): x for x in t}.get(v)) is None: raise ValueError(f"unknown {k} {v}")
@@ -174,7 +184,8 @@ def chargeable_income(f:Facts) -> Figure:
     if f.period is Period.QUARTER: amt, src = amt - DEPENDANTS[cnt] * QUARTER_RELIEF, src + list(DEPENDANTS_SRC)
     else:
       interest = f.housing_loan_interest if amt + f.resident_dividends <= INTEREST_BAR else ZERO
-      amt -= DEPENDANTS[cnt] + min(f.medical_insurance, MEDICAL[cnt]) + interest + f.other_reliefs
+      medical = sum((min(paid, cap) for paid, cap in zip(f.medical_insurance, MEDICAL)), ZERO)
+      amt -= DEPENDANTS[cnt] + medical + interest + f.other_reliefs
       src += DEPENDANTS_SRC + MEDICAL_SRC + INTEREST_SRC
   return Figure("chargeable income", rupees(max(ZERO, amt)), tuple(src))
 
