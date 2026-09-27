@@ -416,6 +416,12 @@ class TestPriced(unittest.TestCase):
     got = priced(json.dumps(self.CASE | {"pending": {question: "add or leave"}}))[question]
     self.assertEqual({k: v.amt for k, v in got.items()}, {"add": 2000, "leave": 0})
 
+  def test_a_form_question_is_priced_by_the_line_each_answer_names(self):
+    question = "10,000.00 on the line TOTAL 10,000.00"
+    asks = "which line of the form is this: net_emoluments (the net pay); total (the whole pay)"
+    got = priced(json.dumps(self.CASE | {"pending": {question: asks}}))[question]
+    self.assertEqual({k: v.amt for k, v in got.items()}, {"net_emoluments": 2000, "total": 0})
+
   def test_keep_prints_each_answer_with_its_price(self):
     question = "business gross income read as 10,000.00 in a line, and the case already gives 100,000"
     lines = keep(json.dumps(self.CASE | {"pending": {question: "add or leave"}}))

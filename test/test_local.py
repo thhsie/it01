@@ -403,6 +403,10 @@ class TestLocal(unittest.TestCase):
     with fed(lambda name: {"form": {"name": "soe", "fields": {"salary": "pay"}, "feeds": {"salary": ["salary"]}}}):
       with self.assertRaisesRegex(ValueError, "an object from a line to a fact"): wanted()
 
+  def test_a_description_a_question_cannot_list_is_refused(self):
+    with fed(lambda name: {"form": {"name": "soe", "fields": {"salary": "pay (gross)"}}}):
+      with self.assertRaisesRegex(ValueError, "with a bracket or semicolon"): wanted()
+
   def test_two_lines_feeding_one_fact_are_refused(self):
     held = {"form": {"name": "soe", "fields": {"salary": "pay", "total": "the total"}, "feeds": {"salary": "salary", "total": "salary"}}}
     with fed(lambda name: held):

@@ -27,6 +27,8 @@ def wanted() -> Form:
   fields = held.get("fields")
   if not isinstance(fields, dict) or not fields or not all(isinstance(v, str) and v.strip() for v in fields.values()):
     raise ValueError("reading.json must hold the form lines as an object of descriptions")
+  if marked := sorted(line for line, about in fields.items() if set(about) & set("();")):
+    raise ValueError(f"reading.json describes {marked} with a bracket or semicolon, which a question cannot list")
   feeds = held.get("feeds", {})
   if not isinstance(feeds, dict) or not all(isinstance(v, str) for v in feeds.values()):
     raise ValueError("reading.json must hold feeds as an object from a line to a fact")

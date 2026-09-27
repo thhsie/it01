@@ -4,7 +4,7 @@ from decimal import Decimal
 from unittest import mock
 from it01.__main__ import added, changed, questioned, responded, shaped
 from it01.credits import Credit
-from it01.keep import fingerprint
+from it01.keep import fingerprint, lines_of, offering
 from it01.rows import Check
 from test.helpers import ROOT
 
@@ -192,6 +192,33 @@ class TestCli(unittest.TestCase):
     self.addCleanup(os.unlink, here)
     responded(pathlib.Path(here), self.PAYMENT, said)
     return json.loads(pathlib.Path(here).read_text())
+
+  FORMED = "1,107,000.00 on the line EMOLUMENTS NET OF EXEMPT INCOME 1,107,000.00"
+  CHOICES = "which line of the form is this: net_emoluments (the net pay); total (the whole pay)"
+
+  def answered_on_the_form(self, said:str, **given:object) -> dict:
+    here = on_disk(json.dumps({"resident": True, "pending": {self.FORMED: self.CHOICES}} | given))
+    self.addCleanup(os.unlink, here)
+    responded(pathlib.Path(here), self.FORMED, said)
+    return json.loads(pathlib.Path(here).read_text(), parse_float=Decimal)
+
+  def test_a_form_answer_naming_a_line_that_feeds_a_fact_proposes_it(self):
+    held = self.answered_on_the_form("net_emoluments")
+    self.assertEqual((held["proposed"], held["sources"]["salary"]), ({"salary": Decimal("1107000.00")}, f"answered {self.FORMED}"))
+
+  def test_a_form_answer_naming_a_line_that_feeds_nothing_moves_nothing(self):
+    self.assertNotIn("proposed", self.answered_on_the_form("total"))
+
+  def test_a_form_line_the_question_did_not_offer_is_refused(self):
+    with self.assertRaisesRegex(ValueError, "with one of: net_emoluments, total"): self.answered_on_the_form("salary")
+
+  def test_the_offered_lines_read_back_as_written(self):
+    self.assertEqual(lines_of(offering("which line", (("net_emoluments", "the net pay, after exempt"), ("total", "all of it")))),
+                     ["net_emoluments", "total"])
+
+  def test_a_form_answer_for_a_confirmed_fact_becomes_a_question(self):
+    held = self.answered_on_the_form("net_emoluments", salary=1000)
+    self.assertIn("salary read as 1,107,000.00 in answered", next(iter(held["pending"])))
 
   def test_a_payment_answered_with_a_kind_is_relabelled_and_counted(self):
     held = self.answered_with("business")

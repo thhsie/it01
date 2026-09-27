@@ -7,7 +7,7 @@ from it01.form import Form, wanted
 from it01.helpers import data
 from it01.kinds import picked, spoken
 from it01.keep import Document, answer, apart, case, confirm, dumped, figures, fingerprint, is_given, keep, labelled, loaded, noted, relabelled
-from it01.keep import BOTH, PAID_IN, TWICE, increased, reanswered, worded
+from it01.keep import BOTH, ON_LINE, PAID_IN, TWICE, increased, lines_of, Noted, offering, proposing, reanswered, worded
 from it01.read import read
 from it01.rows import Check, dropped, entries, is_statement
 from it01.sheet import sheet, untyped
@@ -51,7 +51,7 @@ def reading(text:str) -> tuple[Form, tuple["Told", ...], tuple["Asked", ...], tu
 
 def shaped(told:tuple["Told", ...], asked:tuple["Asked", ...]) -> tuple[dict[str, tuple[Decimal, str]], list[tuple[str, str]]]:
   seen = {t.fact: (t.amt, t.quote) for t in told}
-  return seen, [(f"{q.amt:,} on the line {q.quote}", f"{q.asking}: " + "; ".join(f"{n} ({d})" for n, d in q.lines)) for q in asked]
+  return seen, [(f"{q.amt:,} on the line {q.quote}", offering(q.asking, q.lines)) for q in asked]
 
 def to_local(text:str) -> list[str]:
   _, told, asked, working = reading(text)
@@ -103,7 +103,9 @@ def kinded(text:str, question:str, keys:list[str], kind:str, fact:str|None) -> t
   if len({k.split(", ", 1)[0] for k in keys}) > 1: raise ValueError(f"{question} was read in more than one document, so say which in words")
   if not (paid := PAID_IN.match(question)): return text, []
   text, how = relabelled(text, keys, kind, {fact: (amount(paid["amt"]) * len(keys), f"answered {question}")} if fact else {})
-  return text, [f"labelled {kind}"] + [f"  proposed {name}" for name in how.proposed] + [f"  asked {q}" for q in how.asked]
+  return text, [f"labelled {kind}"] + told(how)
+
+def told(how:Noted) -> list[str]: return [f"  proposed {name}" for name in how.proposed] + [f"  asked {q}" for q in how.asked]
 
 def responded(here:pathlib.Path, asked:str, said:str) -> list[str]:
   if not (asked := asked.strip()): raise ValueError("the question to answer is blank")
@@ -113,8 +115,14 @@ def responded(here:pathlib.Path, asked:str, said:str) -> list[str]:
   table, ret = spoken("labelling"), [f"answered {question}", f"  {said}"]
   keys = labelled(text, question) if pending[question] in table.asking.values() and (kind := said.strip()) in picked(table) else []
   if (twice := TWICE.fullmatch(question)) and said.strip() not in BOTH: raise ValueError(f"answer {question} with one of: {', '.join(BOTH)}")
+  offered = lines_of(pending[question]) if ON_LINE.fullmatch(question) else []
+  if offered and said.strip() in dict(wanted().fields) and said.strip() not in offered:
+    raise ValueError(f"answer {question} with one of: {', '.join(offered)}")
   text = answer(text, question, said)
   if twice and said.strip() == "add": text = increased(text, question)
+  if (line := ON_LINE.fullmatch(question)) and said.strip() in offered and (fact := dict(wanted().feeds).get(said.strip())):
+    text, how = proposing(text, {fact: (amount(line["amt"]), f"answered {question}")})
+    ret += told(how)
   if keys:
     text, lines = kinded(text, question, keys, kind, table.feeds.get(kind))
     ret += lines
