@@ -211,6 +211,17 @@ class TestIncomeHeads(unittest.TestCase):
   def test_quarter_refuses_the_heads(self):
     with self.assertRaisesRegex(ValueError, "a quarter does not take"): Facts(True, taxable_interest=Decimal(1), period=Period.QUARTER)
 
+class TestDutyExpenses(unittest.TestCase):
+  def test_duty_expenses_come_off_emoluments(self):
+    for duty, emoluments in ((120000, 1107000), (2000000, 0)):
+      with self.subTest(duty): self.assertEqual(net(salary=1227000, duty_expenses=duty, rent=10000), (emoluments + 10000, 0))
+
+  def test_retired_test_reads_emoluments_before_duty_expenses(self):
+    self.assertEqual(ci(salary=60000, duty_expenses=20000, additional_deduction=Addition.RETIRED), 40000)
+
+  def test_duty_expenses_cite_section_17(self):
+    self.assertIn(Source("ita", "s.17(1)", 37), chargeable_income(Facts(True, salary=Decimal(1), duty_expenses=Decimal(1))).src)
+
 class TestDependantIncome(unittest.TestCase):
   def test_income_of_a_dependant_counts_as_yours(self):
     held = (Dependant(Decimal(100000), Decimal(20000), Decimal(30000)), Dependant(Decimal(50000)))

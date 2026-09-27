@@ -147,12 +147,12 @@ social_retirement_benefit    taxable_interest             royalty
 premium                      annuity                      charges
 other_source                 foreign_dividend             foreign_rent
 foreign_interest             foreign_other                exempt_interest
-global_business_dividends
+global_business_dividends    duty_expenses
 ```
 
 The income heads follow the return. Each adds to income other than emoluments, so a loss can be set against it. The four `foreign_` heads hold income from abroad received here, and only a resident may have them. Put income from any other source in `other_source`. `other_income` is its older name and adds to the same total.
 
-The reliefs follow the return. `school_fees` lists the private school fees paid for each child, and each counts up to 60,000. `electronic_donations` counts up to 100,000, `pension_contributions` up to 50,000 and `carer_wages` up to 30,000. `additional_deduction` is `retired` or `disabled` and adds 50,000. A retired person with emoluments above 50,000, or with any business, agriculture, private tuition or peer to peer lending, gets nothing.
+The reliefs follow the return. `school_fees` lists the private school fees paid for each child, and each counts up to 60,000. `electronic_donations` counts up to 100,000, `pension_contributions` up to 50,000 and `carer_wages` up to 30,000. `additional_deduction` is `retired` or `disabled` and adds 50,000. A retired person with emoluments above 50,000 before duty expenses, or with any business, agriculture, private tuition or peer to peer lending, gets nothing.
 
 `housing_loan_interest` is not deducted when your net income, `resident_dividends`, `global_business_dividends` and `exempt_interest` together exceed 4,000,000, or when `spouse_above_interest_bar` is true. Set it to true when your spouse's income, counted the same way, exceeds 4,000,000. `exempt_interest` is interest on savings and fixed deposits, on government securities and on central bank bills. None of the three adds to your income.
 
@@ -162,7 +162,7 @@ Leave out of `income` any state benefit paid to a child or a bedridden relative 
 
 `students` lists each child at a university, as an object with `abroad`, `undergraduate`, `tuition` and `year`. Each gives 500,000, for at most four children and six years. An undergraduate course that is not abroad counts only when the tuition is at least 34,800.
 
-`salary` holds all emoluments. `other_income` holds income that is neither emoluments, rent nor business. `business` holds the accounts line by line as the return lists them, with an `assets` list for annual allowances.
+`salary` holds all emoluments. `duty_expenses` holds what you spent wholly, exclusively and necessarily in doing your job, and comes off your emoluments. Include an allowance to the extent it repays such spending. `other_income` holds income that is neither emoluments, rent nor business. `business` holds the accounts line by line as the return lists them, with an `assets` list for annual allowances.
 
 `rent` holds income from letting, before expenses. `letting` holds what was spent to earn it: `repairs`, `interest`, `syndic_fees`, `other_expenses`, and an `assets` list as in `business`. A rent loss is set against other income and carried forward like a business loss.
 
