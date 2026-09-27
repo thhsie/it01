@@ -18,6 +18,8 @@ BANDS = ((Decimal(500000), Decimal(0)), (Decimal(500000), Decimal("0.10")), (Dec
 BANDS_SRC = (Source("ita", "s.4", 26), Source("ita", "First Schedule Part I", 262))
 CHARGEABLE_SRC = (Source("ita", "s.2", 13), Source("ita", "s.10", 30), Source("ita", "Second Schedule Part II Sub-Part B item 1", 267))
 RESIDENT_SRC = (Source("ita", "s.27(1)", 47),)
+INVESTMENTS = {"solar_energy": (Source("ita", "s.27C", 52),), "rainwater_harvesting": (Source("ita", "s.27E", 53),),
+               "fast_charger": (Source("ita", "s.27F", 53),)}
 DUTY_SRC = (Source("ita", "s.17(1)", 37), Source("ita", "s.17(2)", 37))
 DEPENDANTS = (Decimal(0), Decimal(110000), Decimal(190000), Decimal(275000), Decimal(355000))
 DEPENDANTS_SRC = (Source("ita", "s.27(2)", 47), Source("ita", "Third Schedule Part I", 280))
