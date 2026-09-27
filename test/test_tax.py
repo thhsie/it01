@@ -149,6 +149,15 @@ class TestChargeableIncome(unittest.TestCase):
     self.assertEqual(ci(salary=3000000, business=biz(gross_income=1000000), housing_loan_interest=100000), 3900000)
     self.assertEqual(ci(salary=3000000, business=biz(gross_income=1000001), housing_loan_interest=100000), 4000001)
 
+  def test_interest_bar_counts_exempt_interest_and_dividends(self):
+    for kw in ({"exempt_interest": 1000001}, {"global_business_dividends": 600000, "exempt_interest": 400001}):
+      with self.subTest(kw): self.assertEqual(ci(salary=3000000, housing_loan_interest=100000, **kw), 3000000)
+    self.assertEqual(ci(salary=3000000, exempt_interest=1000000, housing_loan_interest=100000), 2900000)
+
+  def test_interest_relief_barred_by_the_spouse(self):
+    f = Facts(True, salary=Decimal(1000000), housing_loan_interest=Decimal(100000), spouse_above_interest_bar=True)
+    self.assertEqual(chargeable_income(f).amt, 1000000)
+
   def test_cites_reliefs_only_for_a_resident(self):
     relief = Source("ita", "Third Schedule Part I", 280)
     self.assertIn(relief, chargeable_income(Facts(True)).src)

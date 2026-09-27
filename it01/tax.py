@@ -219,6 +219,9 @@ class Facts:
   losses_brought_forward: Decimal = ZERO
   resident_dividends: Decimal = ZERO
   housing_loan_interest: Decimal = ZERO
+  exempt_interest: Decimal = ZERO
+  global_business_dividends: Decimal = ZERO
+  spouse_above_interest_bar: bool = False
   dependant_income: tuple[Dependant, ...] = ()
   medical_insurance: tuple[Decimal, ...] = ()
   other_reliefs: Decimal = ZERO
@@ -323,7 +326,8 @@ def chargeable_income(f:Facts) -> Figure:
     cnt = min(f.dependants, len(DEPENDANTS) - 1)
     if f.period is Period.QUARTER: amt, src = amt - DEPENDANTS[cnt] * QUARTER_RELIEF, src + list(DEPENDANTS_SRC)
     else:
-      interest = f.housing_loan_interest if amt + f.resident_dividends <= INTEREST_BAR else ZERO
+      barred = f.spouse_above_interest_bar or amt + f.resident_dividends + f.global_business_dividends + f.exempt_interest > INTEREST_BAR
+      interest = ZERO if barred else f.housing_loan_interest
       medical = sum((min(paid, cap) for paid, cap in zip(f.medical_insurance, MEDICAL)), ZERO)
       amt -= DEPENDANTS[cnt] + medical + interest + f.other_reliefs
       src += DEPENDANTS_SRC + MEDICAL_SRC + INTEREST_SRC
