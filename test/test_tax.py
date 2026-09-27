@@ -1,7 +1,7 @@
 import json, unittest
 from decimal import Decimal
 from it01.law import DEPENDANTS, HEADS, Addition, AssetKind, Period, Source
-from it01.tax import (AMOUNTS, RECORDS, Asset, Business, Dependant, Facts, Farming, Figure, Lending, Letting, Student, Tuition, amount,
+from it01.tax import (AMOUNTS, RECORDS, Asset, Business, Dependant, Facts, Investment, Farming, Figure, Lending, Letting, Student, Tuition, amount,
                        assess, chargeable_income, figures, from_json, income_tax)
 from test.helpers import ROOT
 
@@ -28,7 +28,7 @@ class TestQuarter(unittest.TestCase):
 
   def test_quarter_refuses_reliefs_of_the_year(self):
     for kw in ({"school_fees": (Decimal(1),)}, {"electronic_donations": Decimal(1)}, {"additional_deduction": Addition.DISABLED},
-               {"students": (Student(True, True, Decimal(0), 1),)}):
+               {"students": (Student(True, True, Decimal(0), 1),)}, {"solar_energy": Investment(Decimal(1))}):
       with self.subTest(kw), self.assertRaisesRegex(ValueError, "a quarter does not take"): Facts(True, 1, period=Period.QUARTER, **kw)
 
   def test_quarter_reliefs(self):
@@ -210,6 +210,28 @@ class TestIncomeHeads(unittest.TestCase):
 
   def test_quarter_refuses_the_heads(self):
     with self.assertRaisesRegex(ValueError, "a quarter does not take"): Facts(True, taxable_interest=Decimal(1), period=Period.QUARTER)
+
+class TestInvestments(unittest.TestCase):
+  def test_allowances_take_what_income_is_left_in_order(self):
+    f = Facts(True, salary=Decimal(200000), solar_energy=Investment(Decimal(150000)), rainwater_harvesting=Investment(Decimal(30000), Decimal(40000)),
+              fast_charger=Investment(Decimal(10000)))
+    figs = assess(f)
+    self.assertEqual(fig(figs, "chargeable income").amt, 0)
+    got = [(x.rule, x.amt) for x in figs if x.rule.endswith("allowance carried forward")]
+    self.assertEqual(got, [("solar energy allowance carried forward", 0), ("rainwater harvesting allowance carried forward", 20000),
+                           ("fast charger allowance carried forward", 10000)])
+
+  def test_nothing_is_claimed_when_reliefs_exceed_income(self):
+    figs = assess(Facts(True, 2, salary=Decimal(100000), solar_energy=Investment(Decimal(50000))))
+    self.assertEqual(fig(figs, "solar energy allowance carried forward").amt, 50000)
+
+  def test_allowances_come_after_reliefs(self):
+    f = Facts(True, 1, salary=Decimal(1000000), pension_contributions=Decimal(50000), solar_energy=Investment(Decimal(100000)))
+    self.assertEqual(chargeable_income(f).amt, 1000000 - DEPENDANTS[1] - 50000 - 100000)
+
+  def test_a_non_resident_claims_no_allowance(self):
+    with self.assertRaisesRegex(ValueError, r"a non-resident cannot claim investment allowances \['fast_charger'\]"):
+      Facts(False, fast_charger=Investment(Decimal(1)))
 
 class TestDutyExpenses(unittest.TestCase):
   def test_duty_expenses_come_off_emoluments(self):

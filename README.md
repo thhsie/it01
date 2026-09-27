@@ -156,6 +156,8 @@ The reliefs follow the return. `school_fees` lists the private school fees paid 
 
 `housing_loan_interest` is not deducted when your net income, `resident_dividends`, `global_business_dividends` and `exempt_interest` together exceed 4,000,000, or when `spouse_above_interest_bar` is true. Set it to true when your spouse's income, counted the same way, exceeds 4,000,000. `exempt_interest` is interest on savings and fixed deposits, on government securities and on central bank bills. None of the three adds to your income.
 
+`solar_energy`, `rainwater_harvesting` and `fast_charger` each hold `invested` this year and `brought_forward` from earlier years. After every other relief, they are deducted in that order from what income is left, and the rest is carried forward. Only a resident may claim them. When you and your spouse split a solar energy or rainwater harvesting investment, enter your own share as `invested`.
+
 `dependant_income` lists the income of each dependant, in order, as an object with `income`, `exempt` and `emoluments`. `income` is their net income and exempt income together. What is neither exempt nor emoluments adds to your other income, and their emoluments add to yours. A dependant whose income is above 110,000, 80,000, 85,000 or 80,000, for the first to the fourth, cannot be claimed.
 
 Leave out of `income` any state benefit paid to a child or a bedridden relative you claim.

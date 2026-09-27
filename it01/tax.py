@@ -9,7 +9,7 @@ from it01.law import (CHARGEABLE_SRC, DEPENDANTS, DEPENDANTS_SRC, INTEREST_BAR, 
                       MOTOR_VEHICLE_CAP, SMALL_PLANT, AssetKind, Basis, BUSINESS_SRC, DISALLOWED, DISALLOWED_SRC,
                       ADDITION, ADDITION_SRC, CAPPED, RETIRED_EMOLUMENTS, TERTIARY, TERTIARY_CHILDREN, TERTIARY_TUITION, TERTIARY_SRC,
                       TERTIARY_YEARS, Addition, LETTING_SRC, HEADS, ABROAD, LENDING_EXEMPT, LENDING_SRC, BAD_DEBT_SRC, DEPENDANT_LIMITS,
-                      DEPENDANT_INCOME_SRC, DUTY_SRC)
+                      DEPENDANT_INCOME_SRC, DUTY_SRC, INVESTMENTS)
 
 ZERO = Decimal(0)
 AMOUNT_LIMIT = Decimal(10) ** 15
@@ -163,6 +163,13 @@ class Lending:
   def carried(self) -> Decimal: return max(ZERO, self.bad_debts - self.interest)
 
 @dataclass(frozen=True)
+class Investment:
+  invested: Decimal = ZERO
+  brought_forward: Decimal = ZERO
+
+  def __post_init__(self) -> None: check_amounts(self)
+
+@dataclass(frozen=True)
 class Dependant:
   income: Decimal
   exempt: Decimal = ZERO
@@ -232,6 +239,9 @@ class Facts:
   electronic_donations: Decimal = ZERO
   pension_contributions: Decimal = ZERO
   carer_wages: Decimal = ZERO
+  solar_energy: Investment = Investment()
+  rainwater_harvesting: Investment = Investment()
+  fast_charger: Investment = Investment()
   paye_withheld: Decimal = ZERO
   tax_deducted_at_source: Decimal = ZERO
   quarterly_tax_paid: Decimal = ZERO
@@ -252,6 +262,8 @@ class Facts:
     for idx, (one, limit) in enumerate(zip(self.dependant_income, DEPENDANT_LIMITS), 1):
       if one.income > limit: raise ValueError(f"dependant {idx} has {one.income:,} of income, above {limit:,}, so cannot be claimed")
     if not self.resident and self.dependant_income: raise ValueError("a non-resident cannot claim dependant_income")
+    if not self.resident and (held := [n for n in INVESTMENTS if getattr(self, n) != Investment()]):
+      raise ValueError(f"a non-resident cannot claim investment allowances {held}")
     if len(self.students) > TERTIARY_CHILDREN:
       raise ValueError(f"students names {len(self.students)} children, at most {TERTIARY_CHILDREN} can be claimed")
     if not self.resident and (abroad := [n for n in ABROAD if getattr(self, n)]):
@@ -269,9 +281,9 @@ QUARTER_TAKES = ("resident", "dependants", "rent", "losses_brought_forward", "ta
 
 def plain(name:str) -> str: return name.replace(".", " ").replace("_", " ")
 
-RECORDS = (Business, Letting, Farming, Tuition, Lending)
+RECORDS = (Business, Letting, Farming, Tuition, Lending, Investment)
 
-def from_json[T:(Facts, Business, Asset, Student, Dependant, Letting, Farming, Tuition, Lending)](cls:type[T], raw:Any) -> T:
+def from_json[T:(Facts, Business, Asset, Student, Dependant, Letting, Farming, Tuition, Lending, Investment)](cls:type[T], raw:Any) -> T:
   name = cls.__name__.lower()
   if not isinstance(raw, dict): raise ValueError(f"{name} must be a JSON object")
   types = {f.name: f.type for f in fields(cls)}
@@ -318,7 +330,16 @@ def reliefs(f:Facts) -> list[tuple[Decimal, tuple[Source, ...]]]:
     ret.append((ADDITION if allowed else ZERO, ADDITION_SRC))
   return ret
 
-def chargeable_income(f:Facts) -> Figure:
+def claimed(f:Facts, balance:Decimal) -> list[tuple[str, Decimal, Decimal]]:
+  ret = []
+  for name in INVESTMENTS:
+    if not (total := (held := getattr(f, name)).invested + held.brought_forward): continue
+    used = min(max(ZERO, balance), total)
+    balance -= used
+    ret.append((name, used, total - used))
+  return ret
+
+def relieved(f:Facts) -> tuple[Decimal, list[Source]]:
   amt, src = net_income_and_losses(f)[0], list(CHARGEABLE_SRC + RESIDENT_SRC + LOSSES_SRC)
   if f.duty_expenses: src += DUTY_SRC
   if f.dependant_income: src += DEPENDANT_INCOME_SRC
@@ -335,6 +356,11 @@ def chargeable_income(f:Facts) -> Figure:
       src += DEPENDANTS_SRC + MEDICAL_SRC + INTEREST_SRC
       for relief, cited in reliefs(f):
         amt, src = amt - relief, src + list(cited)
+  return amt, src
+
+def chargeable_income(f:Facts) -> Figure:
+  amt, src = relieved(f)
+  for name, used, _ in claimed(f, amt): amt, src = amt - used, src + list(INVESTMENTS[name])
   return Figure("chargeable income", rupees(max(ZERO, amt)), tuple(src))
 
 def income_tax(chargeable:Decimal, period:Period) -> Figure:
@@ -367,6 +393,7 @@ def assess(f:Facts) -> tuple[Figure, ...]:
   ret = (ci, tax, share, total, paid, balance, losses)
   if f.letting != Letting():
     ret = (*ret, Figure("net income from rent", net_rent(f, ALLOWANCE_RULES[f.period].part), LETTING_SRC + ALLOWANCE_SRC))
+  ret = (*ret, *(Figure(f"{plain(name)} allowance carried forward", left, INVESTMENTS[name]) for name, _, left in claimed(f, relieved(f)[0])))
   if f.farming != Farming(): ret = (*ret, Figure("net income from agriculture", f.farming.net, BUSINESS_SRC))
   if f.tuition != Tuition(): ret = (*ret, Figure("net income from private tuition", f.tuition.net, BUSINESS_SRC))
   if f.lending != Lending():
