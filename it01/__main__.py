@@ -3,6 +3,7 @@ from collections.abc import Callable
 from decimal import Decimal
 from typing import TYPE_CHECKING
 from it01.credits import Question, fed, label
+from it01.debits import spending
 from it01.labels import totals
 from it01.form import Form, wanted
 from it01.helpers import data
@@ -17,7 +18,7 @@ if TYPE_CHECKING: from it01.local import Asked, Sum, Told
 
 MARKS = {Check.AGREES: "ok", Check.DIFFERS: "does not agree", Check.UNCHECKED: "not checked"}
 USAGE = ("usage: it01 FACTS.json\n       it01 read DOCUMENT\n"
-         "       it01 rows STATEMENT\n       it01 credits STATEMENT\n"
+         "       it01 rows STATEMENT\n       it01 credits STATEMENT\n       it01 debits STATEMENT\n"
          "       it01 keep FACTS.json\n       it01 local DOCUMENT\n"
          "       it01 confirm FACTS.json FACT\n       it01 add FACTS.json DOCUMENT\n"
          "       it01 show FACTS.json DOCUMENT\n"
@@ -84,6 +85,16 @@ def to_credits(text:str) -> list[str]:
     ret.append(f"{kind:<46}{amt:>14,}{len(same):>5} credit" + ("s" if len(same) > 1 else "")
                + (f", {unsure} with no balance that agrees" if unsure else ""))
   if questions: ret += ["", "questions"] + [f"  {q.date:<12}{q.amt:>14,}  {q.asking:<30}{q.description}" for q in questions]
+  return ret
+
+def to_debits(text:str) -> list[str]:
+  if not (found := spending(text)): return ["no money was paid out of the account"]
+  ret = []
+  for kind, amt in totals(found).items():
+    same = [d for d in found if d.kind == kind]
+    unsure = sum(1 for d in same if d.check is not Check.AGREES)
+    ret.append(f"{kind:<46}{amt:>14,}{len(same):>5} debit" + ("s" if len(same) > 1 else "")
+               + (f", {unsure} with no balance that agrees" if unsure else ""))
   return ret
 
 def rewritten(here:pathlib.Path, text:str) -> None:
@@ -198,7 +209,8 @@ def to_sheet(text:str) -> list[str]:
   if notes := untyped(f): ret += ["", "not on the sheet"] + [f"  {note}" for note in notes]
   return ret
 
-VERBS = {"read": to_proposals, "rows": to_transactions, "credits": to_credits, "keep": keep, "local": to_local, "data": to_data, "sheet": to_sheet}
+VERBS = {"read": to_proposals, "rows": to_transactions, "credits": to_credits, "debits": to_debits, "keep": keep, "local": to_local,
+         "data": to_data, "sheet": to_sheet}
 ON_CASE:dict[str, tuple[Callable[..., list[str]], int]] = {"confirm": (accepted, 2), "add": (added, 2), "answer": (responded, 3),
                                                            "change": (changed, 3), "show": (opened, 2)}
 

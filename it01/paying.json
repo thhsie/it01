@@ -1,0 +1,23 @@
+{
+  "instruction": "You are given money paid out of a taxpayer's bank account, one debit per line, numbered. Say which kind each one is, using only the names listed below. Answer with a JSON object and nothing else, whose keys are the numbers as they appear and whose values are the names. Give a name only if the wording of the debit supports it. Where the wording does not say what the money was for, answer unclear.",
+  "name": "money paid out",
+  "model": {
+    "task": "purpose",
+    "instruction": "Say what this money paid out of a bank account was for.",
+    "line": "Debit {amount}\n{description}"
+  },
+  "kinds": {
+    "medical_insurance": "A premium for medical or health insurance, paid to an insurer.",
+    "pension": "A contribution to a personal pension or retirement plan.",
+    "housing_loan": "An instalment on a loan taken to buy or build a home.",
+    "school_fees": "Fees paid to a school, college or university.",
+    "donation": "A donation made electronically to a charity or a non profit organisation.",
+    "carer_wages": "Wages paid to a carer who looks after someone at home.",
+    "green_equipment": "A purchase of solar panels, a solar water heater, rainwater harvesting equipment or an electric vehicle charger.",
+    "business_expense": "A cost of running a business, such as stock, supplies, premises, staff or services bought for the business.",
+    "bills": "A bill for electricity, water, phone, internet or television.",
+    "unclear": "A payment whose payee or purpose the statement does not show, such as a transfer to a person or a wallet with no stated purpose.",
+    "no_claim": "Everyday spending, cash, bank fees, card repayments, taxes, and transfers between the holder's own accounts."
+  },
+  "examples": []
+}
