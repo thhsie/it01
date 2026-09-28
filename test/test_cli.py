@@ -4,8 +4,8 @@ from decimal import Decimal
 from unittest import mock
 from it01.__main__ import added, changed, questioned, responded, shaped, to_debits
 from it01.labels import Labelled
-from it01.keep import PAID_OUT, fingerprint, lines_of, offering, outgoing, priced
-from it01.kinds import paying
+from it01.keep import PAID_OUT, adrift, case, fingerprint, lines_of, offering, outgoing, priced
+from it01.kinds import ADRIFT, paying, spoken
 from it01.rows import Check
 from test.helpers import ROOT
 
@@ -261,8 +261,12 @@ class TestCli(unittest.TestCase):
       self.answered_with("business", keys=(f"a.pdf, {self.PAYMENT}", f"b.pdf, {self.PAYMENT}"))
 
   def test_a_payment_left_out_for_its_balance_stays_a_note(self):
-    held = self.answered_with("business", asking="the balance after this does not agree, so it is left out")
+    held = self.answered_with("noted", asking="the balance after this does not agree, so it is left out")
     self.assertEqual((list(held["labels"].values()), "proposed" in held), (["unclear"], False))
+
+  def test_a_payment_left_out_for_its_balance_takes_only_noted(self):
+    for asking in (ADRIFT, adrift()):
+      with self.subTest(asking), self.assertRaisesRegex(ValueError, "with one of: noted"): self.answered_with("business", asking=asking)
 
   def test_a_case_without_labels_keeps_the_answer_as_a_note(self):
     held = self.answered_with("business", keys=())
@@ -340,6 +344,45 @@ class TestCli(unittest.TestCase):
     with mock.patch("it01.__main__.label", return_value=((), ())), mock.patch("it01.__main__.spending", return_value=spent):
       added(pathlib.Path(here), self.saved_document(STATEMENT))
     return here, json.loads(pathlib.Path(here).read_text())
+
+  def test_every_question_a_statement_opens_lists_its_answers(self):
+    table = spoken("labelling")
+    both = (Check.AGREES, Check.DIFFERS)
+    paid_in = tuple(Labelled("02/07/2025", Decimal("10.00"), f"IN {kind}", kind, check) for kind in table.prompt.kinds for check in both)
+    debits = tuple(Labelled("03/07/2025", Decimal("20.00"), f"OUT {kind}", kind, Check.AGREES) for kind in paying().prompt.kinds)
+    here = on_disk(json.dumps({"resident": True, "business": {"gross_income": 100000}}))
+    self.addCleanup(os.unlink, here)
+    with mock.patch("it01.credits.labelled", return_value=paid_in), mock.patch("it01.__main__.spending", return_value=debits):
+      added(pathlib.Path(here), self.saved_document(STATEMENT))
+    pending = json.loads(pathlib.Path(here).read_text())["pending"]
+    self.assertGreater(len(pending), len(paying().prompt.kinds) - len(paying().aside))
+    for question, asks in pending.items():
+      with self.subTest(question): self.assertTrue(lines_of(asks) or asks in table.asking.values(), asks)
+
+  def test_a_question_saved_before_its_answers_were_listed_shows_them(self):
+    old = {"20.00 paid out in 1 payment that looks like housing loan, in a.pdf": "add the lender's certificate",
+           "348.00 paid out in 7 payments that look like bills, in a.pdf": "add the business share of each bill to the accounts",
+           "money labelled pay came in and the case gives no salary": "add the statement of emoluments",
+           "10.00 paid in on 02/07/2025, IN rent": ADRIFT}
+    shown = case(json.dumps({"resident": True, "pending": old}))["pending"]
+    self.assertEqual([lines_of(asks) for asks in shown.values()], [["later", "not"], ["yes", "no"], ["later", "not"], ["noted"]])
+
+  def test_a_business_payment_takes_a_typed_share_up_to_its_total(self):
+    spent = (Labelled("04/07/2025", Decimal("500.00"), "PHONE", "bills", Check.AGREES),)
+    here, held = self.paid_out(spent, business={"gross_income": 100000})
+    question = next(iter(held["pending"]))
+    with self.assertRaisesRegex(ValueError, "from 0.01 to 500.00"): responded(pathlib.Path(here), question, "600")
+    responded(pathlib.Path(here), question, "120.50")
+    self.assertEqual(json.loads(pathlib.Path(here).read_text())["proposed"], {"business.utilities": 120.5})
+
+  def test_a_certificate_question_is_closed_without_moving_a_figure(self):
+    spent = (Labelled("04/07/2025", Decimal("18000.00"), "HOME LOAN", "housing_loan", Check.AGREES),)
+    for said in ("later", "not"):
+      with self.subTest(said):
+        here, held = self.paid_out(spent)
+        responded(pathlib.Path(here), next(iter(held["pending"])), said)
+        after = json.loads(pathlib.Path(here).read_text())
+        self.assertEqual((after.get("pending", {}), "proposed" in after), ({}, False))
 
   def test_payments_out_of_one_kind_are_asked_about_once(self):
     _, held = self.paid_out(self.PENSION)
