@@ -19,5 +19,33 @@
     "unclear": "A payment whose payee or purpose the statement does not show, such as a transfer to a person or a wallet with no stated purpose.",
     "no_claim": "Everyday spending, cash, bank fees, card repayments, taxes, and transfers between the holder's own accounts."
   },
-  "examples": []
+  "examples": [],
+  "claims": {
+    "pension": {
+      "fact": "pension_contributions",
+      "asking": "ask the scheme for proof that it is approved. Was each paid to an individual pension scheme approved under the insurance law, for your own pension"
+    },
+    "donation": {
+      "fact": "electronic_donations",
+      "asking": "was each made electronically to a charitable institution the tax authority has approved"
+    },
+    "carer_wages": {
+      "fact": "carer_wages",
+      "asking": "did you pay the social contributions due for each carer"
+    }
+  },
+  "certificates": {
+    "medical_insurance": "add the insurer's certificate, which gives the premium for each person insured",
+    "school_fees": "add the school's receipt, which gives the fees for each child",
+    "housing_loan": "add the lender's certificate, which gives the interest paid in the year",
+    "green_equipment": "add the invoice, which says whether it is solar, rainwater harvesting or a fast charger"
+  },
+  "business": {
+    "business_expense": "add the ones that are costs of your business to its accounts",
+    "bills": "add the business share of each bill to the accounts"
+  },
+  "aside": [
+    "unclear",
+    "no_claim"
+  ]
 }

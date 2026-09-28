@@ -74,7 +74,7 @@ The question moves from `pending` to `answers` with the words you used. An answe
 
 A line the question did not list is refused. Any other answer is kept as a note and moves no figure. A question already answered is refused, so your first words are kept.
 
-`it01 keep` prints what each answer would change in the tax to pay. It does this for a payment asked about, a figure read twice and a line of a form. The change is worked out from the facts you confirmed.
+`it01 keep` prints what each answer would change in the tax to pay. It does this for a payment asked about, a figure read twice, a line of a form and a relief found in money paid out. The change is worked out from the facts you confirmed.
 
 ## Fill in the return
 
@@ -141,6 +141,10 @@ it01 debits statement.txt
 `not_income` names the kinds that are not income. Every kind must be fed, needed, exempt, asked about or not income.
 
 `debits` labels every payment out the same way, with the kinds in `it01/paying.json`, and prints the total of each kind. Most kinds match a relief in the law, such as a pension contribution or school fees. A label proposes no fact.
+
+`it01 add` asks one question for each kind of payment out in a statement. `claims` names the kinds a yes adds to a fact, with the condition the law sets. `certificates` names the kinds whose figure comes from a certificate, and asks for it.
+
+`business` names the kinds asked about only when the case has business income. `aside` names the kinds that count for nothing. A payment whose balance does not agree is left out of the totals.
 
 ## Label bank credits with a model file of your own
 

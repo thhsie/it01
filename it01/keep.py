@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 from it01.form import wanted
-from it01.kinds import Table, picked, spoken
+from it01.kinds import Table, paying, picked, spoken
 from it01.law import YEAR_SRC, YEAR_STARTS, Source
 from it01.rows import months
 from it01.tax import JSON_TYPES, PLACES, ZERO, Facts, Figure, amount, assess, from_json, is_amount, plain, summed
@@ -18,6 +18,8 @@ PAID_IN = re.compile(r"(?P<amt>\S+) paid in on (?P<date>[^,]*), ")
 TWICE = re.compile(r"(?P<name>.+) read as (?P<amt>\S+) in (?P<quote>.+), and the case already gives (?P<was>\S+)")
 BOTH = ("add", "leave")
 ON_LINE = re.compile(r"(?P<amt>\S+) on the line (?P<quote>.+)")
+PAID_OUT = re.compile(r"(?P<amt>\S+) paid out in \d+ payments? that looks? like (?P<kind>[^,]+), in (?P<doc>.+)")
+YES_NO = ("yes", "no")
 LINES = re.compile(r"([^\s;(]+) \([^)]*\)")
 
 def once(pairs:list[tuple[str, Any]]) -> dict[str, Any]:
@@ -30,6 +32,12 @@ def once(pairs:list[tuple[str, Any]]) -> dict[str, Any]:
 def loaded(text:str) -> Any: return json.loads(text, parse_float=Decimal, object_pairs_hook=once)
 
 def worded(amt:Decimal, date:str, description:str) -> str: return f"{amt:,} paid in on {date}, {description}"
+def claimed(question:str) -> tuple[str, Decimal]|None:
+  if not (spent := PAID_OUT.fullmatch(question)) or not (claim := paying().claims.get(spent["kind"].replace(" ", "_"))): return None
+  return claim[0], amount(spent["amt"])
+
+def outgoing(amt:Decimal, cnt:int, kind:str, doc:str) -> str:
+  return f"{amt:,} paid out in {cnt} payment{'s' if cnt > 1 else ''} that look{'' if cnt > 1 else 's'} like {plain(kind)}, in {doc}"
 
 def fingerprint(raw:bytes) -> str: return hashlib.sha256(raw).hexdigest()[:32]
 
@@ -212,6 +220,8 @@ def priced(text:str) -> dict[str, dict[str, Figure]]:
       ret[question] = {"add": worth("add", added, amount(twice["amt"])), "leave": worth("leave", None, ZERO)}
     elif (paid := PAID_IN.match(question)) and asks in table.asking.values():
       ret[question] = {kind: worth(kind, table.feeds.get(kind), amount(paid["amt"])) for kind in picked(table) if kind not in table.needs}
+    elif relief := claimed(question):
+      ret[question] = {"yes": worth("yes", *relief), "no": worth("no", None, ZERO)}
     elif (read := ON_LINE.fullmatch(question)) and (lines := lines_of(asks)):
       feeds = dict(wanted().feeds)
       ret[question] = {line: worth(line, feeds.get(line), amount(read["amt"])) for line in lines}

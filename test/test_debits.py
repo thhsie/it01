@@ -3,7 +3,7 @@ from decimal import Decimal
 from unittest import mock
 from it01.debits import spending, spent
 from it01.helpers import data
-from it01.kinds import prompted
+from it01.kinds import paying, prompted
 from it01.labels import totals
 
 STATEMENT = """\
@@ -45,5 +45,17 @@ class TestDebits(unittest.TestCase):
     with mock.patch("it01.labels.IT01_LABELLER", "labeller.onnx"):
       with mock.patch("it01.local.classified", return_value=("pension", "no_claim", "no_claim")) as sorted_by: found = spending(STATEMENT)
     self.assertEqual((len(found), sorted_by.call_args.args[1]), (3, PROMPT))
+
+  def test_the_shipped_table_says_how_every_kind_counts(self):
+    table = paying()
+    self.assertEqual(sorted({*table.claims, *table.certificates, *table.business, *table.aside}), sorted(PROMPT.kinds))
+
+  def test_a_table_that_leaves_a_kind_out_or_uses_one_twice_is_refused(self):
+    held = data("paying")
+    for change, says in (({"aside": ["unclear"]}, r"nothing of how \['no_claim'\]"),
+                         ({"aside": ["unclear", "no_claim", "pension"]}, r"\['pension'\] more than one use"),
+                         ({"claims": {"pension": {"fact": "windfall", "asking": "yes"}}}, r"unknown facts \['windfall'\]")):
+      with self.subTest(says), mock.patch("it01.kinds.data", return_value=held | change):
+        with self.assertRaisesRegex(ValueError, says): paying()
 
 if __name__ == "__main__": unittest.main()
