@@ -68,12 +68,12 @@ def by_file(paid:tuple[Entry, ...], table:Table) -> tuple[Credit, ...]:
   try: from it01.local import classified
   except ImportError as e: raise ValueError(f"labelling with a model file needs pip install 'it01[local]' ({e})") from e
   pairs = [(e, e.paid_in) for e in paid if e.paid_in is not None]
-  kinds = classified(tuple((amt, e.description) for e, amt in pairs), table.kinds, table.examples)
+  kinds = classified(tuple((amt, e.description) for e, amt in pairs), table.prompt)
   return tuple(Credit(e.date, amt, e.description, kind, e.check) for (e, amt), kind in zip(pairs, kinds, strict=True))
 
 def by_endpoint(paid:tuple[Entry, ...], table:Table) -> tuple[Credit, ...]:
-  said = "\n".join(f"{kind}: {means}" for kind, means in table.kinds.items())
-  return named(paid, ask(instruction("labelling") + "\n" + said, listed(paid), answers(paid, table.kinds)), table.kinds)
+  said = "\n".join(f"{kind}: {means}" for kind, means in table.prompt.kinds.items())
+  return named(paid, ask(instruction("labelling") + "\n" + said, listed(paid), answers(paid, table.prompt.kinds)), table.prompt.kinds)
 
 def label(text:str) -> tuple[tuple[Credit, ...], tuple[Question, ...]]:
   table = spoken("labelling")

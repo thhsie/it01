@@ -5,6 +5,7 @@ from decimal import Decimal
 from typing import Any
 from it01.form import Form, text, wanted
 from it01.helpers import IT01_DETECTOR, IT01_LABELLER, IT01_MODEL_FILE, IT01_RECOGNISER, IT01_TOKENISER, data
+from it01.kinds import Prompt
 from it01.tax import amount, plain
 
 WORD = re.compile(r"\w+|[^\w\s]")
@@ -21,7 +22,7 @@ TAKEN = {"form": ("name", "described", "listed"), "describes": ("line", "means")
 PARTS = tuple(TAKEN)
 SORTING = ("tokens", "attention", "labels", "label_mask")
 MARKS = ("open", "close", "task_mark", "label_mark", "text_mark", "end")
-FILLS = {"describes": ("kind", "means"), "example": ("text", "kind"), "credit": ("amount", "description")}
+FILLS = {"describes": ("kind", "means"), "example": ("text", "kind")}
 INKED, BOXED, GROW, THINNEST, SIDE, STEP = 30, 50, 160, 3, 1280, 32
 LEGIBLE, TALL, WIDE = 50, 48, 320
 Box = tuple[int, int, int, int]
@@ -275,8 +276,6 @@ def reader() -> tuple[Any, Any]: return loaded(IT01_MODEL_FILE, "IT01_MODEL_FILE
 class Sorter:
   takes: tuple[str, ...]
   gives: str
-  task: str
-  asking: str
   marks: dict[str, str]
   fills: dict[str, str]
 
@@ -289,23 +288,23 @@ def sorter() -> Sorter:
     if missing := [n for n in names if "{" + n + "}" not in got]: raise ValueError(f"the {part} wording in {where} leaves out {missing}")
     fills[part] = got
   return Sorter(tuple(text(takes, role, f"{where}, under takes") for role in SORTING), text(gives, "logits", f"{where}, under gives"),
-                text(held, "task", where), text(held, "instruction", where), {m: text(held, m, where) for m in MARKS}, fills)
+                {m: text(held, m, where) for m in MARKS}, fills)
 
-def pieces(sort:Sorter, kinds:dict[str, str], examples:tuple[tuple[str, str], ...], said:str) -> list[str]:
+def pieces(sort:Sorter, prompt:Prompt, said:str) -> list[str]:
   m, f = sort.marks, sort.fills
-  told = f"{sort.task}: {sort.asking}" + "".join(f["describes"].format(kind=k, means=v) for k, v in kinds.items())
-  told += "".join(f["example"].format(text=t, kind=k) for t, k in examples)
-  listed = [x for k in kinds for x in (m["label_mark"], k)]
+  told = f"{prompt.task}: {prompt.instruction}" + "".join(f["describes"].format(kind=k, means=v) for k, v in prompt.kinds.items())
+  told += "".join(f["example"].format(text=t, kind=k) for t, k in prompt.examples)
+  listed = [x for k in prompt.kinds for x in (m["label_mark"], k)]
   return [m["open"], m["task_mark"], told, m["open"], *listed, m["close"], m["close"], m["text_mark"], *[w for w, _, _ in words(said)], m["end"]]
 
-def classified(paid:tuple[tuple[Decimal, str], ...], kinds:dict[str, str], examples:tuple[tuple[str, str], ...]) -> tuple[str, ...]:
+def classified(paid:tuple[tuple[Decimal, str], ...], prompt:Prompt) -> tuple[str, ...]:
   sort = sorter()
   session, tok = loaded(IT01_LABELLER, "IT01_LABELLER")
-  size, mark, names = fixed(session, sort.takes, SORTING, "labeller.json"), marker(tok, sort.marks["label_mark"]), list(kinds)
+  size, mark, names = fixed(session, sort.takes, SORTING, "labeller.json"), marker(tok, sort.marks["label_mark"]), list(prompt.kinds)
   ret = []
   for amt, description in paid:
-    said = sort.fills["credit"].format(amount=f"{amt:,}", description=description)
-    ids = [i for piece in pieces(sort, kinds, examples, said) for i in tok.encode(piece, add_special_tokens=False).ids]
+    said = prompt.line.format(amount=f"{amt:,}", description=description)
+    ids = [i for piece in pieces(sort, prompt, said) for i in tok.encode(piece, add_special_tokens=False).ids]
     marks = [n for n, i in enumerate(ids) if i == mark]
     if len(marks) != len(names): raise ValueError(f"the tokeniser marked {len(marks)} of {len(names)} kinds")
     tokens, attention = filled(ids, size["tokens"], "tokens")

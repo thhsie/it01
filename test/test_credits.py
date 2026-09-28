@@ -26,13 +26,15 @@ Date        Description                    Debit       Credit      Balance
 """
 
 TABLE = spoken("labelling")
-KINDS, FEEDS, ASKING = TABLE.kinds, TABLE.feeds, TABLE.asking
+KINDS, FEEDS, ASKING = TABLE.prompt.kinds, TABLE.feeds, TABLE.asking
 
 def reply(*names:str) -> str: return json.dumps({str(n): name for n, name in enumerate(names, 1)})
 
+MODEL = {"model": {"task": "source", "instruction": "say where it came from", "line": "Credit {amount}\n{description}"}}
+
 class TestCredits(unittest.TestCase):
   def test_a_labelling_file_says_what_it_reads(self):
-    self.assertEqual(TABLE.name, "bank statement")
+    self.assertEqual(TABLE.prompt.name, "bank statement")
 
   def test_a_kind_that_feeds_a_fact_totals_its_credits(self):
     found = named(received(PAID_IN), reply("rent", "rent", "cash"), KINDS)
@@ -55,19 +57,26 @@ class TestCredits(unittest.TestCase):
     self.assertEqual(fed(found, FEEDS), ({}, ()))
 
   def test_a_feeds_table_that_does_not_hold_up_is_refused(self):
-    base = {"name": "a statement", "kinds": {"one": "a", "two": "b", "three": "c"}, "asking": {"three": "what is this"}}
+    base = MODEL | {"name": "a statement", "kinds": {"one": "a", "two": "b", "three": "c"}, "asking": {"three": "what is this"}}
     for feeds, says in (({"nope": "salary"}, "feeds from unknown kinds"), ({"one": "nope"}, "feeds unknown facts"),
                         ({"three": "salary"}, "both feeds and asks about"), ({"one": "salary", "two": "salary"}, "more than one kind"),
                         ("not an object", "object of names")):
       with self.subTest(says), mock.patch("it01.kinds.data", return_value=base | {"feeds": feeds}):
         with self.assertRaisesRegex(ValueError, says): spoken("labelling")
 
-  def test_a_labelling_file_with_no_feeds_proposes_nothing(self):
+  def test_a_table_must_word_the_model_prompt(self):
     base = {"name": "a statement", "kinds": {"one": "a"}, "asking": {"one": "what is this"}}
+    short = {"task": "t", "instruction": "i", "line": "{amount}"}
+    for model, says in (({}, r"no \['task', 'instruction', 'line'\]"), ("x", "model as an object"), (short, r"leaves out \['description'\]")):
+      with self.subTest(says), mock.patch("it01.kinds.data", return_value=base | {"model": model}):
+        with self.assertRaisesRegex(ValueError, says): spoken("labelling")
+
+  def test_a_labelling_file_with_no_feeds_proposes_nothing(self):
+    base = MODEL | {"name": "a statement", "kinds": {"one": "a"}, "asking": {"one": "what is this"}}
     with mock.patch("it01.kinds.data", return_value=base): self.assertEqual(spoken("labelling").feeds, {})
 
   def test_a_needs_table_that_does_not_hold_up_is_refused(self):
-    base = {"name": "a statement", "kinds": {"one": "a", "two": "b"}, "feeds": {"one": "rent"}, "asking": {"two": "what is this"}}
+    base = MODEL | {"name": "a statement", "kinds": {"one": "a", "two": "b"}, "feeds": {"one": "rent"}, "asking": {"two": "what is this"}}
     ask = "a question"
     for needs, says in (({"one": {"fact": "salary"}}, "a fact and a question"),
                         ({"nope": {"fact": "salary", "asking": ask}}, r"unknown kinds \['nope'\]"),
@@ -77,7 +86,7 @@ class TestCredits(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, says): spoken("labelling")
 
   def test_an_exempt_table_that_does_not_hold_up_is_refused(self):
-    base = {"name": "a statement", "kinds": {"one": "a", "two": "b"}, "asking": {"two": "what is this"}}
+    base = MODEL | {"name": "a statement", "kinds": {"one": "a", "two": "b"}, "asking": {"two": "what is this"}}
     good = {"doc": "ita", "section": "s.1", "page": 1}
     for exempt, says in (({"one": good | {"doc": "nope"}}, "document, section and page"),
                          ({"one": good | {"page": "1"}}, "document, section and page"),
@@ -87,7 +96,7 @@ class TestCredits(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, says): spoken("labelling")
 
   def test_every_kind_must_say_how_it_counts(self):
-    base = {"name": "a statement", "kinds": {"one": "a", "two": "b"}, "asking": {"one": "what is this"}}
+    base = MODEL | {"name": "a statement", "kinds": {"one": "a", "two": "b"}, "asking": {"one": "what is this"}}
     for aside, says in (([], r"says nothing of how \['two'\] count"), (["one", "two"], r"both uses and sets aside \['one'\]"),
                         (["nope", "two"], r"unknown kinds not income \['nope'\]"), ("two", "not_income as a list")):
       with self.subTest(aside), mock.patch("it01.kinds.data", return_value=base | {"not_income": aside}):
@@ -97,8 +106,8 @@ class TestCredits(unittest.TestCase):
     self.assertEqual(TABLE.exempt["interest"].url, "https://www.mra.mu/download/ITAConsolidated.pdf#page=267")
 
   def test_examples_that_do_not_hold_up_are_refused(self):
-    base = {"name": "a statement", "kinds": {"one": "a"}, "asking": {"one": "what is this"}}
-    for examples, says in (("x", "examples as a list"), ([["x", ""]], r"example \['x', ''\] that is not a credit"),
+    base = MODEL | {"name": "a statement", "kinds": {"one": "a"}, "asking": {"one": "what is this"}}
+    for examples, says in (("x", "examples as a list"), ([["x", ""]], r"example \['x', ''\] that is not a line"),
                            ([["x", "nope"]], r"unknown kinds \['nope'\]")):
       with self.subTest(examples), mock.patch("it01.kinds.data", return_value=base | {"examples": examples}):
         with self.assertRaisesRegex(ValueError, says): spoken("labelling")
@@ -109,7 +118,7 @@ class TestCredits(unittest.TestCase):
       with mock.patch("it01.local.classified", return_value=("pay", "interest", "cash")) as sorted_by: found, questions = label(PAID_IN)
     self.assertEqual([c.kind for c in found], ["pay", "interest", "cash"])
     given = sorted_by.call_args.args
-    self.assertEqual((given[0][0], given[2], len(questions)), ((Decimal("5000.00"), "SALARY JULY ACME LTD"), TABLE.examples, 1))
+    self.assertEqual((given[0][0], given[1], len(questions)), ((Decimal("5000.00"), "SALARY JULY ACME LTD"), TABLE.prompt, 1))
 
   def test_the_shipped_table_feeds_only_kinds_and_facts(self):
     for kind, fact in FEEDS.items():

@@ -266,7 +266,7 @@ class Paid:
 
 def credited(key:str, kind:str, docs:list[str], table:Table) -> Paid|None:
   doc = next((d for d in docs if key.startswith(f"{d}, ")), None)
-  if doc is None or kind not in table.kinds or not (m := PAID_IN.match(key[len(doc) + 2:])): return None
+  if doc is None or kind not in table.prompt.kinds or not (m := PAID_IN.match(key[len(doc) + 2:])): return None
   try: return Paid(key, doc, amount(m["amt"]), m["date"], kind)
   except ValueError: return None
 

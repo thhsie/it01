@@ -70,7 +70,9 @@ it01 answer facts.json "1,200.00 paid in on 12/08" "sold my old bicycle"
 
 Give the start of the question's wording after the file. When it matches no question, or more than one, nothing changes and the command says so.
 
-The question moves from `pending` to `answers` with the words you used. An answer that names a kind of payment, or one of the listed lines that feeds a fact, proposes the amount under that fact. A line the question did not list is refused. Any other answer is kept as a note and moves no figure. A question already answered is refused, so your first words are kept.
+The question moves from `pending` to `answers` with the words you used. An answer that names a kind of payment, or one of the listed lines that feeds a fact, proposes the amount under that fact.
+
+A line the question did not list is refused. Any other answer is kept as a note and moves no figure. A question already answered is refused, so your first words are kept.
 
 `it01 keep` prints what each answer would change in the tax to pay. It does this for a payment asked about, a figure read twice and a line of a form. The change is worked out from the facts you confirmed.
 
@@ -146,11 +148,13 @@ it01 credits bank.txt
 
 With `IT01_LABELLER` set, each credit is labelled by a classifier on this computer and the endpoint is not called. The file scores every kind in `it01/labelling.json` for one credit at a time, and the highest score wins.
 
-`it01/labeller.json` says what your file calls its four inputs and its output, and how the prompt is laid out. The kinds, their descriptions and the examples come from `it01/labelling.json`. The labeller reads with the same `IT01_TOKENISER` as the reader.
+`it01/labeller.json` says what your file calls its four inputs and its output, and the marks and wording around each kind and example. The task name, the instruction and the layout of one credit are under `model` in `it01/labelling.json`. The kinds, their descriptions and the examples are there too. The labeller reads with the same `IT01_TOKENISER` as the reader.
 
 ## The facts file
 
-Only `resident` is required. `dependants` is a count and `business` is an object. `medical_insurance` is a list of premiums, one per insured person: you first, then each dependant in order. It holds at most five, for you and four dependants. The rest are amounts, written as numbers with at most two decimal places.
+Only `resident` is required. `dependants` is a count and `business` is an object.
+
+`medical_insurance` is a list of premiums, one per insured person: you first, then each dependant in order. It holds at most five, for you and four dependants. The rest are amounts, written as numbers with at most two decimal places.
 
 ```
 salary                       taxable_transport_allowance  performance_bonus
@@ -166,9 +170,13 @@ foreign_interest             foreign_other                exempt_interest
 global_business_dividends    duty_expenses
 ```
 
-The income heads follow the return. Each adds to income other than emoluments, so a loss can be set against it. The four `foreign_` heads hold income from abroad received here, and only a resident may have them. Put income from any other source in `other_source`. `other_income` is its older name and adds to the same total.
+The income heads follow the return. Each adds to income other than emoluments, so a loss can be set against it.
 
-The reliefs follow the return. `school_fees` lists the private school fees paid for each child, and each counts up to 60,000. `electronic_donations` counts up to 100,000, `pension_contributions` up to 50,000 and `carer_wages` up to 30,000. `additional_deduction` is `retired` or `disabled` and adds 50,000. A retired person with emoluments above 50,000 before duty expenses, or with any business, agriculture, private tuition or peer to peer lending, gets nothing.
+The four `foreign_` heads hold income from abroad received here, and only a resident may have them. Put income from any other source in `other_source`. `other_income` is its older name and adds to the same total.
+
+The reliefs follow the return. `school_fees` lists the private school fees paid for each child, and each counts up to 60,000. `electronic_donations` counts up to 100,000, `pension_contributions` up to 50,000 and `carer_wages` up to 30,000.
+
+`additional_deduction` is `retired` or `disabled` and adds 50,000. A retired person with emoluments above 50,000 before duty expenses, or with any business, agriculture, private tuition or peer to peer lending, gets nothing.
 
 `housing_loan_interest` is not deducted when your net income, `resident_dividends`, `global_business_dividends` and `exempt_interest` together exceed 4,000,000, or when `spouse_above_interest_bar` is true. Set it to true when your spouse's income, counted the same way, exceeds 4,000,000. `exempt_interest` is interest on savings and fixed deposits, on government securities and on central bank bills. None of the three adds to your income.
 
@@ -180,11 +188,17 @@ Leave out of `income` any state benefit paid to a child or a bedridden relative 
 
 `students` lists each child at a university, as an object with `abroad`, `undergraduate`, `tuition` and `year`. Each gives 500,000, for at most four children and six years. An undergraduate course that is not abroad counts only when the tuition is at least 34,800.
 
-`salary` holds all emoluments. `duty_expenses` holds what you spent wholly, exclusively and necessarily in doing your job, and comes off your emoluments. Include an allowance to the extent it repays such spending. `other_income` holds income that is neither emoluments, rent nor business. `business` holds the accounts line by line as the return lists them, with an `assets` list for annual allowances.
+`salary` holds all emoluments. `duty_expenses` holds what you spent wholly, exclusively and necessarily in doing your job, and comes off your emoluments. Include an allowance to the extent it repays such spending.
+
+`other_income` holds income that is neither emoluments, rent nor business. `business` holds the accounts line by line as the return lists them, with an `assets` list for annual allowances.
 
 `rent` holds income from letting, before expenses. `letting` holds what was spent to earn it: `repairs`, `interest`, `syndic_fees`, `other_expenses`, and an `assets` list as in `business`. A rent loss is set against other income and carried forward like a business loss.
 
-`farming` holds agriculture: `gross_income`, `labour`, `rent`, `fertilizers_and_pesticides`, `motor_vehicle_expenses` and `other_expenses`. A loss is treated like a business loss. `tuition` holds private tuition as `gross_income` and `expenses`. A tuition loss counts as zero. `lending` holds peer to peer lending as `interest` and `bad_debts`. 80% of the interest is exempt. The bad debts come off the rest. Bad debts above the whole interest are carried forward.
+`farming` holds agriculture: `gross_income`, `labour`, `rent`, `fertilizers_and_pesticides`, `motor_vehicle_expenses` and `other_expenses`. A loss is treated like a business loss.
+
+`tuition` holds private tuition as `gross_income` and `expenses`. A tuition loss counts as zero.
+
+`lending` holds peer to peer lending as `interest` and `bad_debts`. 80% of the interest is exempt. The bad debts come off the rest. Bad debts above the whole interest are carried forward.
 
 Seven keys are set aside before the computation and none of them reaches it: `proposed`, `sources`, `documents`, `texts`, `paths`, `answers`, `pending`.
 
