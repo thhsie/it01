@@ -3,7 +3,7 @@ from test.helpers import ROOT, trees
 
 NETWORK = {"asyncio", "ftplib", "http", "imaplib", "poplib", "smtplib", "socket", "socketserver", "ssl", "urllib", "webbrowser", "xmlrpc"}
 NETWORK_ALLOWED = {"it01/llm.py"}
-NETWORK_REACH_ALLOWED = {"it01/llm.py", "it01/read.py", "it01/labels.py", "it01/credits.py", "it01/__main__.py"}
+NETWORK_REACH_ALLOWED = {"it01/llm.py", "it01/read.py", "it01/labels.py", "it01/credits.py", "it01/debits.py", "it01/__main__.py"}
 RUNTIME = {"numpy", "onnxruntime", "tokenizers"}
 RUNTIME_ALLOWED = {"it01/local.py"}
 PAPER = {"pypdfium2"}
