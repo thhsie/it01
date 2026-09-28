@@ -85,3 +85,35 @@ def spoken(name:str) -> Table:
   return Table(prompt, feeds, asking, needs, exempt, tuple(aside))
 
 def picked(table:Table) -> tuple[str, ...]: return tuple(kind for kind in table.prompt.kinds if kind not in table.asking)
+
+@dataclass(frozen=True)
+class Paying:
+  prompt: Prompt
+  claims: dict[str, tuple[str, str]]
+  certificates: dict[str, str]
+  business: dict[str, str]
+  aside: tuple[str, ...]
+
+def questions(name:str, held:dict[str, Any], part:str) -> dict[str, str]:
+  if not isinstance(got := held.get(part, {}), dict) or not all(isinstance(v, str) and v.strip() for v in got.values()):
+    raise ValueError(f"{name}.json must hold {part} as an object of questions")
+  return {str(k): v for k, v in got.items()}
+
+def paying() -> Paying:
+  held = data("paying")
+  prompt = prompted("paying", held)
+  if not isinstance(given := held.get("claims", {}), dict): raise ValueError("paying.json must hold claims as an object")
+  claims = {}
+  for kind, claim in given.items():
+    if not isinstance(claim, dict) or not all(isinstance(claim.get(k), str) and claim[k].strip() for k in ("fact", "asking")):
+      raise ValueError(f"paying.json must give a fact and a question for {kind}")
+    claims[str(kind)] = (claim["fact"], claim["asking"])
+  if unknown := sorted({fact for fact, _ in claims.values()} - set(PLACES)): raise ValueError(f"paying.json claims unknown facts {unknown}")
+  certificates, business = questions("paying", held, "certificates"), questions("paying", held, "business")
+  if not isinstance(aside := held.get("aside", []), list) or not all(isinstance(k, str) for k in aside):
+    raise ValueError("paying.json must hold aside as a list of kinds")
+  uses = (set(claims), set(certificates), set(business), set(aside))
+  if unknown := sorted(set().union(*uses) - set(prompt.kinds)): raise ValueError(f"paying.json uses unknown kinds {unknown}")
+  if twice := sorted(k for k in prompt.kinds if sum(k in use for use in uses) > 1): raise ValueError(f"paying.json gives {twice} more than one use")
+  if loose := sorted(set(prompt.kinds) - set().union(*uses)): raise ValueError(f"paying.json says nothing of how {loose} count")
+  return Paying(prompt, claims, certificates, business, tuple(aside))

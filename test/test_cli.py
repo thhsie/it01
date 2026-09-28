@@ -4,7 +4,8 @@ from decimal import Decimal
 from unittest import mock
 from it01.__main__ import added, changed, questioned, responded, shaped, to_debits
 from it01.labels import Labelled
-from it01.keep import fingerprint, lines_of, offering
+from it01.keep import PAID_OUT, fingerprint, lines_of, offering, outgoing, priced
+from it01.kinds import paying
 from it01.rows import Check
 from test.helpers import ROOT
 
@@ -81,6 +82,11 @@ REFUSED = [
 ]
 
 class TestCli(unittest.TestCase):
+  def setUp(self):
+    quiet = mock.patch("it01.__main__.spending", return_value=())
+    quiet.start()
+    self.addCleanup(quiet.stop)
+
   def test_sheet_marks_what_the_return_fills_in_and_what_it_leaves_out(self):
     out = saved(json.dumps({"resident": True, "salary": 1200000, "other_income": 5}), ".json", "sheet").stdout
     self.assertIn(f"{'B_D_ENEXINC1':<24}{'1200000':>16}  filled in by the return, check it  the total of all rows", out)
@@ -323,6 +329,63 @@ class TestCli(unittest.TestCase):
     here = on_disk(json.dumps({"resident": True, "pending": {self.PAYMENT: "what was this payment for"}}))
     self.addCleanup(os.unlink, here)
     with self.assertRaisesRegex(ValueError, "0 answered questions match"): changed(pathlib.Path(here), self.PAYMENT, "rent")
+
+  PENSION = (Labelled("03/07/2025", Decimal("1000.00"), "RETIREMENT PLAN", "pension", Check.AGREES),
+             Labelled("03/08/2025", Decimal("1000.00"), "RETIREMENT PLAN", "pension", Check.UNCHECKED),
+             Labelled("03/09/2025", Decimal("1000.00"), "RETIREMENT PLAN", "pension", Check.DIFFERS))
+
+  def paid_out(self, spent:tuple[Labelled, ...], **given:object) -> tuple[str, dict]:
+    here = on_disk(json.dumps({"resident": True, "salary": 1200000} | given))
+    self.addCleanup(os.unlink, here)
+    with mock.patch("it01.__main__.label", return_value=((), ())), mock.patch("it01.__main__.spending", return_value=spent):
+      added(pathlib.Path(here), self.saved_document(STATEMENT))
+    return here, json.loads(pathlib.Path(here).read_text())
+
+  def test_payments_out_of_one_kind_are_asked_about_once(self):
+    _, held = self.paid_out(self.PENSION)
+    question, asks = next(iter(held["pending"].items()))
+    self.assertEqual((len(held["pending"]), question.split(", in ")[0]), (1, "2,000.00 paid out in 2 payments that look like pension"))
+    self.assertIn("approved under the insurance law", asks)
+    self.assertNotIn("proposed", held)
+
+  def test_each_claim_question_names_its_kind_whatever_the_count(self):
+    for kind in paying().claims:
+      for cnt in (1, 2):
+        with self.subTest(kind=kind, cnt=cnt):
+          said = PAID_OUT.fullmatch(outgoing(Decimal("1500.00"), cnt, kind, "my, bank.pdf"))
+          self.assertEqual((said["kind"].replace(" ", "_"), said["doc"]) if said else None, (kind, "my, bank.pdf"))
+
+  def test_a_claim_question_offers_yes_and_no_with_what_each_adds(self):
+    _, held = self.paid_out(self.PENSION)
+    self.assertEqual(lines_of(next(iter(held["pending"].values()))), ["yes", "no"])
+
+  def test_a_yes_proposes_the_relief_and_a_no_proposes_nothing(self):
+    for said, proposed in (("yes", {"pension_contributions": 2000}), ("no", {})):
+      with self.subTest(said):
+        here, held = self.paid_out(self.PENSION)
+        question = next(iter(held["pending"]))
+        responded(pathlib.Path(here), question, said)
+        after = json.loads(pathlib.Path(here).read_text())
+        self.assertEqual(after.get("proposed", {}), proposed)
+        if proposed: self.assertEqual(after["sources"]["pension_contributions"], f"answered {question}")
+
+  def test_a_relief_question_takes_only_yes_or_no(self):
+    here, held = self.paid_out(self.PENSION)
+    with self.assertRaisesRegex(ValueError, "with one of: yes, no"): responded(pathlib.Path(here), next(iter(held["pending"])), "maybe")
+
+  def test_a_relief_question_is_priced_from_the_confirmed_facts(self):
+    here, held = self.paid_out(self.PENSION)
+    prices = priced(pathlib.Path(here).read_text())[next(iter(held["pending"]))]
+    self.assertEqual((prices["yes"].amt, prices["no"].amt), (Decimal("-400"), Decimal("0")))
+
+  def test_business_payments_are_asked_about_only_with_a_business(self):
+    spent = (Labelled("04/07/2025", Decimal("500.00"), "STOCK", "business_expense", Check.AGREES),)
+    for given, asked in (({}, 0), ({"business": {"gross_income": 100000}}, 1)):
+      with self.subTest(given): self.assertEqual(len(self.paid_out(spent, **given)[1].get("pending", {})), asked)
+
+  def test_a_certificate_is_asked_for_where_the_statement_cannot_give_the_figure(self):
+    spent = (Labelled("04/07/2025", Decimal("18000.00"), "HOME LOAN", "housing_loan", Check.AGREES),)
+    self.assertIn("gives the interest paid in the year", next(iter(self.paid_out(spent)[1]["pending"].values())))
 
   def test_pay_in_two_statements_asks_once(self):
     here = on_disk(json.dumps({"resident": True}))
