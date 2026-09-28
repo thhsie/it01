@@ -161,6 +161,8 @@ With `IT01_LABELLER` set, each credit is labelled by a classifier on this comput
 
 `debits` reads with the same model file. The task, the instruction, the line layout and the kinds are in `it01/paying.json`.
 
+The file lists the tasks it was trained for in its metadata, under `tasks`, separated by commas: `source,purpose` for both tables. A file that does not list a table's task is refused.
+
 ## The facts file
 
 Only `resident` is required. `dependants` is a count and `business` is an object.

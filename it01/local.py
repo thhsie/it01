@@ -300,6 +300,9 @@ def pieces(sort:Sorter, prompt:Prompt, said:str) -> list[str]:
 def classified(paid:tuple[tuple[Decimal, str], ...], prompt:Prompt) -> tuple[str, ...]:
   sort = sorter()
   session, tok = loaded(IT01_LABELLER, "IT01_LABELLER")
+  if not isinstance(listed := session.get_modelmeta().custom_metadata_map.get("tasks"), str):
+    raise ValueError(f"{IT01_LABELLER} names no tasks it labels, so it cannot label {prompt.task}")
+  if prompt.task not in listed.split(","): raise ValueError(f"{IT01_LABELLER} labels {listed}, not {prompt.task}")
   size, mark, names = fixed(session, sort.takes, SORTING, "labeller.json"), marker(tok, sort.marks["label_mark"]), list(prompt.kinds)
   ret = []
   for amt, description in paid:

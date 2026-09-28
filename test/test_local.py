@@ -453,7 +453,8 @@ class Unmarked(Pieces):
   def encode(self, piece, add_special_tokens=False): return Coded([1], [])
 
 class Sorting:
-  def __init__(self, best): self.best, self.fed = best, []
+  def __init__(self, best, tasks="source,purpose"): self.best, self.fed, self.tasks = best, [], tasks
+  def get_modelmeta(self): return mock.Mock(custom_metadata_map={"tasks": self.tasks} if self.tasks else {})
   def get_inputs(self): return [Size(n, 64 if n == SORT.takes[0] else 8) for n in SORT.takes]
   def run(self, names, feed):
     self.fed.append(feed)
@@ -480,6 +481,11 @@ class TestLabeller(unittest.TestCase):
       said = classified(((Decimal("5000.00"), "SALARY"), (Decimal("20.00"), "REFUND")), self.prompt)
     self.assertEqual((said, len(session.fed)), (("other", "other"), 2))
     self.assertEqual(session.fed[0][SORT.takes[3]].tolist(), [[True, True] + [False] * 6])
+
+  def test_a_labeller_that_does_not_name_the_task_is_refused(self):
+    for tasks, says in (("", "names no tasks it labels, so it cannot label source"), ("purpose", "labels purpose, not source")):
+      with self.subTest(tasks), mock.patch("it01.local.loaded", return_value=(Sorting(best=0, tasks=tasks), Pieces())):
+        with self.assertRaisesRegex(ValueError, says): classified(((Decimal("1.00"), "X"),), self.prompt)
 
   def test_a_tokeniser_that_loses_a_kind_mark_is_refused(self):
     with mock.patch("it01.local.loaded", return_value=(Sorting(best=0), Unmarked())):
