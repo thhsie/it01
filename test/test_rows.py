@@ -119,6 +119,35 @@ class TestRows(unittest.TestCase):
     got = entries(TWO_LINES)
     self.assertEqual((got[0].date, got[0].description), ("02 Jul 25", "DIRECT CREDIT ACME LTD"))
 
+  def test_text_between_two_rows_goes_to_the_nearer_row(self):
+    wrapped = """\
+Date        Description                   Debit        Credit      Balance
+01/07/2025  Opening balance                                        1,000.00
+            BRANCH
+            TOWN        HARBOUR MARKET NON
+02/07/2025  CARD        POS                 200.00                   800.00
+            BRANCH
+            TOWN
+03/07/2025  CARD        CITY PHARMACY POS    50.00                   750.00
+"""
+    got = entries(wrapped)
+    self.assertEqual([e.description for e in got], ["TOWN HARBOUR MARKET NON CARD POS BRANCH", "TOWN CARD CITY PHARMACY POS"])
+
+  def test_lines_between_pages_stay_out_of_descriptions(self):
+    got = entries(SECOND_PAGE.replace("\f", "Page 1 of 2\n\f"))
+    self.assertEqual([e.description for e in got], ["Salary", "Rent", "Fees", "Interest", "Refund", "Charges", "Transfer in", "Standing order"])
+
+  def test_a_line_halfway_between_two_rows_goes_with_the_first(self):
+    got = entries(SIDE_BY_SIDE.replace("Rent                          1,500.00                 4,500.00\n",
+                                       "Rent                          1,500.00                 4,500.00\n            MAY RENT\n"))
+    self.assertEqual([e.description for e in got][1:3], ["Rent MAY RENT", "Fees"])
+
+  def test_balance_lines_stay_out_of_descriptions(self):
+    for extra in ("            Balance carried forward                             4,500.00\n", ""):
+      with self.subTest(extra):
+        text = SIDE_BY_SIDE.replace("04/07/2025", extra + "04/07/2025") + "            Closing balance                                     4,312.50\n"
+        self.assertEqual([e.description for e in entries(text)], ["Salary", "Rent", "Fees", "Interest"])
+
   def test_a_row_printed_without_a_date_takes_the_date_above_it(self):
     undated = SIDE_BY_SIDE.replace("04/07/2025  Fees  ", "            Fees  ")
     self.assertEqual([e.date for e in entries(undated)], ["02/07/2025", "03/07/2025", "03/07/2025", "05/07/2025"])

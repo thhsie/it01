@@ -1,4 +1,4 @@
-import itertools, re
+import bisect, itertools, re
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from decimal import Decimal
@@ -155,18 +155,21 @@ def described(rows:list[str], first:int, last:int) -> str:
 def dated(rows:list[str], first:int, last:int) -> str:
   return next((m.group() for i in range(first, last + 1) for piece, _ in cells(rows[i]) if (m := DATE.match(piece.strip()))), "")
 
-def settle(rows:list[str], moves:tuple[tuple[Amount, Kind], ...], balance:Amount|None, running:Decimal|None, flip:bool) -> tuple[Entry, Decimal|None]:
+Moves = tuple[tuple[Amount, Kind], ...]
+
+def span(moves:Moves, balance:Amount|None) -> tuple[int, int]:
+  lines = [a.line for a, _ in moves] + ([balance.line] if balance is not None else [])
+  return min(lines), max(lines)
+
+def settle(rows:list[str], moves:Moves, balance:Amount|None, running:Decimal|None, flip:bool, wide:tuple[int, int]) -> Entry:
   out = sum((abs(a.value) for a, kind in moves if kind is Kind.PAID_OUT), ZERO) if any(k is Kind.PAID_OUT for _, k in moves) else None
   into = sum((abs(a.value) for a, kind in moves if kind is Kind.PAID_IN), ZERO) if any(k is Kind.PAID_IN for _, k in moves) else None
   carried = running + (into or ZERO) - (out or ZERO) if running is not None else None
   if balance is None or carried is None: check = Check.UNCHECKED
   else: check = Check.AGREES if balance.value == carried else Check.DIFFERS
-  spans = [a.line for a, _ in moves] + ([balance.line] if balance is not None else [])
-  first, last = min(spans), max(spans)
+  first, last = span(moves, balance)
   paid_out, paid_in = (into, out) if flip else (out, into)
-  entry = Entry(dated(rows, first, last), described(rows, first, last),
-                paid_out, paid_in, balance.value if balance is not None else None, check, first)
-  return entry, balance.value if balance is not None else running
+  return Entry(dated(rows, first, last), described(rows, *wide), paid_out, paid_in, balance.value if balance is not None else None, check, first)
 
 def balanced(maps:tuple[tuple[dict[int, Kind], bool], ...]) -> bool: return any(Kind.BALANCE in named.values() for named, _ in maps)
 
@@ -187,13 +190,19 @@ def dropped(text:str) -> dict[int, int]:
     if left := sum(1 for a in here if nearest(tuple(maps[i][0]), a.col) is None): ret[i + 1] = left
   return ret
 
+def widened(starts:tuple[int, ...], bounds:tuple[tuple[int, int], ...]) -> tuple[tuple[int, int], ...]:
+  def page(line:int) -> int: return bisect.bisect_right(starts, line)
+  gaps = [first - last - 1 if page(last) == page(first) else 0 for (_, last), (first, _) in zip(bounds, bounds[1:])]
+  return tuple((first - up // 2, last + down - down // 2) for (first, last), up, down in zip(bounds, [0, *gaps], [*gaps, 0]))
+
 def entries(text:str) -> tuple[Entry, ...]:
   rows, found, starts, maps = scanned(text)
   if not balanced(maps): raise ValueError("no running balance column in the statement")
   agree, oppose = headings(rows, starts, found, maps)
   if agree == oppose: raise ValueError("the column headings do not say which way the money moved")
   flip = oppose > agree
-  ret:list[Entry] = []
+  groups:list[tuple[Moves, Amount|None, Decimal|None]|None] = []
+  bounds:list[tuple[int, int]] = []
   moves:list[tuple[Amount, Kind]] = []
   running:Decimal|None = None
   settled:dict[Kind, list[Decimal]] = {}
@@ -206,15 +215,19 @@ def entries(text:str) -> tuple[Entry, ...]:
       continue
     if not moves and (running is None or running == a.value):
       running = a.value
+      groups.append(None)
+      bounds.append((a.line, a.line))
       continue
-    entry, running = settle(rows, tuple(moves), a, running, flip)
-    ret.append(entry)
+    groups.append((tuple(moves), a, running))
+    bounds.append(span(tuple(moves), a))
+    running = a.value
     for was, kind in moves: settled.setdefault(kind, []).append(abs(was.value))
     moves = []
-  summed = all(len(above := settled.get(kind, [])) >= 2 and sum(above, ZERO) == abs(a.value) for a, kind in moves)
-  if moves and (not summed or dated(rows, moves[0][0].line, moves[-1][0].line)):
-    entry, running = settle(rows, tuple(moves), None, running, flip)
-    ret.append(entry)
+  if moves:
+    summed = all(len(above := settled.get(kind, [])) >= 2 and sum(above, ZERO) == abs(a.value) for a, kind in moves)
+    groups.append((tuple(moves), None, running) if not summed or dated(rows, moves[0][0].line, moves[-1][0].line) else None)
+    bounds.append(span(tuple(moves), None))
+  ret = [settle(rows, *group, flip, wide) for group, wide in zip(groups, widened(starts, tuple(bounds)), strict=True) if group is not None]
   return tuple(itertools.accumulate(ret, lambda was, entry: entry if entry.date else replace(entry, date=was.date)))
 
 def year(said:str) -> int: return int(said) + (2000 if len(said) == 2 else 0)
