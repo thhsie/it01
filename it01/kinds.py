@@ -4,6 +4,8 @@ from it01.helpers import data
 from it01.law import DOCS, Source
 from it01.tax import PLACES
 
+ADRIFT = "the balance after this does not agree, so it is left out"
+
 @dataclass(frozen=True)
 class Prompt:
   name: str
@@ -91,7 +93,7 @@ class Paying:
   prompt: Prompt
   claims: dict[str, tuple[str, str]]
   certificates: dict[str, str]
-  business: dict[str, str]
+  business: dict[str, tuple[str, str]]
   aside: tuple[str, ...]
 
 def questions(name:str, held:dict[str, Any], part:str) -> dict[str, str]:
@@ -99,17 +101,20 @@ def questions(name:str, held:dict[str, Any], part:str) -> dict[str, str]:
     raise ValueError(f"{name}.json must hold {part} as an object of questions")
   return {str(k): v for k, v in got.items()}
 
+def facts(name:str, held:dict[str, Any], part:str) -> dict[str, tuple[str, str]]:
+  if not isinstance(given := held.get(part, {}), dict): raise ValueError(f"{name}.json must hold {part} as an object")
+  ret = {}
+  for kind, claim in given.items():
+    if not isinstance(claim, dict) or not all(isinstance(claim.get(k), str) and claim[k].strip() for k in ("fact", "asking")):
+      raise ValueError(f"{name}.json must give a fact and a question for {kind}")
+    ret[str(kind)] = (claim["fact"], claim["asking"])
+  if unknown := sorted({fact for fact, _ in ret.values()} - set(PLACES)): raise ValueError(f"{name}.json {part} unknown facts {unknown}")
+  return ret
+
 def paying() -> Paying:
   held = data("paying")
   prompt = prompted("paying", held)
-  if not isinstance(given := held.get("claims", {}), dict): raise ValueError("paying.json must hold claims as an object")
-  claims = {}
-  for kind, claim in given.items():
-    if not isinstance(claim, dict) or not all(isinstance(claim.get(k), str) and claim[k].strip() for k in ("fact", "asking")):
-      raise ValueError(f"paying.json must give a fact and a question for {kind}")
-    claims[str(kind)] = (claim["fact"], claim["asking"])
-  if unknown := sorted({fact for fact, _ in claims.values()} - set(PLACES)): raise ValueError(f"paying.json claims unknown facts {unknown}")
-  certificates, business = questions("paying", held, "certificates"), questions("paying", held, "business")
+  claims, business, certificates = facts("paying", held, "claims"), facts("paying", held, "business"), questions("paying", held, "certificates")
   if not isinstance(aside := held.get("aside", []), list) or not all(isinstance(k, str) for k in aside):
     raise ValueError("paying.json must hold aside as a list of kinds")
   uses = (set(claims), set(certificates), set(business), set(aside))

@@ -2,9 +2,9 @@ import importlib.util, json, unittest
 from decimal import Decimal
 from unittest import mock
 from it01.rows import Check
-from it01.credits import ADRIFT, asked, fed, label, received
+from it01.credits import asked, fed, label, received
 from it01.labels import listed, named, totals
-from it01.kinds import picked, spoken
+from it01.kinds import ADRIFT, picked, spoken
 from it01.tax import PLACES
 
 PAID_IN = """\

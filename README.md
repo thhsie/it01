@@ -144,7 +144,9 @@ it01 debits statement.txt
 
 `it01 add` asks one question for each kind of payment out in a statement. `claims` names the kinds a yes adds to a fact, with the condition the law sets. `certificates` names the kinds whose figure comes from a certificate, and asks for it.
 
-`business` names the kinds asked about only when the case has business income. `aside` names the kinds that count for nothing. A payment whose balance does not agree is left out of the totals.
+`business` names the kinds asked about only when the case has business income. A yes adds the total to the accounts line it names, and a typed amount adds only that part. `aside` names the kinds that count for nothing. A payment whose balance does not agree is left out of the totals.
+
+A question about money paid out, a missing statement or a balance that does not agree lists its answers after a colon. Each answer says what it does. A question about a payment in takes one of the kinds `it01 add` prints. A question saved before its answers were listed shows them when the case is read.
 
 ## Label bank credits with a model file of your own
 

@@ -7,13 +7,14 @@ from it01.debits import spending
 from it01.labels import Labelled, totals
 from it01.form import Form, wanted
 from it01.helpers import data
-from it01.kinds import Paying, paying, picked, spoken
+from it01.kinds import ADRIFT, Paying, paying, picked, spoken
 from it01.keep import Document, answer, apart, case, confirm, dumped, figures, fingerprint, is_given, keep, labelled, loaded, noted, relabelled
-from it01.keep import BOTH, ON_LINE, PAID_IN, TWICE, YES_NO, claimed, increased, lines_of, Noted, offering, outgoing, proposing, reanswered, worded
+from it01.keep import BOTH, ON_LINE, PAID_IN, TWICE, adrift, asking_for, closed, lacking, needing
+from it01.keep import increased, lines_of, Noted, offering, outgoing, proposing, reanswered, taken, worded
 from it01.read import read
 from it01.rows import Check, dropped, entries, is_statement
 from it01.sheet import sheet, untyped
-from it01.tax import Facts, amount, from_json, plain
+from it01.tax import Facts, amount, from_json
 if TYPE_CHECKING: from it01.local import Asked, Sum, Told
 
 MARKS = {Check.AGREES: "ok", Check.DIFFERS: "does not agree", Check.UNCHECKED: "not checked"}
@@ -127,13 +128,15 @@ def responded(here:pathlib.Path, asked:str, said:str) -> list[str]:
   table, ret = spoken("labelling"), [f"answered {question}", f"  {said}"]
   keys = labelled(text, question) if pending[question] in table.asking.values() and (kind := said.strip()) in picked(table) else []
   if (twice := TWICE.fullmatch(question)) and said.strip() not in BOTH: raise ValueError(f"answer {question} with one of: {', '.join(BOTH)}")
-  if (relief := claimed(question)) and said.strip() not in YES_NO: raise ValueError(f"answer {question} with one of: {', '.join(YES_NO)}")
+  relief = taken(question, said)
+  if (allowed := closed(question, pending[question])) and said.strip() not in allowed:
+    raise ValueError(f"answer {question} with one of: {', '.join(allowed)}")
   offered = lines_of(pending[question]) if ON_LINE.fullmatch(question) else []
   if offered and said.strip() in dict(wanted().fields) and said.strip() not in offered:
     raise ValueError(f"answer {question} with one of: {', '.join(offered)}")
   text = answer(text, question, said)
   if twice and said.strip() == "add": text = increased(text, question)
-  if relief and said.strip() == "yes":
+  if relief:
     text, how = proposing(text, {relief[0]: (relief[1], f"answered {question}")})
     ret += told(how)
   if (line := ON_LINE.fullmatch(question)) and said.strip() in offered and (fact := dict(wanted().feeds).get(said.strip())):
@@ -169,14 +172,12 @@ def paid_out(found:tuple[Labelled, ...], table:Paying, doc:str, business:bool) -
   kept = tuple(d for d in found if d.check is not Check.DIFFERS)
   ret = []
   for kind, amt in totals(kept).items():
-    key = outgoing(amt, sum(1 for d in kept if d.kind == kind), kind, doc)
-    if kind in table.claims:
-      fact, asks = table.claims[kind]
-      ret.append((key, offering(asks, (("yes", f"adds {amt:,} to {plain(fact)}"), ("no", "adds nothing")))))
-    elif said := table.certificates.get(kind) or (table.business.get(kind) if business else None): ret.append((key, said))
+    if kind in table.aside or (kind in table.business and not business): continue
+    ret.append((outgoing(amt, sum(1 for d in kept if d.kind == kind), kind, doc), asking_for(table, kind, amt)))
   return ret
 
-def questioned(questions:tuple[Question, ...]) -> list[tuple[str, str]]: return [(worded(q.amt, q.date, q.description), q.asking) for q in questions]
+def questioned(questions:tuple[Question, ...]) -> list[tuple[str, str]]:
+  return [(worded(q.amt, q.date, q.description), adrift() if q.asking == ADRIFT else q.asking) for q in questions]
 
 def added(here:pathlib.Path, document:str) -> list[str]:
   paper = pathlib.Path(document)
@@ -193,9 +194,9 @@ def added(here:pathlib.Path, document:str) -> list[str]:
     table = spoken("labelling")
     was = table.prompt.name
     found, questions = label(src)
-    seen, adrift = fed(found, table.feeds)
-    asking = questioned(questions + adrift)
-    asking += [(f"money labelled {kind} came in and the case gives no {plain(fact)}", asks) for kind, (fact, asks) in table.needs.items()
+    seen, drifted = fed(found, table.feeds)
+    asking = questioned(questions + drifted)
+    asking += [(lacking(kind, fact), needing(table, kind)) for kind, (fact, _) in table.needs.items()
                if any(c.kind == kind for c in found) and not is_given(given, proposed, fact)]
     labels = tuple((worded(c.amt, c.date, c.description), c.kind) for c in found)
     if any(asks in table.asking.values() for _, asks in asking): hint = f"answer a payment with one of: {', '.join(picked(table))}"

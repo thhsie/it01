@@ -41,8 +41,14 @@
     "green_equipment": "add the invoice, which says whether it is solar, rainwater harvesting or a fast charger"
   },
   "business": {
-    "business_expense": "add the ones that are costs of your business to its accounts",
-    "bills": "add the business share of each bill to the accounts"
+    "business_expense": {
+      "fact": "business.other_expenses",
+      "asking": "was this a cost of your business? If only part of it was, type that amount"
+    },
+    "bills": {
+      "fact": "business.utilities",
+      "asking": "was this bill for your business? If only part of it was, type the business share"
+    }
   },
   "aside": [
     "unclear",

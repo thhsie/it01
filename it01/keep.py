@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 from it01.form import wanted
-from it01.kinds import Table, paying, picked, spoken
+from it01.kinds import ADRIFT, Paying, Table, paying, picked, spoken
 from it01.law import YEAR_SRC, YEAR_STARTS, Source
 from it01.rows import months
 from it01.tax import JSON_TYPES, PLACES, ZERO, Facts, Figure, amount, assess, from_json, is_amount, plain, summed
@@ -18,8 +18,8 @@ PAID_IN = re.compile(r"(?P<amt>\S+) paid in on (?P<date>[^,]*), ")
 TWICE = re.compile(r"(?P<name>.+) read as (?P<amt>\S+) in (?P<quote>.+), and the case already gives (?P<was>\S+)")
 BOTH = ("add", "leave")
 ON_LINE = re.compile(r"(?P<amt>\S+) on the line (?P<quote>.+)")
+LACKING = re.compile(r"money labelled (?P<kind>\S+) came in and the case gives no (?P<fact>.+)")
 PAID_OUT = re.compile(r"(?P<amt>\S+) paid out in \d+ payments? that looks? like (?P<kind>[^,]+), in (?P<doc>.+)")
-YES_NO = ("yes", "no")
 LINES = re.compile(r"([^\s;(]+) \([^)]*\)")
 
 def once(pairs:list[tuple[str, Any]]) -> dict[str, Any]:
@@ -32,9 +32,48 @@ def once(pairs:list[tuple[str, Any]]) -> dict[str, Any]:
 def loaded(text:str) -> Any: return json.loads(text, parse_float=Decimal, object_pairs_hook=once)
 
 def worded(amt:Decimal, date:str, description:str) -> str: return f"{amt:,} paid in on {date}, {description}"
-def claimed(question:str) -> tuple[str, Decimal]|None:
-  if not (spent := PAID_OUT.fullmatch(question)) or not (claim := paying().claims.get(spent["kind"].replace(" ", "_"))): return None
-  return claim[0], amount(spent["amt"])
+def spent_on(question:str) -> tuple[str, Decimal]|None:
+  return (spent["kind"].replace(" ", "_"), amount(spent["amt"])) if (spent := PAID_OUT.fullmatch(question)) else None
+
+def fact_for(table:Paying, kind:str) -> str|None: return claim[0] if (claim := (table.claims | table.business).get(kind)) else None
+
+def choices_for(table:Paying, kind:str, amt:Decimal) -> tuple[tuple[str, str], ...]:
+  if fact := fact_for(table, kind): return (("yes", f"adds {amt:,} to {plain(fact)}"), ("no", "adds nothing"))
+  return (("later", "you will add the certificate"), ("not", f"it is not {plain(kind)}"))
+
+def asking_for(table:Paying, kind:str, amt:Decimal) -> str:
+  said = claim[1] if (claim := (table.claims | table.business).get(kind)) else table.certificates[kind]
+  return offering(said, choices_for(table, kind, amt))
+
+def lacking(kind:str, fact:str) -> str: return f"money labelled {kind} came in and the case gives no {plain(fact)}"
+def needing(table:Table, kind:str) -> str:
+  return offering(table.needs[kind][1], (("later", "you will add it"), ("not", f"the money is not {plain(kind)}")))
+def adrift() -> str: return offering(ADRIFT, (("noted", "it stays left out"),))
+
+def answers_to(question:str, asks:str) -> str:
+  out, table = paying(), spoken("labelling")
+  if (spent := spent_on(question)) and spent[0] in out.prompt.kinds and spent[0] not in out.aside: return asking_for(out, *spent)
+  if (need := LACKING.fullmatch(question)) and need["kind"] in table.needs: return needing(table, need["kind"])
+  return adrift() if asks == ADRIFT else asks
+
+def closed(question:str, asks:str) -> list[str]:
+  shown = answers_to(question, asks)
+  return lines_of(shown) if LACKING.fullmatch(question) or shown == adrift() else []
+
+def typed(said:str) -> Decimal|None:
+  try: return amount(said)
+  except ValueError: return None
+
+def taken(question:str, said:str) -> tuple[str, Decimal]|None:
+  if not (spent := spent_on(question)): return None
+  table, (kind, amt), said = paying(), spent, said.strip()
+  if kind not in table.prompt.kinds: raise ValueError(f"{question} names no kind of payment out")
+  choices, fact = [name for name, _ in choices_for(table, kind, amt)], fact_for(table, kind)
+  if said in choices: return (fact, amt) if fact and said == "yes" else None
+  part = typed(said) if kind in table.business else None
+  if fact and part is not None and ZERO < part <= amt: return fact, part
+  share = f", or the part that was, from 0.01 to {amt:,}" if kind in table.business else ""
+  raise ValueError(f"answer {question} with one of: {', '.join(choices)}{share}")
 
 def outgoing(amt:Decimal, cnt:int, kind:str, doc:str) -> str:
   return f"{amt:,} paid out in {cnt} payment{'s' if cnt > 1 else ''} that look{'' if cnt > 1 else 's'} like {plain(kind)}, in {doc}"
@@ -210,7 +249,7 @@ def balance(given:dict[str, Any]) -> Figure: return next(fig for fig in assessed
 
 def priced(text:str) -> dict[str, dict[str, Figure]]:
   given, held, _ = apart(loaded(text))
-  table, before, ret = spoken("labelling"), balance(given), {}
+  table, out, before, ret = spoken("labelling"), paying(), balance(given), {}
   def worth(choice:str, name:str|None, amt:Decimal) -> Figure:
     after = balance(put(given, name, (ZERO if (was := at(given, name)) is None else amount(was)) + amt)) if name else before
     return Figure(choice, after.amt - before.amt, after.src)
@@ -220,8 +259,8 @@ def priced(text:str) -> dict[str, dict[str, Figure]]:
       ret[question] = {"add": worth("add", added, amount(twice["amt"])), "leave": worth("leave", None, ZERO)}
     elif (paid := PAID_IN.match(question)) and asks in table.asking.values():
       ret[question] = {kind: worth(kind, table.feeds.get(kind), amount(paid["amt"])) for kind in picked(table) if kind not in table.needs}
-    elif relief := claimed(question):
-      ret[question] = {"yes": worth("yes", *relief), "no": worth("no", None, ZERO)}
+    elif (spent := spent_on(question)) and (fact := fact_for(out, spent[0])):
+      ret[question] = {"yes": worth("yes", fact, spent[1]), "no": worth("no", None, ZERO)}
     elif (read := ON_LINE.fullmatch(question)) and (lines := lines_of(asks)):
       feeds = dict(wanted().feeds)
       ret[question] = {line: worth(line, feeds.get(line), amount(read["amt"])) for line in lines}
@@ -264,7 +303,9 @@ def case(text:str) -> dict[str, Any]:
   money = texted(received(held, spoken("labelling"))) | {"year_sources": [cited(s) for s in YEAR_SRC]}
   priced_out = {question: {choice: {"amount": str(fig.amt), "sources": [cited(s) for s in fig.src]} for choice, fig in each.items()}
                 for question, each in priced(text).items()}
-  return {"facts": texted(given), "proposed": texted(proposed)} | held | {"figures": worked, "received": money, "prices": priced_out}
+  pending = {question: answers_to(question, asks) for question, asks in held["pending"].items()}
+  worked_out = {"pending": pending, "figures": worked, "received": money, "prices": priced_out}
+  return {"facts": texted(given), "proposed": texted(proposed)} | held | worked_out
 
 @dataclass(frozen=True)
 class Paid:

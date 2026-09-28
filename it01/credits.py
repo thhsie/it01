@@ -1,11 +1,9 @@
 from dataclasses import dataclass
 from decimal import Decimal
 from it01.helpers import instruction
-from it01.kinds import spoken
+from it01.kinds import ADRIFT, spoken
 from it01.labels import Labelled, Moved, labelled
 from it01.rows import Check, entries
-
-ADRIFT = "the balance after this does not agree, so it is left out"
 
 @dataclass(frozen=True)
 class Question:
