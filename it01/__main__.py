@@ -164,7 +164,7 @@ def added(here:pathlib.Path, document:str) -> list[str]:
   hint = ""
   if is_statement(src):
     table = spoken("labelling")
-    was = table.name
+    was = table.prompt.name
     found, questions = label(src)
     seen, adrift = fed(found, table.feeds)
     asking = questioned(questions + adrift)

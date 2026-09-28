@@ -1,8 +1,10 @@
 import contextlib, unittest
 from collections.abc import Iterator
+from dataclasses import replace
 from decimal import Decimal
 from typing import Any
 from unittest import mock
+from it01.kinds import spoken
 
 try:
   import numpy as np
@@ -20,7 +22,7 @@ try:
            "line_mark": SHAPE.line_mark, "text_mark": SHAPE.text_mark, "word_start": SHAPE.word_start}
   SORT = sorter()
   SORTED = ({"takes": dict(zip(("tokens", "attention", "labels", "label_mask"), SORT.takes)), "gives": {"logits": SORT.gives}}
-            | {"task": SORT.task, "instruction": SORT.asking} | SORT.marks | SORT.fills)
+            | SORT.marks | SORT.fills)
   MISSING = ""
 except ImportError as e: MISSING = str(e)
 
@@ -459,32 +461,33 @@ class Sorting:
 
 @unittest.skipIf(MISSING, f"the local extra is not installed: {MISSING}")
 class TestLabeller(unittest.TestCase):
-  kinds = {"pay": "from an employer", "other": "not income"}
+  prompt = replace(spoken("labelling").prompt, kinds={"pay": "from an employer", "other": "not income"},
+                   examples=(("Credit 1.00\nA GIFT", "other"),))
 
   def test_the_prompt_lists_each_kind_after_its_mark_and_ends_with_the_words(self):
-    got = pieces(SORT, self.kinds, (("Credit 1.00\nA GIFT", "other"),), "Credit 5,000.00\nSALARY")
+    got = pieces(SORT, self.prompt, "Credit 5,000.00\nSALARY")
     m = SORT.marks
     listed = [m["label_mark"], "pay", m["label_mark"], "other"]
     words_in = ["credit", "5", ",", "000", ".", "00", "salary"]
     self.assertEqual(got[:2] + got[3:], [m["open"], m["task_mark"], m["open"], *listed, m["close"], m["close"], m["text_mark"], *words_in, m["end"]])
-    self.assertTrue(got[2].startswith(f"{SORT.task}: {SORT.asking}"))
+    self.assertTrue(got[2].startswith(f"{self.prompt.task}: {self.prompt.instruction}"))
     self.assertIn("from an employer", got[2])
     self.assertIn("A GIFT", got[2])
 
   def test_each_credit_gets_the_kind_the_model_scores_highest(self):
     session = Sorting(best=1)
     with mock.patch("it01.local.loaded", return_value=(session, Pieces())):
-      said = classified(((Decimal("5000.00"), "SALARY"), (Decimal("20.00"), "REFUND")), self.kinds, ())
+      said = classified(((Decimal("5000.00"), "SALARY"), (Decimal("20.00"), "REFUND")), self.prompt)
     self.assertEqual((said, len(session.fed)), (("other", "other"), 2))
     self.assertEqual(session.fed[0][SORT.takes[3]].tolist(), [[True, True] + [False] * 6])
 
   def test_a_tokeniser_that_loses_a_kind_mark_is_refused(self):
     with mock.patch("it01.local.loaded", return_value=(Sorting(best=0), Unmarked())):
-      with self.assertRaisesRegex(ValueError, "marked 0 of 2 kinds"): classified(((Decimal("1.00"), "X"),), self.kinds, ())
+      with self.assertRaisesRegex(ValueError, "marked 0 of 2 kinds"): classified(((Decimal("1.00"), "X"),), self.prompt)
 
   def test_a_labeller_description_missing_a_blank_is_refused(self):
-    with mock.patch("it01.local.data", return_value=SORTED | {"credit": "Credit {amount}"}):
-      with self.assertRaisesRegex(ValueError, r"credit wording in labeller.json leaves out \['description'\]"): sorter()
+    with mock.patch("it01.local.data", return_value=SORTED | {"example": "{text}"}):
+      with self.assertRaisesRegex(ValueError, r"example wording in labeller.json leaves out \['kind'\]"): sorter()
 
 class Seeing:
   def __init__(self, listed, sure=1, ink=1): self.listed, self.sure, self.ink = listed, sure, ink

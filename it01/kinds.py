@@ -1,29 +1,52 @@
 from dataclasses import dataclass
+from typing import Any
 from it01.helpers import data
 from it01.law import DOCS, Source
 from it01.tax import PLACES
 
 @dataclass(frozen=True)
-class Table:
+class Prompt:
   name: str
   kinds: dict[str, str]
+  examples: tuple[tuple[str, str], ...]
+  task: str
+  instruction: str
+  line: str
+
+def prompted(name:str, held:dict[str, Any]) -> Prompt:
+  if not isinstance(called := held.get("name"), str) or not called.strip(): raise ValueError(f"{name}.json must say what it reads")
+  kinds = held.get("kinds")
+  if not isinstance(kinds, dict) or not kinds or not all(isinstance(v, str) for v in kinds.values()):
+    raise ValueError(f"{name}.json must hold kinds as an object of names")
+  shown = held.get("examples", [])
+  if not isinstance(shown, list): raise ValueError(f"{name}.json must hold examples as a list")
+  if bad := next((e for e in shown if not (isinstance(e, list) and len(e) == 2 and all(isinstance(x, str) and x.strip() for x in e))), None):
+    raise ValueError(f"{name}.json gives an example {bad!r} that is not a line and its kind")
+  if unknown := sorted({k for _, k in shown} - set(kinds)): raise ValueError(f"{name}.json gives examples of unknown kinds {unknown}")
+  if not isinstance(said := held.get("model"), dict): raise ValueError(f"{name}.json must hold model as an object")
+  if missing := [k for k in ("task", "instruction", "line") if not isinstance(said.get(k), str) or not said[k].strip()]:
+    raise ValueError(f"{name}.json gives the model no {missing}")
+  if missing := [n for n in ("amount", "description") if "{" + n + "}" not in said["line"]]:
+    raise ValueError(f"the line wording in {name}.json leaves out {missing}")
+  return Prompt(called, {str(k): v for k, v in kinds.items()}, tuple((t, k) for t, k in shown), said["task"], said["instruction"], said["line"])
+
+@dataclass(frozen=True)
+class Table:
+  prompt: Prompt
   feeds: dict[str, str]
   asking: dict[str, str]
   needs: dict[str, tuple[str, str]]
   exempt: dict[str, Source]
-  examples: tuple[tuple[str, str], ...]
   not_income: tuple[str, ...]
 
 def spoken(name:str) -> Table:
   held = data(name)
-  if not isinstance(called := held.get("name"), str) or not called.strip(): raise ValueError(f"{name}.json must say what it reads")
-  ret = []
-  for field in ("kinds", "asking"):
-    part = held.get(field)
-    if not isinstance(part, dict) or not part or not all(isinstance(v, str) for v in part.values()):
-      raise ValueError(f"{name}.json must hold {field} as an object of names")
-    ret.append({str(k): v for k, v in part.items()})
-  kinds, asking = ret
+  prompt = prompted(name, held)
+  kinds = prompt.kinds
+  part = held.get("asking")
+  if not isinstance(part, dict) or not part or not all(isinstance(v, str) for v in part.values()):
+    raise ValueError(f"{name}.json must hold asking as an object of names")
+  asking = {str(k): v for k, v in part.items()}
   if not isinstance(given := held.get("feeds", {}), dict) or not all(isinstance(v, str) for v in given.values()):
     raise ValueError(f"{name}.json must hold feeds as an object of names")
   feeds = {str(k): v for k, v in given.items()}
@@ -51,11 +74,6 @@ def spoken(name:str) -> Table:
     exempt[str(kind)] = Source(src["doc"], src["section"], src["page"])
   if unknown := sorted(set(exempt) - set(kinds)): raise ValueError(f"{name}.json exempts unknown kinds {unknown}")
   if both := sorted(set(exempt) & (set(feeds) | set(needs) | set(asking))): raise ValueError(f"{name}.json both exempts and uses {both}")
-  shown = held.get("examples", [])
-  if not isinstance(shown, list): raise ValueError(f"{name}.json must hold examples as a list")
-  if bad := next((e for e in shown if not (isinstance(e, list) and len(e) == 2 and all(isinstance(x, str) and x.strip() for x in e))), None):
-    raise ValueError(f"{name}.json gives an example {bad!r} that is not a credit and its kind")
-  if unknown := sorted({k for _, k in shown} - set(kinds)): raise ValueError(f"{name}.json gives examples of unknown kinds {unknown}")
   aside = held.get("not_income", [])
   if not isinstance(aside, list) or not all(isinstance(k, str) for k in aside):
     raise ValueError(f"{name}.json must hold not_income as a list of kinds")
@@ -64,6 +82,6 @@ def spoken(name:str) -> Table:
     raise ValueError(f"{name}.json both uses and sets aside {both}")
   if loose := sorted(set(kinds) - set(feeds) - set(needs) - set(asking) - set(exempt) - set(aside)):
     raise ValueError(f"{name}.json says nothing of how {loose} count")
-  return Table(called, kinds, feeds, asking, needs, exempt, tuple((t, k) for t, k in shown), tuple(aside))
+  return Table(prompt, feeds, asking, needs, exempt, tuple(aside))
 
-def picked(table:Table) -> tuple[str, ...]: return tuple(kind for kind in table.kinds if kind not in table.asking)
+def picked(table:Table) -> tuple[str, ...]: return tuple(kind for kind in table.prompt.kinds if kind not in table.asking)
