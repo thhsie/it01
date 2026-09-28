@@ -131,6 +131,7 @@ The recogniser lists the characters it writes in its metadata, under `character`
 ```sh
 it01 rows statement.txt
 it01 credits statement.txt
+it01 debits statement.txt
 ```
 
 `rows` finds the columns from the arithmetic, checks each balance against the running total and marks each transaction `ok`, `does not agree` or `not checked`. Each transaction starts with the number of the line it was read from, counting from 1, as `it01 show` prints it. An amount it cannot place is counted, per page.
@@ -138,6 +139,8 @@ it01 credits statement.txt
 `credits` labels every payment in through your endpoint, or your model file when `IT01_LABELLER` is set. The kinds are in `it01/labelling.json`. `feeds` says which fact each kind adds to, and `asking` says which kinds it asks you about.
 
 `not_income` names the kinds that are not income. Every kind must be fed, needed, exempt, asked about or not income.
+
+`debits` labels every payment out the same way, with the kinds in `it01/paying.json`, and prints the total of each kind. Most kinds match a relief in the law, such as a pension contribution or school fees. A label proposes no fact.
 
 ## Label bank credits with a model file of your own
 
@@ -149,6 +152,8 @@ it01 credits bank.txt
 With `IT01_LABELLER` set, each credit is labelled by a classifier on this computer and the endpoint is not called. The file scores every kind in `it01/labelling.json` for one credit at a time, and the highest score wins.
 
 `it01/labeller.json` says what your file calls its four inputs and its output, and the marks and wording around each kind and example. The task name, the instruction and the layout of one credit are under `model` in `it01/labelling.json`. The kinds, their descriptions and the examples are there too. The labeller reads with the same `IT01_TOKENISER` as the reader.
+
+`debits` reads with the same model file. The task, the instruction, the line layout and the kinds are in `it01/paying.json`.
 
 ## The facts file
 
@@ -230,6 +235,7 @@ it01 read DOCUMENT.txt                  propose facts through your endpoint
 it01 local DOCUMENT.txt                 propose facts with your model file
 it01 rows STATEMENT.txt                 read transactions
 it01 credits STATEMENT.txt              label what was paid in
+it01 debits STATEMENT.txt               label what was paid out
 it01 data FACTS.json                    print the whole case as JSON
 ```
 

@@ -2,7 +2,7 @@ import importlib, json, os, pathlib, subprocess, sys, tempfile, tomllib, unittes
 from dataclasses import dataclass
 from decimal import Decimal
 from unittest import mock
-from it01.__main__ import added, changed, questioned, responded, shaped
+from it01.__main__ import added, changed, questioned, responded, shaped, to_debits
 from it01.labels import Labelled
 from it01.keep import fingerprint, lines_of, offering
 from it01.rows import Check
@@ -49,6 +49,13 @@ Date        Description        Debit       Credit      Balance
 02/07/2025  Rent               1,500.00               3,500.00
 03/07/2025  Fees                 200.00               3,300.00
 04/07/2025  Card                 300.00               3,000.00
+"""
+
+INCOMINGS = """\
+Date        Description        Debit       Credit      Balance
+01/07/2025  Opening                                   1,000.00
+02/07/2025  Salary                       5,000.00     6,000.00
+03/07/2025  Interest                        12.50     6,012.50
 """
 
 LOST_PAGE = STATEMENT + """\
@@ -163,7 +170,7 @@ class TestCli(unittest.TestCase):
     self.assertEqual((ret.returncode, ret.stderr), (1, f"error: {name} has changed since it was read\n"))
 
   def test_usage(self):
-    for args in ((), ("read",), ("rows",), ("credits",), ("keep",), ("local",), ("read", "a", "b"), ("keep", "a", "b"), ("a", "b"),
+    for args in ((), ("read",), ("rows",), ("credits",), ("debits",), ("keep",), ("local",), ("read", "a", "b"), ("keep", "a", "b"), ("a", "b"),
                  ("confirm",), ("confirm", "a"), ("confirm", "a", "b", "c"), ("add",), ("add", "a"), ("add", "a", "b", "c"),
                  ("show",), ("show", "a"), ("show", "a", "b", "c"),
                  ("answer",), ("answer", "a"), ("answer", "a", "b"), ("answer", "a", "b", "c", "d")):
@@ -430,6 +437,18 @@ class TestCli(unittest.TestCase):
   def test_says_so_when_nothing_was_paid_in(self):
     out = saved(OUTGOINGS, ".txt", "credits")
     self.assertEqual((out.returncode, out.stdout.strip()), (0, "no money was paid into the account"))
+
+  def test_debits_are_totalled_by_kind(self):
+    found = (Labelled("03/07/2025", Decimal("1000.00"), "RETIREMENT PLAN", "pension", Check.AGREES),
+             Labelled("03/08/2025", Decimal("1000.00"), "RETIREMENT PLAN", "pension", Check.UNCHECKED),
+             Labelled("04/08/2025", Decimal("800.00"), "SHOP", "no_claim", Check.AGREES))
+    with mock.patch("it01.__main__.spending", return_value=found): got = to_debits("")
+    self.assertEqual(got, [f"{'pension':<46}{'2,000.00':>14}    2 debits, 1 with no balance that agrees",
+                           f"{'no_claim':<46}{'800.00':>14}    1 debit"])
+
+  def test_says_so_when_nothing_was_paid_out(self):
+    out = saved(INCOMINGS, ".txt", "debits")
+    self.assertEqual((out.returncode, out.stdout.strip()), (0, "no money was paid out of the account"))
 
   def test_each_transaction_names_the_line_it_starts_on(self):
     self.assertEqual([row.split()[0] for row in statement(STATEMENT).stdout.splitlines()], ["3", "4"])
