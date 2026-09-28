@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from unittest import mock
 from it01.__main__ import added, changed, questioned, responded, shaped
-from it01.credits import Credit
+from it01.labels import Labelled
 from it01.keep import fingerprint, lines_of, offering
 from it01.rows import Check
 from test.helpers import ROOT
@@ -180,7 +180,7 @@ class TestCli(unittest.TestCase):
   def test_adding_a_statement_says_which_money_is_exempt_and_why(self):
     here = on_disk(json.dumps({"resident": True, "salary": 1200000}))
     self.addCleanup(os.unlink, here)
-    found = (Credit("05/07/2025", Decimal("12.50"), "Interest", "interest", Check.AGREES),)
+    found = (Labelled("05/07/2025", Decimal("12.50"), "Interest", "interest", Check.AGREES),)
     with mock.patch("it01.__main__.label", return_value=(found, ())): said = added(pathlib.Path(here), self.saved_document(STATEMENT))
     self.assertEqual(said[1:5], ["", "exempt", f"  {'interest':<32}{'12.50':>16}", f"    {'Second Schedule Part II Sub-Part B item 3(c)':<42}https://www.mra.mu/download/ITAConsolidated.pdf#page=267"])
 
@@ -320,13 +320,13 @@ class TestCli(unittest.TestCase):
   def test_pay_in_two_statements_asks_once(self):
     here = on_disk(json.dumps({"resident": True}))
     self.addCleanup(os.unlink, here)
-    found = (Credit("02/07/2025", Decimal("5000.00"), "Salary", "pay", Check.AGREES),)
+    found = (Labelled("02/07/2025", Decimal("5000.00"), "Salary", "pay", Check.AGREES),)
     with mock.patch("it01.__main__.label", return_value=(found, ())):
       for said in (STATEMENT, STATEMENT + "\n"): added(pathlib.Path(here), self.saved_document(said))
     self.assertEqual(len(json.loads(pathlib.Path(here).read_text())["pending"]), 1)
 
   def test_pay_in_the_bank_asks_for_the_salary_only_when_the_case_has_none(self):
-    found = (Credit("02/07/2025", Decimal("5000.00"), "Salary", "pay", Check.AGREES),)
+    found = (Labelled("02/07/2025", Decimal("5000.00"), "Salary", "pay", Check.AGREES),)
     for given, asked in (({}, 1), ({"salary": 1200000}, 0), ({"proposed": {"salary": 1200000}}, 0)):
       here = on_disk(json.dumps({"resident": True} | given))
       self.addCleanup(os.unlink, here)

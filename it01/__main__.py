@@ -2,7 +2,8 @@ import pathlib, sys
 from collections.abc import Callable
 from decimal import Decimal
 from typing import TYPE_CHECKING
-from it01.credits import Question, fed, label, totals
+from it01.credits import Question, fed, label
+from it01.labels import totals
 from it01.form import Form, wanted
 from it01.helpers import data
 from it01.kinds import picked, spoken

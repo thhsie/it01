@@ -2,7 +2,8 @@ import importlib.util, json, unittest
 from decimal import Decimal
 from unittest import mock
 from it01.rows import Check
-from it01.credits import ADRIFT, asked, fed, label, listed, named, received, totals
+from it01.credits import ADRIFT, asked, fed, label, received
+from it01.labels import listed, named, totals
 from it01.kinds import picked, spoken
 from it01.tax import PLACES
 
@@ -41,7 +42,7 @@ class TestCredits(unittest.TestCase):
     self.assertEqual(fed(found, FEEDS)[0], {"rent": (Decimal("5012.50"), "2 labelled rent")})
 
   def test_the_endpoint_is_told_to_answer_one_known_kind_for_each_credit(self):
-    with mock.patch("it01.credits.ask", return_value=reply("pay", "interest", "cash")) as said: label(PAID_IN)
+    with mock.patch("it01.labels.ask", return_value=reply("pay", "interest", "cash")) as said: label(PAID_IN)
     schema = said.call_args.args[2]
     self.assertEqual((schema["required"], schema["additionalProperties"]), (["1", "2", "3"], False))
     self.assertEqual(schema["properties"]["2"], {"type": "string", "enum": list(KINDS)})
@@ -114,7 +115,7 @@ class TestCredits(unittest.TestCase):
 
   @unittest.skipIf(any(importlib.util.find_spec(m) is None for m in ("numpy", "onnxruntime", "tokenizers")), "the local extra is not installed")
   def test_a_model_file_labels_the_credits_when_one_is_named(self):
-    with mock.patch("it01.credits.IT01_LABELLER", "labeller.onnx"):
+    with mock.patch("it01.labels.IT01_LABELLER", "labeller.onnx"):
       with mock.patch("it01.local.classified", return_value=("pay", "interest", "cash")) as sorted_by: found, questions = label(PAID_IN)
     self.assertEqual([c.kind for c in found], ["pay", "interest", "cash"])
     given = sorted_by.call_args.args
@@ -128,7 +129,7 @@ class TestCredits(unittest.TestCase):
         self.assertNotIn(kind, ASKING)
 
   def test_only_money_paid_in_is_labelled(self):
-    self.assertEqual([e.paid_in for e in received(PAID_IN)], [Decimal("5000.00"), Decimal("12.50"), Decimal("500.00")])
+    self.assertEqual([amt for _, amt in received(PAID_IN)], [Decimal("5000.00"), Decimal("12.50"), Decimal("500.00")])
 
   def test_the_credits_are_numbered_for_the_model(self):
     self.assertEqual(listed(received(PAID_IN)).split("\n")[0], "1. 02/07/2025 5,000.00 SALARY JULY ACME LTD")
