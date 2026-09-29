@@ -342,6 +342,7 @@ def received(held:dict[str, dict[str, str]], table:Table) -> dict[str, Any]:
   year = year_of(last) if (last := max((at for _, at in dated if at), default="")) else ()
   by_month = {m: [p for p, at in dated if at == m] for m in year}
   return {"groups": {group: groups.get(group, NIL) for group in GROUPS}, "kinds": dict(sorted(kinds.items(), key=lambda one: -one[1])),
+          "group_of": where,
           "months": {m: {"total": sum((p.amt for p in paid), NIL), "groups": summed([(where[p.kind], p.amt) for p in paid]),
                          "payments": {g: [p.key for p in paid if where[p.kind] == g] for g in dict.fromkeys(where[p.kind] for p in paid)}}
                      for m, paid in by_month.items()},
@@ -359,7 +360,8 @@ def keep(text:str) -> list[str]:
     freed = [f"    {spoke(s)}" for s in table.exempt.values()]
     ret += ["", "money paid in, by what it counts as, as labelled"]
     ret += [line for group, amt in money["groups"].items() for line in [f"  {GROUPS[group]:<44}{amt:>14,}"] + (freed if group == "exempt" else [])]
-    ret += ["", "money paid in, by the kind it was labelled"] + [f"  {kind:<44}{amt:>14,}" for kind, amt in money["kinds"].items()]
+    ret += ["", "money paid in, by the kind it was labelled"]
+    ret += [f"  {kind:<27}{GROUPS[money['group_of'][kind]]:<17}{amt:>14,}" for kind, amt in money["kinds"].items()]
   if year := list(money["months"]):
     ret += ["", f"money paid in over the income year from {year[0]} to {year[-1]}, {', '.join(spoke(s) for s in YEAR_SRC)}"]
     ret += [f"  {m:<44}{one['total']:>14,}" for m, one in money["months"].items()]
