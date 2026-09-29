@@ -1,7 +1,7 @@
 import json, unittest
 from decimal import Decimal
 from it01.keep import (ASIDE, TITLES, WORDING, Document, answer, apart, case, confirm, dumped, figures, fingerprint, increased, keep, loaded,
-                       noted, priced, reanswered, received, shown)
+                       needing, noted, priced, reanswered, received, shown)
 from it01.kinds import spoken
 from it01.law import Source
 
@@ -191,10 +191,10 @@ class TestKeep(unittest.TestCase):
     pension = "2,000.00 paid out in 2 payments that look like pension, in bank.pdf"
     loan = "18,000.00 paid out in 1 payment that looks like housing loan, in bank.pdf"
     old = "the balance after this does not agree, so it is left out: noted (it stays left out)"
-    shown = case(written(resident=True, pending={salary: "x", left: old, pension: "x", loan: "x"}))
+    shown = case(json.dumps({"resident": True, "pending": {salary: "x", left: old, pension: "x", loan: "x"}}))
     self.assertEqual(shown["headlines"], {salary: "add your salary statement", left: "a payment was left out of the totals",
                                           pension: "were these paid into your own approved pension?", loan: "add your housing loan certificate"})
-    self.assertTrue(shown["pending"][salary].endswith(": later (I'll add it later); not (this is not my salary)"))
+    self.assertTrue(shown["pending"][salary].endswith(": not (this is not my salary)"))
     self.assertEqual(shown["pending"][left], "the balance after this does not agree, so it is left out: noted (leave it out)")
     self.assertTrue(shown["pending"][loan].endswith("; not (this was not for housing loan)"))
 
@@ -220,6 +220,13 @@ class TestKeep(unittest.TestCase):
   def test_the_same_question_worded_differently_is_refused(self):
     asked = [("cash of 1,200.00 on 12/08/2025", "a different wording")]
     with self.assertRaisesRegex(ValueError, "already open with different wording"): noted(written(), {}, STATEMENT, asked)
+
+  def test_a_question_saved_in_older_words_is_the_same_question(self):
+    salary = "money labelled pay came in and the case gives no salary"
+    older = "add the statement: later (I'll add it later); not (this is not my salary)"
+    newer = needing(spoken("labelling"), "pay")
+    text, _ = noted(json.dumps({"resident": True, "pending": {salary: older}}), {}, STATEMENT, [(salary, newer)])
+    self.assertEqual(loaded(text)["pending"][salary], newer)
 
   def test_the_same_question_worded_the_same_changes_nothing(self):
     asked = [("cash of 1,200.00 on 12/08/2025", FACTS["pending"]["cash of 1,200.00 on 12/08/2025"])]
