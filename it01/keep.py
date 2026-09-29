@@ -62,8 +62,7 @@ def headline(question:str, asks:str) -> str|None:
   return paying().headlines.get(spent[0]) if (spent := spent_on(question)) else None
 
 def lacking(kind:str, fact:str) -> str: return f"money labelled {kind} came in and the case gives no {plain(fact)}"
-def needing(table:Table, kind:str) -> str:
-  return offering(table.needs[kind][1], (("later", "I'll add it later"), ("not", f"this is not my {plain(table.needs[kind][0])}")))
+def needing(table:Table, kind:str) -> str: return offering(table.needs[kind][1], (("not", f"this is not my {plain(table.needs[kind][0])}"),))
 def adrift() -> str: return offering(ADRIFT, (("noted", "leave it out"),))
 
 def answers_to(question:str, asks:str) -> str:
@@ -172,9 +171,15 @@ class Noted:
   asked: tuple[str, ...]
   answered: tuple[str, ...]
 
+def still_open(given:dict[str, Any], held:dict[str, dict[str, str]], proposed:dict[str, Decimal]) -> dict[str, str]:
+  needs = spoken("labelling").needs
+  def is_met(question:str) -> bool:
+    return bool((need := LACKING.fullmatch(question)) and need["kind"] in needs and is_given(given, proposed, needs[need["kind"]][0]))
+  return {question: asks for question, asks in held["pending"].items() if not is_met(question)}
+
 def as_file(given:dict[str, Any], held:dict[str, dict[str, str]], proposed:dict[str, Decimal]) -> str:
   whole:dict[str, Any] = given | ({"proposed": proposed} if proposed else {})
-  return dumped(whole | {k: v for k, v in held.items() if v}) + "\n"
+  return dumped(whole | {k: v for k, v in (held | {"pending": still_open(given, held, proposed)}).items() if v}) + "\n"
 
 def quoted(sources:dict[str, str], name:str, quote:str) -> str: return f"{said}, {quote}" if (said := sources.get(name)) else quote
 
@@ -192,7 +197,8 @@ def placed(given:dict[str, Any], held:dict[str, dict[str, str]], proposed:dict[s
   before = tuple(q for q, _ in ask if q in held["answers"])
   fresh = [(q, asks) for q, asks in ask if q not in before]
   for question, asks in fresh:
-    if held["pending"].get(question, asks) != asks: raise ValueError(f"the same question is already open with different wording {question}")
+    if answers_to(question, held["pending"].get(question, asks)) != answers_to(question, asks):
+      raise ValueError(f"the same question is already open with different wording {question}")
     held["pending"][question] = asks
   return Noted(tuple(wrote), tuple(q for q, _ in fresh), before)
 
@@ -338,6 +344,7 @@ def case(text:str) -> dict[str, Any]:
   money = texted(received(held, spoken("labelling"))) | {"year_sources": [cited(s) for s in YEAR_SRC]}
   priced_out = {question: {choice: {"amount": str(fig.amt), "sources": [cited(s) for s in fig.src]} for choice, fig in each.items()}
                 for question, each in priced(text).items()}
+  held = held | {"pending": still_open(given, held, proposed)}
   pending = {question: answers_to(question, asks) for question, asks in held["pending"].items()}
   headlines = {question: said for question, asks in held["pending"].items() if (said := headline(question, asks))}
   payments = {question: [line for line, _ in paid] for question in held["pending"] if (paid := behind(held, question))}

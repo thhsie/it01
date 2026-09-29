@@ -146,7 +146,7 @@ it01 debits statement.txt
 
 `business` names the kinds asked about only when the case has business income. A yes adds the total to the accounts line it names, and a typed amount adds only that part. `aside` names the kinds that count for nothing. A payment whose balance does not agree is left out of the totals.
 
-A question about money paid out, a missing statement or a balance that does not agree lists its answers after a colon. Each answer says what it does. A question about a payment in takes one of the kinds `it01 add` prints. A question saved before its answers were listed shows them when the case is read.
+A question about money paid out, a missing statement or a balance that does not agree lists its answers after a colon. Each answer says what it does. A question about a missing statement closes once the figure is known. Its one answer says the money was not of that kind. A question about a payment in takes one of the kinds `it01 add` prints. A question saved before its answers were listed shows them when the case is read.
 
 A question about business costs paid out lists its payments by number. It takes yes, no, the business part as an amount, or the payments that were business costs, such as `payments 1, 3`. The engine adds up the payments named.
 

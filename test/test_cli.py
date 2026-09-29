@@ -4,7 +4,7 @@ from decimal import Decimal
 from unittest import mock
 from it01.__main__ import added, changed, questioned, responded, shaped, to_debits
 from it01.labels import Labelled
-from it01.keep import PAID_OUT, adrift, case, fingerprint, keep, lines_of, offering, outgoing, priced
+from it01.keep import PAID_OUT, adrift, answer, case, fingerprint, keep, lines_of, loaded, offering, outgoing, priced
 from it01.kinds import ADRIFT, paying, spoken
 from it01.rows import Check
 from test.helpers import ROOT
@@ -365,7 +365,7 @@ class TestCli(unittest.TestCase):
            "money labelled pay came in and the case gives no salary": "add the statement of emoluments",
            "10.00 paid in on 02/07/2025, IN rent": ADRIFT}
     shown = case(json.dumps({"resident": True, "pending": old}))["pending"]
-    self.assertEqual([lines_of(asks) for asks in shown.values()], [["later", "not"], ["yes", "no"], ["later", "not"], ["noted"]])
+    self.assertEqual([lines_of(asks) for asks in shown.values()], [["later", "not"], ["yes", "no"], ["not"], ["noted"]])
 
   def test_a_business_payment_takes_a_typed_share_up_to_its_total(self):
     spent = (Labelled("04/07/2025", Decimal("500.00"), "PHONE", "bills", Check.AGREES),)
@@ -415,6 +415,20 @@ class TestCli(unittest.TestCase):
     self.addCleanup(os.unlink, here)
     with self.assertRaises(ValueError) as said: responded(pathlib.Path(here), question, "payments 1")
     self.assertNotIn("by number", str(said.exception))
+
+  SALARY = "money labelled pay came in and the case gives no salary"
+
+  def test_the_salary_question_closes_once_a_salary_is_proposed(self):
+    text = json.dumps({"resident": True, "proposed": {"salary": 60000}, "pending": {self.SALARY: "add it", "cash of 1.00": "where from"}})
+    self.assertEqual(loaded(answer(text, "cash of 1.00", "a gift")).get("pending", {}), {})
+    self.assertNotIn(self.SALARY, case(text)["pending"])
+
+  def test_the_salary_question_takes_only_the_answer_that_it_is_not_salary(self):
+    here = on_disk(json.dumps({"resident": True, "pending": {self.SALARY: "add it"}}))
+    self.addCleanup(os.unlink, here)
+    with self.assertRaisesRegex(ValueError, "with one of: not"): responded(pathlib.Path(here), self.SALARY, "later")
+    responded(pathlib.Path(here), self.SALARY, "not")
+    self.assertEqual(json.loads(pathlib.Path(here).read_text()).get("pending", {}), {})
 
   def test_a_certificate_question_is_closed_without_moving_a_figure(self):
     spent = (Labelled("04/07/2025", Decimal("18000.00"), "HOME LOAN", "housing_loan", Check.AGREES),)
