@@ -384,6 +384,12 @@ class TestCli(unittest.TestCase):
                                                                     ((4, "100.00"), (5, "250.50"), (6, "40.00"))])
     self.assertIn("      2. 250.50 paid out on 05/07/2025, SUPPLIER 5", keep(pathlib.Path(here).read_text()))
 
+  def test_the_case_data_lists_the_payments_behind_a_question(self):
+    here, held = self.paid_out(self.SUPPLIES, business={"gross_income": 100000})
+    listed = case(pathlib.Path(here).read_text())["payments"][next(iter(held["pending"]))]
+    self.assertEqual(listed, ["100.00 paid out on 04/07/2025, SUPPLIER 4", "250.50 paid out on 05/07/2025, SUPPLIER 5",
+                              "40.00 paid out on 06/07/2025, SUPPLIER 6"])
+
   def test_a_payment_number_that_is_repeated_or_out_of_range_is_refused(self):
     here, held = self.paid_out(self.SUPPLIES, business={"gross_income": 100000})
     for wrong in ("payments 1, 1", "payments 4", "payment 0"):
