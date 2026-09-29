@@ -337,7 +337,8 @@ def case(text:str) -> dict[str, Any]:
                 for question, each in priced(text).items()}
   pending = {question: answers_to(question, asks) for question, asks in held["pending"].items()}
   headlines = {question: said for question in held["pending"] if (said := headline(question))}
-  worked_out = {"pending": pending, "headlines": headlines, "figures": worked, "received": money, "prices": priced_out}
+  payments = {question: [line for line, _ in paid] for question in held["pending"] if (paid := behind(held, question))}
+  worked_out = {"pending": pending, "headlines": headlines, "payments": payments, "figures": worked, "received": money, "prices": priced_out}
   return {"facts": texted(given), "proposed": texted(proposed)} | held | worked_out
 
 @dataclass(frozen=True)
