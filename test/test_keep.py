@@ -348,6 +348,10 @@ class TestReceived(unittest.TestCase):
     self.assertEqual(received(held, TABLE)["groups"], {"income": Decimal("2250.50"), "exempt": Decimal("12.25"), "unsorted": Decimal("9.00"),
                                                   "other": Decimal("415.00")})
 
+  def test_each_kind_names_its_group(self):
+    self.assertEqual(received(self.held(), TABLE)["group_of"], {"business": "income", "dividend": "income", "rent": "income", "pay": "income",
+                                                              "interest": "exempt", "cash": "unsorted", "unclear": "unsorted", "other": "other"})
+
   def test_a_group_with_nothing_shows_zero_to_the_cent(self):
     self.assertEqual(str(received(self.held(), TABLE)["groups"]["unsorted"]), "0.00")
 
@@ -365,7 +369,7 @@ class TestReceived(unittest.TestCase):
   def test_keep_prints_money_in_and_names_what_it_left_out(self):
     text = dumped({"resident": True, "documents": self.held()["documents"], "labels": self.LABELS})
     out = keep(text)
-    self.assertIn(f"  {'pay':<44}{'2,000.00':>14}", out)
+    self.assertIn(f"  {'pay':<27}{'counts as income':<17}{'2,000.00':>14}", out)
     at = out.index(f"  {'exempt':<44}{'12.25':>14}")
     self.assertEqual(out[at + 1], "    ita Second Schedule Part II Sub-Part B item 3(c) page 267")
     self.assertIn("money paid in over the income year from 2024-07 to 2025-06, ita s.2 page 19, ita s.2 page 26", out)
