@@ -40,6 +40,7 @@ class Table:
   needs: dict[str, tuple[str, str]]
   exempt: dict[str, Source]
   not_income: tuple[str, ...]
+  headlines: dict[str, str]
 
 def spoken(name:str) -> Table:
   held = data(name)
@@ -59,11 +60,12 @@ def spoken(name:str) -> Table:
   fills = list(feeds.values())
   if twice := sorted({f for f in fills if fills.count(f) > 1}): raise ValueError(f"{name}.json feeds {twice} from more than one kind")
   if not isinstance(wanted := held.get("needs", {}), dict): raise ValueError(f"{name}.json must hold needs as an object")
-  needs = {}
+  needs, headlines = {}, {}
   for kind, need in wanted.items():
-    if not isinstance(need, dict) or not all(isinstance(need.get(k), str) and need[k].strip() for k in ("fact", "asking")):
-      raise ValueError(f"{name}.json must give a fact and a question for what {kind} needs")
+    if not isinstance(need, dict) or not all(isinstance(need.get(k), str) and need[k].strip() for k in ("fact", "asking", "headline")):
+      raise ValueError(f"{name}.json must give a fact, a question and a headline for what {kind} needs")
     needs[str(kind)] = (need["fact"], need["asking"])
+    headlines[str(kind)] = need["headline"]
   if unknown := sorted(set(needs) - set(kinds)): raise ValueError(f"{name}.json needs unknown kinds {unknown}")
   if unknown := sorted({f for f, _ in needs.values()} - set(PLACES)): raise ValueError(f"{name}.json needs unknown facts {unknown}")
   if both := sorted({f for f, _ in needs.values()} & set(fills)): raise ValueError(f"{name}.json both feeds and needs {both}")
@@ -84,7 +86,7 @@ def spoken(name:str) -> Table:
     raise ValueError(f"{name}.json both uses and sets aside {both}")
   if loose := sorted(set(kinds) - set(feeds) - set(needs) - set(asking) - set(exempt) - set(aside)):
     raise ValueError(f"{name}.json says nothing of how {loose} count")
-  return Table(prompt, feeds, asking, needs, exempt, tuple(aside))
+  return Table(prompt, feeds, asking, needs, exempt, tuple(aside), headlines)
 
 def picked(table:Table) -> tuple[str, ...]: return tuple(kind for kind in table.prompt.kinds if kind not in table.asking)
 

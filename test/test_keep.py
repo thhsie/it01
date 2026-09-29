@@ -185,6 +185,19 @@ class TestKeep(unittest.TestCase):
     at = printed.index(f"  {asked}")
     self.assertEqual(printed[at + 1:at + 3], ["      salary: new money or already counted?", f"      {told}"])
 
+  def test_every_kind_of_question_carries_a_plain_headline_and_plain_answers(self):
+    salary = "money labelled pay came in and the case gives no salary"
+    left = "12.00 paid in on 01/07/2025, SHOP"
+    pension = "2,000.00 paid out in 2 payments that look like pension, in bank.pdf"
+    loan = "18,000.00 paid out in 1 payment that looks like housing loan, in bank.pdf"
+    old = "the balance after this does not agree, so it is left out: noted (it stays left out)"
+    shown = case(written(resident=True, pending={salary: "x", left: old, pension: "x", loan: "x"}))
+    self.assertEqual(shown["headlines"], {salary: "add your salary statement", left: "a payment was left out of the totals",
+                                          pension: "were these paid into your own approved pension?", loan: "add your housing loan certificate"})
+    self.assertTrue(shown["pending"][salary].endswith(": later (I'll add it later); not (this is not my salary)"))
+    self.assertEqual(shown["pending"][left], "the balance after this does not agree, so it is left out: noted (leave it out)")
+    self.assertTrue(shown["pending"][loan].endswith("; not (this was not for housing loan)"))
+
   def test_a_business_payment_question_carries_a_plain_headline(self):
     asked = "140.00 paid out in 2 payments that look like business expense, in bank.pdf"
     headlines = case(written(pending={asked: "pick the payments", "cash of 1,200.00 on 12/08/2025": "where did this come from"}))["headlines"]

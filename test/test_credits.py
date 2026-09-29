@@ -79,10 +79,10 @@ class TestCredits(unittest.TestCase):
   def test_a_needs_table_that_does_not_hold_up_is_refused(self):
     base = MODEL | {"name": "a statement", "kinds": {"one": "a", "two": "b"}, "feeds": {"one": "rent"}, "asking": {"two": "what is this"}}
     ask = "a question"
-    for needs, says in (({"one": {"fact": "salary"}}, "a fact and a question"),
-                        ({"nope": {"fact": "salary", "asking": ask}}, r"unknown kinds \['nope'\]"),
-                        ({"one": {"fact": "nope", "asking": ask}}, r"unknown facts \['nope'\]"),
-                        ({"one": {"fact": "rent", "asking": ask}}, "feeds and needs"), ([], "needs as an object")):
+    for needs, says in (({"one": {"fact": "salary", "asking": ask}}, "a fact, a question and a headline"),
+                        ({"nope": {"fact": "salary", "asking": ask, "headline": ask}}, r"unknown kinds \['nope'\]"),
+                        ({"one": {"fact": "nope", "asking": ask, "headline": ask}}, r"unknown facts \['nope'\]"),
+                        ({"one": {"fact": "rent", "asking": ask, "headline": ask}}, "feeds and needs"), ([], "needs as an object")):
       with self.subTest(says), mock.patch("it01.kinds.data", return_value=base | {"needs": needs}):
         with self.assertRaisesRegex(ValueError, says): spoken("labelling")
 
