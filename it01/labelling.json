@@ -34,7 +34,8 @@
   "needs": {
     "pay": {
       "fact": "salary",
-      "asking": "the bank shows pay after tax and deductions, so add the statement of emoluments, which gives the salary and the tax withheld"
+      "asking": "your bank shows your pay after tax. Add the statement of emoluments from your employer, which gives your full salary and the tax already paid",
+      "headline": "add your salary statement"
     }
   },
   "exempt": {

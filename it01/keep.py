@@ -42,7 +42,7 @@ def fact_for(table:Paying, kind:str) -> str|None: return claim[0] if (claim := (
 
 def choices_for(table:Paying, kind:str, amt:Decimal) -> tuple[tuple[str, str], ...]:
   if fact := fact_for(table, kind): return (("yes", f"adds {amt:,} to {plain(fact)}"), ("no", "adds nothing"))
-  return (("later", "you will add the certificate"), ("not", f"it is not {plain(kind)}"))
+  return (("later", "I'll add it later"), ("not", f"this was not for {plain(kind)}"))
 
 def asking_for(table:Paying, kind:str, amt:Decimal) -> str:
   said = claim[1] if (claim := (table.claims | table.business).get(kind)) else table.certificates[kind]
@@ -55,14 +55,16 @@ def read_twice(name:str, amt:Decimal, was:Decimal) -> str:
           "Add it if this is new money. Leave it if you already counted it")
   return offering(said, (("add", f"it becomes {was + amt:,}"), ("leave", f"it stays {was:,}")))
 
-def headline(question:str) -> str|None:
+def headline(question:str, asks:str) -> str|None:
   if twice := TWICE.fullmatch(question): return f"{twice['name']}: new money or already counted?"
+  if need := LACKING.fullmatch(question): return spoken("labelling").headlines.get(need["kind"])
+  if asks.startswith(ADRIFT): return "a payment was left out of the totals"
   return paying().headlines.get(spent[0]) if (spent := spent_on(question)) else None
 
 def lacking(kind:str, fact:str) -> str: return f"money labelled {kind} came in and the case gives no {plain(fact)}"
 def needing(table:Table, kind:str) -> str:
-  return offering(table.needs[kind][1], (("later", "you will add it"), ("not", f"the money is not {plain(kind)}")))
-def adrift() -> str: return offering(ADRIFT, (("noted", "it stays left out"),))
+  return offering(table.needs[kind][1], (("later", "I'll add it later"), ("not", f"this is not my {plain(table.needs[kind][0])}")))
+def adrift() -> str: return offering(ADRIFT, (("noted", "leave it out"),))
 
 def answers_to(question:str, asks:str) -> str:
   out, table = paying(), spoken("labelling")
@@ -70,7 +72,7 @@ def answers_to(question:str, asks:str) -> str:
   if (need := LACKING.fullmatch(question)) and need["kind"] in table.needs: return needing(table, need["kind"])
   if (twice := TWICE.fullmatch(question)) and (name := named(twice["name"])):
     return read_twice(name, amount(twice["amt"]), amount(twice["was"]))
-  return adrift() if asks == ADRIFT else asks
+  return adrift() if asks.startswith(ADRIFT) else asks
 
 def closed(question:str, asks:str) -> list[str]:
   shown = answers_to(question, asks)
@@ -337,7 +339,7 @@ def case(text:str) -> dict[str, Any]:
   priced_out = {question: {choice: {"amount": str(fig.amt), "sources": [cited(s) for s in fig.src]} for choice, fig in each.items()}
                 for question, each in priced(text).items()}
   pending = {question: answers_to(question, asks) for question, asks in held["pending"].items()}
-  headlines = {question: said for question in held["pending"] if (said := headline(question))}
+  headlines = {question: said for question, asks in held["pending"].items() if (said := headline(question, asks))}
   payments = {question: [line for line, _ in paid] for question in held["pending"] if (paid := behind(held, question))}
   worked_out = {"pending": pending, "headlines": headlines, "payments": payments, "figures": worked, "received": money, "prices": priced_out}
   return {"facts": texted(given), "proposed": texted(proposed)} | held | worked_out
@@ -410,7 +412,7 @@ def keep(text:str) -> list[str]:
       if name != "pending":
         ret += [f"  {key}", f"      {value}"]
         continue
-      ret += [f"  {key}"] + ([f"      {said}"] if (said := headline(key)) else []) + [f"      {answers_to(key, value)}"]
+      ret += [f"  {key}"] + ([f"      {said}"] if (said := headline(key, value)) else []) + [f"      {answers_to(key, value)}"]
       ret += [f"      {n}. {line}" for n, (line, _) in enumerate(behind(held, key), 1)]
   if worths := priced(text):
     ret += ["", "what each answer changes in the tax to pay"]
