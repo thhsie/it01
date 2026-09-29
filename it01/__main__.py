@@ -36,7 +36,7 @@ def to_proposals(text:str) -> list[str]:
   return ret or ["no facts found in the document"]
 
 def source(here:pathlib.Path) -> str:
-  if here.suffix.lower() != ".pdf": return here.read_text()
+  if here.suffix.lower() != ".pdf": return here.read_text(encoding="utf-8")
   try:
     from it01.local import looked
     from it01.paper import pictured
@@ -100,11 +100,11 @@ def to_debits(text:str) -> list[str]:
 
 def rewritten(here:pathlib.Path, text:str) -> None:
   spare = here.with_suffix(here.suffix + ".new")
-  spare.write_text(text)
+  spare.write_text(text, encoding="utf-8")
   spare.replace(here)
 
 def accepted(here:pathlib.Path, name:str) -> list[str]:
-  rewritten(here, confirm(here.read_text(), name))
+  rewritten(here, confirm(here.read_text(encoding="utf-8"), name))
   return [f"{name} is now a fact in {here.name}"]
 
 def matched(held:dict[str, str], asked:str, what:str) -> str:
@@ -122,7 +122,7 @@ def told(how:Noted) -> list[str]: return [f"  proposed {name}" for name in how.p
 
 def responded(here:pathlib.Path, asked:str, said:str) -> list[str]:
   if not (asked := asked.strip()): raise ValueError("the question to answer is blank")
-  text = here.read_text()
+  text = here.read_text(encoding="utf-8")
   pending = apart(loaded(text))[1]["pending"]
   question = matched(pending, asked, "open")
   table, ret = spoken("labelling"), [f"answered {question}", f"  {said}"]
@@ -150,7 +150,7 @@ def responded(here:pathlib.Path, asked:str, said:str) -> list[str]:
 
 def changed(here:pathlib.Path, asked:str, said:str) -> list[str]:
   if not (asked := asked.strip()): raise ValueError("the question to change is blank")
-  text = here.read_text()
+  text = here.read_text(encoding="utf-8")
   answers = apart(loaded(text))[1]["answers"]
   question = matched(answers, asked, "answered")
   table, keys = spoken("labelling"), labelled(text, question)
@@ -162,7 +162,7 @@ def changed(here:pathlib.Path, asked:str, said:str) -> list[str]:
   return [f"changed {question}"] + lines
 
 def opened(here:pathlib.Path, name:str) -> list[str]:
-  held = apart(loaded(here.read_text()))[1]
+  held = apart(loaded(here.read_text(encoding="utf-8")))[1]
   if name not in held["paths"]: raise ValueError(f"the case does not say where {name} was read from")
   if not (paper := pathlib.Path(held["paths"][name])).is_file(): raise ValueError(f"{name} is no longer at {paper}")
   if held["texts"].get(fingerprint(paper.read_bytes())) != name: raise ValueError(f"{name} has changed since it was read")
@@ -181,7 +181,7 @@ def questioned(questions:tuple[Question, ...]) -> list[tuple[str, str]]:
 
 def added(here:pathlib.Path, document:str) -> list[str]:
   paper = pathlib.Path(document)
-  given, held, proposed = apart(loaded(here.read_text()))
+  given, held, proposed = apart(loaded(here.read_text(encoding="utf-8")))
   if paper.name in held["documents"]: return [f"{paper.name} was read before, so nothing changed"]
   if (mark := fingerprint(paper.read_bytes())) in held["texts"]:
     return [f"{paper.name} is the same file as {held['texts'][mark]}, so nothing changed"]
@@ -208,7 +208,8 @@ def added(here:pathlib.Path, document:str) -> list[str]:
   else:
     form, told, asked, _ = reading(src)
     was, seen, asking = form.name, *shaped(told, asked)
-  text, how = noted(here.read_text(), seen, Document(name=paper.name, path=str(paper.resolve()), mark=mark, kind=was), asking, labels, paid)
+  entry = Document(name=paper.name, path=str(paper.resolve()), mark=mark, kind=was)
+  text, how = noted(here.read_text(encoding="utf-8"), seen, entry, asking, labels, paid)
   rewritten(here, text)
   ret = [f"{paper.name} read as {was}"]
   if freed: ret += ["", "exempt"] + freed

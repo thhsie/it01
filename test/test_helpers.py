@@ -1,4 +1,4 @@
-import json, os, pathlib, tempfile, unittest
+import json, os, pathlib, subprocess, sys, tempfile, unittest
 from unittest import mock
 from it01.helpers import data, folder
 
@@ -27,5 +27,15 @@ class TestData(unittest.TestCase):
       (pathlib.Path(mine)/"labelling.json").write_text("[]")
       with mock.patch("it01.helpers.IT01_DATA", mine):
         with self.assertRaisesRegex(ValueError, "labelling.json must hold a JSON object"): data("labelling")
+
+  def test_utf8_whatever_the_locale(self):
+    plain = {**os.environ, "LC_ALL": "C", "PYTHONCOERCECLOCALE": "0", "PYTHONUTF8": "0"}
+    code = "\n".join(["import pathlib, sys", "from it01.helpers import data", "from it01.__main__ import rewritten", "data('model')",
+                      "here = pathlib.Path(sys.argv[1])", "rewritten(here, 'Emile \\u00e9')", "sys.stdout.buffer.write(here.read_bytes())"])
+    with tempfile.TemporaryDirectory() as mine:
+      here = str(pathlib.Path(mine)/"case.json")
+      root = pathlib.Path(__file__).parent.parent
+      ran = subprocess.run([sys.executable, "-c", code, here], cwd=root, env=plain, capture_output=True, encoding="utf-8")
+    self.assertEqual((ran.returncode, ran.stdout.strip()), (0, "Emile \u00e9"), ran.stderr)
 
 if __name__ == "__main__": unittest.main()

@@ -26,7 +26,7 @@ IT01_DATA = folder("IT01_DATA", "")
 def data(name:str) -> dict[str, Any]:
   shipped = pathlib.Path(__file__).parent / f"{name}.json"
   own = pathlib.Path(IT01_DATA) / f"{name}.json" if IT01_DATA else shipped
-  raw = json.loads((own if own.exists() else shipped).read_text())
+  raw = json.loads((own if own.exists() else shipped).read_text(encoding="utf-8"))
   if not isinstance(raw, dict): raise ValueError(f"{name}.json must hold a JSON object")
   return raw
 
