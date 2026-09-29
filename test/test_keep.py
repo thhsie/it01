@@ -169,10 +169,26 @@ class TestKeep(unittest.TestCase):
       with self.subTest(amt):
         text, how = noted(written(), {"salary": (amt, "a payslip line")}, STATEMENT, [])
         asked = f"salary read as {amt:,} in a payslip line, and the case already gives 1,107,000"
-        told = ("add it if this is more money, or leave it if the same money was read twice: "
-                f"add (it becomes {amt + 1107000:,}); leave (it stays 1,107,000)")
+        told = (f"your documents show {amt:,} of salary. Your case already has 1,107,000. Add it if this is new money. "
+                f"Leave it if you already counted it: add (it becomes {amt + 1107000:,}); leave (it stays 1,107,000)")
         self.assertEqual(loaded(text)["pending"][asked], told)
         self.assertEqual((how.proposed, how.asked), ((), (asked,)))
+
+  def test_a_read_twice_question_saved_in_older_words_is_shown_in_plain_words(self):
+    asked = "salary read as 9 in a payslip line, and the case already gives 1,107,000"
+    old = written(pending={asked: "add it if this is more money, or leave it if the same money was read twice: add (x); leave (y)"})
+    shown = case(old)
+    told = ("your documents show 9 of salary. Your case already has 1,107,000. Add it if this is new money. "
+            "Leave it if you already counted it: add (it becomes 1,107,009); leave (it stays 1,107,000)")
+    self.assertEqual((shown["pending"][asked], shown["headlines"][asked]), (told, "salary: new money or already counted?"))
+    printed = keep(old)
+    at = printed.index(f"  {asked}")
+    self.assertEqual(printed[at + 1:at + 3], ["      salary: new money or already counted?", f"      {told}"])
+
+  def test_a_business_payment_question_carries_a_plain_headline(self):
+    asked = "140.00 paid out in 2 payments that look like business expense, in bank.pdf"
+    headlines = case(written(pending={asked: "pick the payments", "cash of 1,200.00 on 12/08/2025": "where did this come from"}))["headlines"]
+    self.assertEqual(headlines, {asked: "which of these payments were costs of your business?"})
 
   def test_a_question_names_a_fact_in_words(self):
     given = written(business={"gross_income": 5000})

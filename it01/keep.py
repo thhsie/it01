@@ -48,6 +48,17 @@ def asking_for(table:Paying, kind:str, amt:Decimal) -> str:
   said = claim[1] if (claim := (table.claims | table.business).get(kind)) else table.certificates[kind]
   return offering(said, choices_for(table, kind, amt))
 
+def named(said:str) -> str|None: return next((n for n in PLACES if plain(n) == said), None)
+
+def read_twice(name:str, amt:Decimal, was:Decimal) -> str:
+  said = (f"your documents show {amt:,} of {plain(name)}. Your case already has {was:,}. "
+          "Add it if this is new money. Leave it if you already counted it")
+  return offering(said, (("add", f"it becomes {was + amt:,}"), ("leave", f"it stays {was:,}")))
+
+def headline(question:str) -> str|None:
+  if twice := TWICE.fullmatch(question): return f"{twice['name']}: new money or already counted?"
+  return paying().headlines.get(spent[0]) if (spent := spent_on(question)) else None
+
 def lacking(kind:str, fact:str) -> str: return f"money labelled {kind} came in and the case gives no {plain(fact)}"
 def needing(table:Table, kind:str) -> str:
   return offering(table.needs[kind][1], (("later", "you will add it"), ("not", f"the money is not {plain(kind)}")))
@@ -57,6 +68,8 @@ def answers_to(question:str, asks:str) -> str:
   out, table = paying(), spoken("labelling")
   if (spent := spent_on(question)) and spent[0] in out.prompt.kinds and spent[0] not in out.aside: return asking_for(out, *spent)
   if (need := LACKING.fullmatch(question)) and need["kind"] in table.needs: return needing(table, need["kind"])
+  if (twice := TWICE.fullmatch(question)) and (name := named(twice["name"])):
+    return read_twice(name, amount(twice["amt"]), amount(twice["was"]))
   return adrift() if asks == ADRIFT else asks
 
 def closed(question:str, asks:str) -> list[str]:
@@ -168,9 +181,7 @@ def placed(given:dict[str, Any], held:dict[str, dict[str, str]], proposed:dict[s
   wrote, ask = [], list(asking)
   for name, (amt, quote) in seen.items():
     if (was := at(given, name)) is not None:
-      ask.append((f"{plain(name)} read as {amt:,} in {quote}, and the case already gives {amount(was):,}",
-                  ("add it if this is more money, or leave it if the same money was read twice: "
-                   f"add (it becomes {amount(was) + amt:,}); leave (it stays {amount(was):,})")))
+      ask.append((f"{plain(name)} read as {amt:,} in {quote}, and the case already gives {amount(was):,}", read_twice(name, amt, amount(was))))
     else:
       proposed[name] = proposed.get(name, ZERO) + amt
       held["sources"][name] = quoted(held["sources"], name, quote)
@@ -234,7 +245,7 @@ def reanswered(text:str, question:str, said:str, fact:str|None, amt:Decimal) -> 
 
 def increased(text:str, question:str) -> str:
   given, held, proposed = apart(loaded(text))
-  if not (asked := TWICE.fullmatch(question)) or not (name := next((n for n in PLACES if plain(n) == asked["name"]), "")):
+  if not (asked := TWICE.fullmatch(question)) or not (name := named(asked["name"])):
     raise ValueError(f"{question} does not add to a figure")
   if (was := at(given, name)) is None or amount(was) != amount(asked["was"]):
     raise ValueError(f"{asked['name']} is no longer {asked['was']}, so it cannot be added to")
@@ -275,7 +286,7 @@ def priced(text:str) -> dict[str, dict[str, Figure]]:
     after = balance(put(given, name, (ZERO if (was := at(given, name)) is None else amount(was)) + amt)) if name else before
     return Figure(choice, after.amt - before.amt, after.src)
   for question, asks in held["pending"].items():
-    if (twice := TWICE.fullmatch(question)) and (added := next((n for n in PLACES if plain(n) == twice["name"]), None)):
+    if (twice := TWICE.fullmatch(question)) and (added := named(twice["name"])):
       if (was := at(given, added)) is None or amount(was) != amount(twice["was"]): continue
       ret[question] = {"add": worth("add", added, amount(twice["amt"])), "leave": worth("leave", None, ZERO)}
     elif (paid := PAID_IN.match(question)) and asks in table.asking.values():
@@ -325,7 +336,8 @@ def case(text:str) -> dict[str, Any]:
   priced_out = {question: {choice: {"amount": str(fig.amt), "sources": [cited(s) for s in fig.src]} for choice, fig in each.items()}
                 for question, each in priced(text).items()}
   pending = {question: answers_to(question, asks) for question, asks in held["pending"].items()}
-  worked_out = {"pending": pending, "figures": worked, "received": money, "prices": priced_out}
+  headlines = {question: said for question in held["pending"] if (said := headline(question))}
+  worked_out = {"pending": pending, "headlines": headlines, "figures": worked, "received": money, "prices": priced_out}
   return {"facts": texted(given), "proposed": texted(proposed)} | held | worked_out
 
 @dataclass(frozen=True)
@@ -393,8 +405,11 @@ def keep(text:str) -> list[str]:
     if not held[name]: continue
     ret += ["", title]
     for key, value in held[name].items():
-      listed = behind(held, key) if name == "pending" else []
-      ret += [f"  {key}", f"      {value}"] + [f"      {n}. {line}" for n, (line, _) in enumerate(listed, 1)]
+      if name != "pending":
+        ret += [f"  {key}", f"      {value}"]
+        continue
+      ret += [f"  {key}"] + ([f"      {said}"] if (said := headline(key)) else []) + [f"      {answers_to(key, value)}"]
+      ret += [f"      {n}. {line}" for n, (line, _) in enumerate(behind(held, key), 1)]
   if worths := priced(text):
     ret += ["", "what each answer changes in the tax to pay"]
     for question, each in worths.items():

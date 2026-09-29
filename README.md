@@ -54,7 +54,7 @@ What it finds goes to `proposed`, with a note of where it came from. What it can
 
 A document whose name is already in `documents` is not read at all, and the file is left alone. A file identical to one read before is refused the same way, whatever it is called. A figure for a fact you have confirmed becomes a question, so a second document never changes a confirmed figure on its own.
 
-`keep` prints everything processed so far. `confirm` moves one figure into the facts, and nothing else does. `data` prints the same case as JSON, with every number as text.
+`keep` prints everything processed so far. `confirm` moves one figure into the facts, and nothing else does. `data` prints the same case as JSON, with every number as text. It also gives a short headline for an open question about money read twice or paid out for a business.
 
 `keep` also adds up the money paid in by the kind it was labelled, and names the group of each kind. It also sums it by group: income, exempt, still to sort, or not income. A label that does not read as money paid in is listed, not counted. `data` carries the same totals and the group of each kind.
 

@@ -54,7 +54,8 @@ class TestDebits(unittest.TestCase):
     held = data("paying")
     for change, says in (({"aside": ["unclear"]}, r"nothing of how \['no_claim'\]"),
                          ({"aside": ["unclear", "no_claim", "pension"]}, r"\['pension'\] more than one use"),
-                         ({"claims": {"pension": {"fact": "windfall", "asking": "yes"}}}, r"unknown facts \['windfall'\]")):
+                         ({"claims": {"pension": {"fact": "windfall", "asking": "yes"}}}, r"unknown facts \['windfall'\]"),
+                         ({"headlines": {"gift": "was this a gift?"}}, r"headlines for unknown kinds \['gift'\]")):
       with self.subTest(says), mock.patch("it01.kinds.data", return_value=held | change):
         with self.assertRaisesRegex(ValueError, says): paying()
 

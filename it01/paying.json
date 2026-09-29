@@ -43,12 +43,16 @@
   "business": {
     "business_expense": {
       "fact": "business.other_expenses",
-      "asking": "was this a cost of your business? If only part of it was, type that amount"
+      "asking": "pick the payments for your business, or type the business part"
     },
     "bills": {
       "fact": "business.utilities",
-      "asking": "was this bill for your business? If only part of it was, type the business share"
+      "asking": "pick the bills for your business, or type the business share"
     }
+  },
+  "headlines": {
+    "business_expense": "which of these payments were costs of your business?",
+    "bills": "which of these bills were for your business?"
   },
   "aside": [
     "unclear",
