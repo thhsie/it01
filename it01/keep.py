@@ -83,6 +83,7 @@ def typed(said:str) -> Decimal|None:
 def behind(held:dict[str, dict[str, str]], question:str) -> list[tuple[str, Decimal]]:
   if not (spent := PAID_OUT.fullmatch(question)): return []
   doc, kind = f"{spent['doc']}, ", spent["kind"].replace(" ", "_")
+  if kind not in paying().business: return []
   lines = [key[len(doc):] for key, was in held["paid"].items() if key.startswith(doc) and was == kind]
   return [(line, amt) for line in lines if (on := PAID_OUT_ON.match(line)) and (amt := typed(on["amt"])) is not None]
 

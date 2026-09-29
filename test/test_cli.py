@@ -384,6 +384,12 @@ class TestCli(unittest.TestCase):
                                                                     ((4, "100.00"), (5, "250.50"), (6, "40.00"))])
     self.assertIn("      2. 250.50 paid out on 05/07/2025, SUPPLIER 5", keep(pathlib.Path(here).read_text()))
 
+  def test_payments_are_listed_only_for_a_question_that_takes_them_by_number(self):
+    here, held = self.paid_out(self.PENSION)
+    self.assertEqual(case(pathlib.Path(here).read_text())["payments"], {})
+    self.assertEqual(len(held["paid"]), 2)
+    self.assertNotIn("      1. ", "\n".join(keep(pathlib.Path(here).read_text())))
+
   def test_the_case_data_lists_the_payments_behind_a_question(self):
     here, held = self.paid_out(self.SUPPLIES, business={"gross_income": 100000})
     listed = case(pathlib.Path(here).read_text())["payments"][next(iter(held["pending"]))]
