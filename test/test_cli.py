@@ -4,7 +4,7 @@ from decimal import Decimal
 from unittest import mock
 from it01.__main__ import added, changed, questioned, responded, shaped, to_debits
 from it01.labels import Labelled
-from it01.keep import PAID_OUT, adrift, case, fingerprint, lines_of, offering, outgoing, priced
+from it01.keep import PAID_OUT, adrift, case, fingerprint, keep, lines_of, offering, outgoing, priced
 from it01.kinds import ADRIFT, paying, spoken
 from it01.rows import Check
 from test.helpers import ROOT
@@ -374,6 +374,35 @@ class TestCli(unittest.TestCase):
     with self.assertRaisesRegex(ValueError, "from 0.01 to 500.00"): responded(pathlib.Path(here), question, "600")
     responded(pathlib.Path(here), question, "120.50")
     self.assertEqual(json.loads(pathlib.Path(here).read_text())["proposed"], {"business.utilities": 120.5})
+
+  SUPPLIES = tuple(Labelled(f"0{n}/07/2025", Decimal(amt), f"SUPPLIER {n}", "business_expense", Check.AGREES)
+                   for n, amt in ((4, "100.00"), (5, "250.50"), (6, "40.00")))
+
+  def test_business_payments_are_kept_with_their_question_and_listed_by_number(self):
+    here, held = self.paid_out(self.SUPPLIES, business={"gross_income": 100000})
+    self.assertEqual([k.split(", ", 1)[1] for k in held["paid"]], [f"{amt} paid out on 0{n}/07/2025, SUPPLIER {n}" for n, amt in
+                                                                    ((4, "100.00"), (5, "250.50"), (6, "40.00"))])
+    self.assertIn("      2. 250.50 paid out on 05/07/2025, SUPPLIER 5", keep(pathlib.Path(here).read_text()))
+
+  def test_a_payment_number_that_is_repeated_or_out_of_range_is_refused(self):
+    here, held = self.paid_out(self.SUPPLIES, business={"gross_income": 100000})
+    for wrong in ("payments 1, 1", "payments 4", "payment 0"):
+      with self.subTest(wrong), self.assertRaisesRegex(ValueError, "payments 1 to 3"):
+        responded(pathlib.Path(here), next(iter(held["pending"])), wrong)
+
+  def test_the_payments_named_are_added_up_by_the_engine(self):
+    for said, want in (("payments 1, 3", 140), ("payments 1, 2, 3", 390.5)):
+      with self.subTest(said):
+        here, held = self.paid_out(self.SUPPLIES, business={"gross_income": 100000})
+        responded(pathlib.Path(here), next(iter(held["pending"])), said)
+        self.assertEqual(json.loads(pathlib.Path(here).read_text())["proposed"], {"business.other_expenses": want})
+
+  def test_a_case_saved_before_payments_were_kept_offers_no_numbers(self):
+    question = "140.00 paid out in 2 payments that look like business expense, in bank.pdf"
+    here = on_disk(json.dumps({"resident": True, "business": {"gross_income": 100000}, "pending": {question: "was this a cost of your business?"}}))
+    self.addCleanup(os.unlink, here)
+    with self.assertRaises(ValueError) as said: responded(pathlib.Path(here), question, "payments 1")
+    self.assertNotIn("by number", str(said.exception))
 
   def test_a_certificate_question_is_closed_without_moving_a_figure(self):
     spent = (Labelled("04/07/2025", Decimal("18000.00"), "HOME LOAN", "housing_loan", Check.AGREES),)

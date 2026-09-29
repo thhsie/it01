@@ -8,8 +8,8 @@ from it01.law import YEAR_SRC, YEAR_STARTS, Source
 from it01.rows import months
 from it01.tax import JSON_TYPES, PLACES, ZERO, Facts, Figure, amount, assess, from_json, is_amount, plain, summed
 
-TITLES = {"documents": "documents you read", "labels": "how money paid in was labelled", "answers": "questions you answered",
-          "pending": "questions still open"}
+TITLES = {"documents": "documents you read", "labels": "how money paid in was labelled", "paid": "how money paid out was labelled",
+          "answers": "questions you answered", "pending": "questions still open"}
 WORDING = ("sources", "texts", "paths", *TITLES)
 ASIDE = ("proposed", *WORDING)
 NIL = Decimal("0.00")
@@ -21,6 +21,8 @@ ON_LINE = re.compile(r"(?P<amt>\S+) on the line (?P<quote>.+)")
 LACKING = re.compile(r"money labelled (?P<kind>\S+) came in and the case gives no (?P<fact>.+)")
 PAID_OUT = re.compile(r"(?P<amt>\S+) paid out in \d+ payments? that looks? like (?P<kind>[^,]+), in (?P<doc>.+)")
 LINES = re.compile(r"([^\s;(]+) \([^)]*\)")
+NUMBERED = re.compile(r"payments? (?P<nums>\d+(?:, ?\d+)*)")
+PAID_OUT_ON = re.compile(r"(?P<amt>\S+) paid out on ")
 
 def once(pairs:list[tuple[str, Any]]) -> dict[str, Any]:
   ret:dict[str, Any] = {}
@@ -32,6 +34,7 @@ def once(pairs:list[tuple[str, Any]]) -> dict[str, Any]:
 def loaded(text:str) -> Any: return json.loads(text, parse_float=Decimal, object_pairs_hook=once)
 
 def worded(amt:Decimal, date:str, description:str) -> str: return f"{amt:,} paid in on {date}, {description}"
+def spent_as(amt:Decimal, date:str, description:str) -> str: return f"{amt:,} paid out on {date}, {description}"
 def spent_on(question:str) -> tuple[str, Decimal]|None:
   return (spent["kind"].replace(" ", "_"), amount(spent["amt"])) if (spent := PAID_OUT.fullmatch(question)) else None
 
@@ -64,15 +67,29 @@ def typed(said:str) -> Decimal|None:
   try: return amount(said)
   except ValueError: return None
 
-def taken(question:str, said:str) -> tuple[str, Decimal]|None:
+def behind(held:dict[str, dict[str, str]], question:str) -> list[tuple[str, Decimal]]:
+  if not (spent := PAID_OUT.fullmatch(question)): return []
+  doc, kind = f"{spent['doc']}, ", spent["kind"].replace(" ", "_")
+  lines = [key[len(doc):] for key, was in held["paid"].items() if key.startswith(doc) and was == kind]
+  return [(line, amt) for line in lines if (on := PAID_OUT_ON.match(line)) and (amt := typed(on["amt"])) is not None]
+
+def summed_up(question:str, said:str, paid:list[tuple[str, Decimal]]) -> Decimal|None:
+  if not paid or not (named := NUMBERED.fullmatch(said)): return None
+  nums = [int(n) for n in named["nums"].replace(" ", "").split(",")]
+  if len(set(nums)) != len(nums) or not all(1 <= n <= len(paid) for n in nums):
+    raise ValueError(f"answer {question} naming each of payments 1 to {len(paid)} at most once, not {said}")
+  return sum((paid[n - 1][1] for n in nums), ZERO)
+
+def taken(question:str, said:str, paid:list[tuple[str, Decimal]]) -> tuple[str, Decimal]|None:
   if not (spent := spent_on(question)): return None
   table, (kind, amt), said = paying(), spent, said.strip()
   if kind not in table.prompt.kinds: raise ValueError(f"{question} names no kind of payment out")
   choices, fact = [name for name, _ in choices_for(table, kind, amt)], fact_for(table, kind)
   if said in choices: return (fact, amt) if fact and said == "yes" else None
-  part = typed(said) if kind in table.business else None
+  part = (summed_up(question, said, paid) or typed(said)) if kind in table.business else None
   if fact and part is not None and ZERO < part <= amt: return fact, part
-  share = f", or the part that was, from 0.01 to {amt:,}" if kind in table.business else ""
+  numbered = ", payments by number such as payments 1, 3" if paid else ""
+  share = f"{numbered}, or the part that was, from 0.01 to {amt:,}" if kind in table.business else ""
   raise ValueError(f"answer {question} with one of: {', '.join(choices)}{share}")
 
 def outgoing(amt:Decimal, cnt:int, kind:str, doc:str) -> str:
@@ -165,14 +182,18 @@ def placed(given:dict[str, Any], held:dict[str, dict[str, str]], proposed:dict[s
     held["pending"][question] = asks
   return Noted(tuple(wrote), tuple(q for q, _ in fresh), before)
 
+def filed(into:dict[str, str], doc:str, pairs:tuple[tuple[str, str], ...]) -> None:
+  repeats:dict[str, int] = {}
+  for said, kind in pairs:
+    repeats[said] = cnt = repeats.get(said, 0) + 1
+    into[f"{doc}, {said}" + (f" ({cnt})" if cnt > 1 else "")] = kind
+
 def noted(text:str, seen:dict[str, tuple[Decimal, str]], doc:Document, asking:list[tuple[str, str]],
-          labels:tuple[tuple[str, str], ...]=()) -> tuple[str, Noted]:
+          labels:tuple[tuple[str, str], ...]=(), paid:tuple[tuple[str, str], ...]=()) -> tuple[str, Noted]:
   given, held, proposed = apart(loaded(text))
   how = placed(given, held, proposed, seen, asking)
-  repeats:dict[str, int] = {}
-  for said, kind in labels:
-    repeats[said] = cnt = repeats.get(said, 0) + 1
-    held["labels"][f"{doc.name}, {said}" + (f" ({cnt})" if cnt > 1 else "")] = kind
+  filed(held["labels"], doc.name, labels)
+  filed(held["paid"], doc.name, paid)
   held["documents"][doc.name] = doc.kind
   held["texts"][doc.mark] = doc.name
   held["paths"][doc.name] = doc.path
@@ -371,7 +392,9 @@ def keep(text:str) -> list[str]:
   for name, title in TITLES.items():
     if not held[name]: continue
     ret += ["", title]
-    for key, value in held[name].items(): ret += [f"  {key}", f"      {value}"]
+    for key, value in held[name].items():
+      listed = behind(held, key) if name == "pending" else []
+      ret += [f"  {key}", f"      {value}"] + [f"      {n}. {line}" for n, (line, _) in enumerate(listed, 1)]
   if worths := priced(text):
     ret += ["", "what each answer changes in the tax to pay"]
     for question, each in worths.items():

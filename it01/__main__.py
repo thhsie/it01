@@ -10,7 +10,7 @@ from it01.helpers import data
 from it01.kinds import ADRIFT, Paying, paying, picked, spoken
 from it01.keep import Document, answer, apart, case, confirm, dumped, figures, fingerprint, is_given, keep, labelled, loaded, noted, relabelled
 from it01.keep import BOTH, ON_LINE, PAID_IN, TWICE, adrift, asking_for, closed, lacking, needing
-from it01.keep import increased, lines_of, Noted, offering, outgoing, proposing, reanswered, taken, worded
+from it01.keep import behind, increased, lines_of, Noted, offering, outgoing, proposing, reanswered, spent_as, taken, worded
 from it01.read import read
 from it01.rows import Check, dropped, entries, is_statement
 from it01.sheet import sheet, untyped
@@ -128,7 +128,7 @@ def responded(here:pathlib.Path, asked:str, said:str) -> list[str]:
   table, ret = spoken("labelling"), [f"answered {question}", f"  {said}"]
   keys = labelled(text, question) if pending[question] in table.asking.values() and (kind := said.strip()) in picked(table) else []
   if (twice := TWICE.fullmatch(question)) and said.strip() not in BOTH: raise ValueError(f"answer {question} with one of: {', '.join(BOTH)}")
-  relief = taken(question, said)
+  relief = taken(question, said, behind(apart(loaded(text))[1], question))
   if (allowed := closed(question, pending[question])) and said.strip() not in allowed:
     raise ValueError(f"answer {question} with one of: {', '.join(allowed)}")
   offered = lines_of(pending[question]) if ON_LINE.fullmatch(question) else []
@@ -168,13 +168,13 @@ def opened(here:pathlib.Path, name:str) -> list[str]:
   if held["texts"].get(fingerprint(paper.read_bytes())) != name: raise ValueError(f"{name} has changed since it was read")
   return source(paper).splitlines()
 
-def paid_out(found:tuple[Labelled, ...], table:Paying, doc:str, business:bool) -> list[tuple[str, str]]:
+def paid_out(found:tuple[Labelled, ...], table:Paying, doc:str, business:bool) -> tuple[list[tuple[str, str]], tuple[tuple[str, str], ...]]:
   kept = tuple(d for d in found if d.check is not Check.DIFFERS)
-  ret = []
-  for kind, amt in totals(kept).items():
-    if kind in table.aside or (kind in table.business and not business): continue
-    ret.append((outgoing(amt, sum(1 for d in kept if d.kind == kind), kind, doc), asking_for(table, kind, amt)))
-  return ret
+  sums = totals(kept)
+  asked = {kind for kind in sums if kind not in table.aside and (kind not in table.business or business)}
+  ret = [(outgoing(amt, sum(1 for d in kept if d.kind == kind), kind, doc), asking_for(table, kind, amt))
+         for kind, amt in sums.items() if kind in asked]
+  return ret, tuple((spent_as(d.amt, d.date, d.description), d.kind) for d in kept if d.kind in asked)
 
 def questioned(questions:tuple[Question, ...]) -> list[tuple[str, str]]:
   return [(worded(q.amt, q.date, q.description), adrift() if q.asking == ADRIFT else q.asking) for q in questions]
@@ -188,6 +188,7 @@ def added(here:pathlib.Path, document:str) -> list[str]:
   src = source(paper)
   seen:dict[str, tuple[Decimal, str]] = {}
   labels:tuple[tuple[str, str], ...] = ()
+  paid:tuple[tuple[str, str], ...] = ()
   freed:list[str] = []
   hint = ""
   if is_statement(src):
@@ -200,13 +201,14 @@ def added(here:pathlib.Path, document:str) -> list[str]:
                if any(c.kind == kind for c in found) and not is_given(given, proposed, fact)]
     labels = tuple((worded(c.amt, c.date, c.description), c.kind) for c in found)
     if any(asks in table.asking.values() for _, asks in asking): hint = f"answer a payment with one of: {', '.join(picked(table))}"
-    asking += paid_out(spending(src), paying(), paper.name, "business.gross_income" in seen or is_given(given, proposed, "business.gross_income"))
+    out, paid = paid_out(spending(src), paying(), paper.name, "business.gross_income" in seen or is_given(given, proposed, "business.gross_income"))
+    asking += out
     freed = [line for kind, amt in totals(found).items() if (why := table.exempt.get(kind))
              for line in (f"  {kind:<32}{amt:>16,}", f"    {why.section:<42}{why.url}")]
   else:
     form, told, asked, _ = reading(src)
     was, seen, asking = form.name, *shaped(told, asked)
-  text, how = noted(here.read_text(), seen, Document(name=paper.name, path=str(paper.resolve()), mark=mark, kind=was), asking, labels)
+  text, how = noted(here.read_text(), seen, Document(name=paper.name, path=str(paper.resolve()), mark=mark, kind=was), asking, labels, paid)
   rewritten(here, text)
   ret = [f"{paper.name} read as {was}"]
   if freed: ret += ["", "exempt"] + freed
