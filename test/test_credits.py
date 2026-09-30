@@ -2,7 +2,7 @@ import importlib.util, json, unittest
 from decimal import Decimal
 from unittest import mock
 from it01.rows import Check
-from it01.credits import asked, fed, label, received
+from it01.credits import asked, drifted, label, received
 from it01.labels import listed, named, totals
 from it01.kinds import ADRIFT, picked, spoken
 from it01.tax import PLACES
@@ -37,25 +37,19 @@ class TestCredits(unittest.TestCase):
   def test_a_labelling_file_says_what_it_reads(self):
     self.assertEqual(TABLE.prompt.name, "bank statement")
 
-  def test_a_kind_that_feeds_a_fact_totals_its_credits(self):
-    found = named(received(PAID_IN), reply("rent", "rent", "cash"), KINDS)
-    self.assertEqual(fed(found, FEEDS)[0], {"rent": (Decimal("5012.50"), "2 labelled rent")})
-
   def test_the_endpoint_is_told_to_answer_one_known_kind_for_each_credit(self):
     with mock.patch("it01.labels.ask", return_value=reply("pay", "interest", "cash")) as said: label(PAID_IN)
     schema = said.call_args.args[2]
     self.assertEqual((schema["required"], schema["additionalProperties"]), (["1", "2", "3"], False))
     self.assertEqual(schema["properties"]["2"], {"type": "string", "enum": list(KINDS)})
 
-  def test_a_credit_whose_balance_does_not_agree_is_left_out_and_asked_about(self):
+  def test_a_credit_whose_balance_does_not_agree_is_asked_about(self):
     found = named(received(OFF_BY), reply("rent", "rent", "rent"), KINDS)
-    seen, adrift = fed(found, FEEDS)
-    self.assertEqual(seen, {"rent": (Decimal("4000.00"), "2 labelled rent")})
-    self.assertEqual([(q.amt, q.description, q.asking) for q in adrift], [(Decimal("2000.00"), "RENT SEPTEMBER", ADRIFT)])
+    self.assertEqual([(q.amt, q.description, q.asking) for q in drifted(found, FEEDS)], [(Decimal("2000.00"), "RENT SEPTEMBER", ADRIFT)])
 
-  def test_a_kind_that_feeds_nothing_proposes_nothing(self):
-    found = named(received(PAID_IN), reply("pay", "interest", "cash"), KINDS)
-    self.assertEqual(fed(found, FEEDS), ({}, ()))
+  def test_a_credit_of_a_kind_that_feeds_nothing_is_not_asked_about_its_balance(self):
+    found = named(received(OFF_BY), reply("pay", "pay", "pay"), KINDS)
+    self.assertEqual(drifted(found, FEEDS), ())
 
   def test_a_feeds_table_that_does_not_hold_up_is_refused(self):
     base = MODEL | {"name": "a statement", "kinds": {"one": "a", "two": "b", "three": "c"}, "asking": {"three": "what is this"}}

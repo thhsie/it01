@@ -17,14 +17,8 @@ def received(text:str) -> Moved: return tuple((e, e.paid_in) for e in entries(te
 def asked(found:tuple[Labelled, ...], asking:dict[str, str]) -> tuple[Question, ...]:
   return tuple(Question(c.date, c.amt, c.description, asking[c.kind]) for c in found if c.kind in asking)
 
-def fed(found:tuple[Labelled, ...], feeds:dict[str, str]) -> tuple[dict[str, tuple[Decimal, str]], tuple[Question, ...]]:
-  ret:dict[str, tuple[Decimal, str]] = {}
-  for kind, fact in feeds.items():
-    if not (same := [c for c in found if c.kind == kind and c.check is not Check.DIFFERS]): continue
-    unsure = sum(1 for c in same if c.check is Check.UNCHECKED)
-    ret[fact] = (sum((c.amt for c in same), Decimal(0)), f"{len(same)} labelled {kind}" + (f", {unsure} unchecked" if unsure else ""))
-  adrift = tuple(Question(c.date, c.amt, c.description, ADRIFT) for c in found if c.kind in feeds and c.check is Check.DIFFERS)
-  return ret, adrift
+def drifted(found:tuple[Labelled, ...], feeds:dict[str, str]) -> tuple[Question, ...]:
+  return tuple(Question(c.date, c.amt, c.description, ADRIFT) for c in found if c.kind in feeds and c.check is Check.DIFFERS)
 
 def label(text:str) -> tuple[tuple[Labelled, ...], tuple[Question, ...]]:
   table = spoken("labelling")
