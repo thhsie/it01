@@ -483,10 +483,33 @@ class TestCli(unittest.TestCase):
     prices = priced(pathlib.Path(here).read_text())[next(iter(held["pending"]))]
     self.assertEqual((prices["yes"].amt, prices["no"].amt), (Decimal("-400"), Decimal("0")))
 
-  def test_business_payments_are_asked_about_only_with_a_business(self):
-    spent = (Labelled("04/07/2025", Decimal("500.00"), "STOCK", "business_expense", Check.AGREES),)
-    for given, asked in (({}, 0), ({"business": {"gross_income": 100000}}, 1)):
-      with self.subTest(given): self.assertEqual(len(self.paid_out(spent, **given)[1].get("pending", {})), asked)
+  STOCK = (Labelled("04/07/2025", Decimal("500.00"), "STOCK", "business_expense", Check.AGREES),)
+
+  def test_business_payments_without_business_income_ask_whether_there_is_a_business(self):
+    trading = {"business": {"gross_income": 100000}}
+    for given, headline in (({}, "costs of a business with no income yet?"), (trading, "which of these payments were costs of your business?")):
+      held = self.paid_out(self.STOCK, **given)[1]
+      shown = case(json.dumps(held))["headlines"].get(next(iter(held["pending"])))
+      with self.subTest(given): self.assertEqual((len(held["pending"]), shown), (1, headline))
+
+  def test_a_business_with_no_income_yet_is_asked_about_its_costs(self):
+    here, held = self.paid_out(self.STOCK)
+    responded(pathlib.Path(here), next(iter(held["pending"])), "business")
+    pending = json.loads(pathlib.Path(here).read_text())["pending"]
+    self.assertEqual([PAID_OUT.fullmatch(q)["kind"] for q in pending], ["business expense"])
+
+  def test_costs_that_are_not_a_business_are_never_asked_about(self):
+    here, held = self.paid_out(self.STOCK)
+    responded(pathlib.Path(here), next(iter(held["pending"])), "not")
+    self.assertNotIn("pending", json.loads(pathlib.Path(here).read_text()))
+
+  def test_costs_kept_from_an_earlier_statement_are_asked_once_income_comes_in(self):
+    here, _ = self.paid_out(self.STOCK)
+    found = (Labelled("10/07/2025", Decimal("9000.00"), "CLIENT", "business", Check.AGREES),)
+    with mock.patch("it01.__main__.label", return_value=(found, ())), mock.patch("it01.__main__.spending", return_value=()):
+      added(pathlib.Path(here), self.saved_document(STATEMENT + "\n"))
+    pending = json.loads(pathlib.Path(here).read_text())["pending"]
+    self.assertEqual([PAID_OUT.fullmatch(q) is not None for q in pending], [True])
 
   def test_a_certificate_is_asked_for_where_the_statement_cannot_give_the_figure(self):
     spent = (Labelled("04/07/2025", Decimal("18000.00"), "HOME LOAN", "housing_loan", Check.AGREES),)

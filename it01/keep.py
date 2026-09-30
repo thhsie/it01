@@ -23,6 +23,7 @@ PAID_OUT = re.compile(r"(?P<amt>\S+) paid out in \d+ payments? that looks? like 
 LINES = re.compile(r"([^\s;(]+) \([^)]*\)")
 NUMBERED = re.compile(r"payments? (?P<nums>\d+(?:, ?\d+)*)")
 PAID_OUT_ON = re.compile(r"(?P<amt>\S+) paid out on ")
+NO_INCOME = re.compile(r"\d+ payments? in (?P<doc>.+) looks? like costs of a business, and the case has no business income")
 MONTH = re.compile(r"\d{4}-\d{2}")
 
 def once(pairs:list[tuple[str, Any]]) -> dict[str, Any]:
@@ -60,7 +61,12 @@ def headline(question:str, asks:str) -> str|None:
   if twice := TWICE.fullmatch(question): return f"{twice['name']}: new money or already counted?"
   if need := LACKING.fullmatch(question): return spoken("labelling").headlines.get(need["kind"])
   if asks.startswith(ADRIFT): return "a payment was left out of the totals"
+  if NO_INCOME.fullmatch(question): return "costs of a business with no income yet?"
   return paying().headlines.get(spent[0]) if (spent := spent_on(question)) else None
+
+def costing() -> str:
+  return offering("say whether you run a business, even one with no income yet", (("business", "they are costs of my business"),
+                                                                                    ("not", "they are not business costs")))
 
 def lacking(kind:str, fact:str) -> str: return f"money labelled {kind} came in and the case gives no {plain(fact)}"
 def needing(table:Table, kind:str) -> str: return offering(table.needs[kind][1], (("not", f"this is not my {plain(table.needs[kind][0])}"),))
@@ -72,22 +78,24 @@ def answers_to(question:str, asks:str) -> str:
   if (need := LACKING.fullmatch(question)) and need["kind"] in table.needs: return needing(table, need["kind"])
   if (twice := TWICE.fullmatch(question)) and (name := named(twice["name"])):
     return read_twice(name, amount(twice["amt"]), amount(twice["was"]))
+  if NO_INCOME.fullmatch(question): return costing()
   return adrift() if asks.startswith(ADRIFT) else asks
 
 def closed(question:str, asks:str) -> list[str]:
   shown = answers_to(question, asks)
-  return lines_of(shown) if LACKING.fullmatch(question) or shown == adrift() else []
+  return lines_of(shown) if LACKING.fullmatch(question) or NO_INCOME.fullmatch(question) or shown == adrift() else []
 
 def typed(said:str) -> Decimal|None:
   try: return amount(said)
   except ValueError: return None
 
-def behind(held:dict[str, dict[str, str]], question:str) -> list[tuple[str, Decimal]]:
-  if not (spent := PAID_OUT.fullmatch(question)): return []
-  doc, kind = f"{spent['doc']}, ", spent["kind"].replace(" ", "_")
-  if kind not in paying().business: return []
-  lines = [key[len(doc):] for key, was in held["paid"].items() if key.startswith(doc) and was == kind]
+def spent_in(held:dict[str, dict[str, str]], doc:str, kind:str) -> list[tuple[str, Decimal]]:
+  lines = [key[len(doc) + 2:] for key, was in held["paid"].items() if key.startswith(f"{doc}, ") and was == kind]
   return [(line, amt) for line in lines if (on := PAID_OUT_ON.match(line)) and (amt := typed(on["amt"])) is not None]
+
+def behind(held:dict[str, dict[str, str]], question:str) -> list[tuple[str, Decimal]]:
+  if not (spent := PAID_OUT.fullmatch(question)) or (kind := spent["kind"].replace(" ", "_")) not in paying().business: return []
+  return spent_in(held, spent["doc"], kind)
 
 def summed_up(question:str, said:str, paid:list[tuple[str, Decimal]]) -> Decimal|None:
   if not paid or not (named := NUMBERED.fullmatch(said)): return None
@@ -176,6 +184,7 @@ class Noted:
 def still_open(given:dict[str, Any], held:dict[str, dict[str, str]], proposed:dict[str, Decimal]) -> dict[str, str]:
   needs = spoken("labelling").needs
   def is_met(question:str) -> bool:
+    if NO_INCOME.fullmatch(question): return is_trading(given, held, proposed)
     return bool((need := LACKING.fullmatch(question)) and need["kind"] in needs and is_given(given, proposed, needs[need["kind"]][0]))
   return {question: asks for question, asks in held["pending"].items() if not is_met(question)}
 
@@ -270,6 +279,27 @@ def labelled(text:str, credit:str) -> list[str]:
 
 def offering(asking:str, lines:tuple[tuple[str, str], ...]) -> str: return f"{asking}: " + "; ".join(f"{n} ({d})" for n, d in lines)
 def lines_of(asks:str) -> list[str]: return LINES.findall(asks.partition(": ")[2])
+
+def is_trading(given:dict[str, Any], held:dict[str, dict[str, str]], proposed:dict[str, Decimal]) -> bool:
+  said = (a.strip() for q, a in held["answers"].items() if NO_INCOME.fullmatch(q))
+  return is_given(given, proposed, "business.gross_income") or "business" in said
+
+def costed(text:str) -> tuple[str, Noted]:
+  given, held, proposed = apart(loaded(text))
+  table, asked = paying(), [*held["pending"], *held["answers"]]
+  spent = {(s["kind"].replace(" ", "_"), s["doc"]) for q in asked if (s := PAID_OUT.fullmatch(q))}
+  wondered = {m["doc"] for q in asked if (m := NO_INCOME.fullmatch(q))}
+  refused = {m["doc"] for q, a in held["answers"].items() if (m := NO_INCOME.fullmatch(q)) and a.strip() == "not"}
+  costs = {doc: {kind: [amt for _, amt in paid] for kind in table.business if (paid := spent_in(held, doc, kind))} for doc in held["documents"]}
+  if not is_trading(given, held, proposed):
+    ask = [(f"{cnt} payment{'s' if cnt > 1 else ''} in {doc} look{'' if cnt > 1 else 's'} like costs of a business, "
+            "and the case has no business income", costing()) for doc, kinds in costs.items()
+           if kinds and doc not in wondered and (cnt := sum(len(a) for a in kinds.values()))]
+  else:
+    ask = [(outgoing(sum(amts, ZERO), len(amts), kind, doc), asking_for(table, kind, sum(amts, ZERO)))
+           for doc, kinds in costs.items() if doc not in refused for kind, amts in kinds.items() if (kind, doc) not in spent]
+  how = placed(given, held, proposed, {}, ask)
+  return as_file(given, held, proposed), how
 
 def proposing(text:str, seen:dict[str, tuple[Decimal, str]]) -> tuple[str, Noted]:
   given, held, proposed = apart(loaded(text))

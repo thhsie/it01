@@ -1,5 +1,6 @@
 import pathlib, sys
 from collections.abc import Callable
+from dataclasses import replace
 from decimal import Decimal
 from typing import TYPE_CHECKING
 from it01.credits import Question, fed, label
@@ -10,7 +11,8 @@ from it01.helpers import data
 from it01.kinds import ADRIFT, Paying, paying, picked, spoken
 from it01.keep import Document, answer, apart, case, confirm, dumped, figures, fingerprint, is_given, keep, labelled, loaded, noted, relabelled
 from it01.keep import BOTH, ON_LINE, PAID_IN, TITLES, TWICE, adrift, asking_for, closed, lacking, needing
-from it01.keep import behind, increased, lines_of, Noted, offering, outgoing, proposing, reanswered, spent_as, taken, with_year, worded, year_of
+from it01.keep import behind, costed, increased, lines_of, Noted, offering, outgoing, proposing, reanswered, spent_as, taken, with_year, worded
+from it01.keep import year_of
 from it01.read import read
 from it01.rows import Check, dropped, entries, is_statement, months
 from it01.sheet import sheet, untyped
@@ -148,8 +150,9 @@ def responded(here:pathlib.Path, asked:str, said:str) -> list[str]:
   if keys:
     text, lines = kinded(text, question, keys, kind, table.feeds.get(kind))
     ret += lines
+  text, how = costed(text)
   rewritten(here, text)
-  return ret
+  return ret + told(how)
 
 def changed(here:pathlib.Path, asked:str, said:str) -> list[str]:
   if not (asked := asked.strip()): raise ValueError("the question to change is blank")
@@ -161,8 +164,9 @@ def changed(here:pathlib.Path, asked:str, said:str) -> list[str]:
     raise ValueError(f"only a payment's kind can be changed, to one of: {', '.join(picked(table))}")
   text = reanswered(text, question, kind, table.feeds.get(answers[question].strip()), amount(paid["amt"]) * len(keys))
   text, lines = kinded(text, question, keys, kind, table.feeds.get(kind))
+  text, how = costed(text)
   rewritten(here, text)
-  return [f"changed {question}"] + lines
+  return [f"changed {question}"] + lines + told(how)
 
 def opened(here:pathlib.Path, name:str) -> list[str]:
   held = apart(loaded(here.read_text(encoding="utf-8")))[1]
@@ -171,13 +175,12 @@ def opened(here:pathlib.Path, name:str) -> list[str]:
   if held["texts"].get(fingerprint(paper.read_bytes())) != name: raise ValueError(f"{name} has changed since it was read")
   return source(paper).splitlines()
 
-def paid_out(found:tuple[Labelled, ...], table:Paying, doc:str, business:bool) -> tuple[list[tuple[str, str]], tuple[tuple[str, str], ...]]:
+def paid_out(found:tuple[Labelled, ...], table:Paying, doc:str) -> tuple[list[tuple[str, str]], tuple[tuple[str, str], ...]]:
   kept = tuple(d for d in found if d.check is not Check.DIFFERS)
   sums = totals(kept)
-  asked = {kind for kind in sums if kind not in table.aside and (kind not in table.business or business)}
   ret = [(outgoing(amt, sum(1 for d in kept if d.kind == kind), kind, doc), asking_for(table, kind, amt))
-         for kind, amt in sums.items() if kind in asked]
-  return ret, tuple((spent_as(d.amt, d.date, d.description), d.kind) for d in kept if d.kind in asked)
+         for kind, amt in sums.items() if kind not in table.aside and kind not in table.business]
+  return ret, tuple((spent_as(d.amt, d.date, d.description), d.kind) for d in kept if d.kind not in table.aside)
 
 def questioned(questions:tuple[Question, ...]) -> list[tuple[str, str]]:
   return [(worded(q.amt, q.date, q.description), adrift() if q.asking == ADRIFT else q.asking) for q in questions]
@@ -214,7 +217,7 @@ def added(here:pathlib.Path, document:str) -> list[str]:
                if any(c.kind == kind for c in found) and not is_given(given, proposed, fact)]
     labels = tuple((worded(c.amt, c.date, c.description), c.kind) for c in found)
     if any(asks in table.asking.values() for _, asks in asking): hint = f"answer a payment with one of: {', '.join(picked(table))}"
-    out, paid = paid_out(spent, paying(), paper.name, "business.gross_income" in seen or is_given(given, proposed, "business.gross_income"))
+    out, paid = paid_out(spent, paying(), paper.name)
     asking += out
     freed = [line for kind, amt in totals(found).items() if (why := table.exempt.get(kind))
              for line in (f"  {kind:<32}{amt:>16,}", f"    {why.section:<42}{why.url}")]
@@ -228,7 +231,9 @@ def added(here:pathlib.Path, document:str) -> list[str]:
     was, seen, asking = form.name, *shaped(told, asked)
   entry = Document(name=paper.name, path=str(paper.resolve()), mark=mark, kind=was)
   text, how = noted(here.read_text(encoding="utf-8"), seen, entry, asking, labels, paid, left)
+  text, costs = costed(text)
   rewritten(here, text)
+  how = replace(how, asked=how.asked + costs.asked)
   ret = [f"{paper.name} read as {was}"]
   if left: ret += ["", TITLES["outside"]] + [f"  {line}" for line, _ in left]
   if freed: ret += ["", "exempt"] + freed

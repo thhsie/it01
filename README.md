@@ -152,6 +152,8 @@ A question about money paid out, a missing statement or a balance that does not 
 
 A question about business costs paid out lists its payments by number. It takes yes, no, the business part as an amount, or the payments that were business costs, such as `payments 1, 3`. The engine adds up the payments named.
 
+Payments that look like business costs are kept even when the case has no business income. Each statement then asks once whether they are costs of your business. Answer business and each kind of cost is asked about, even with no business income yet. Answer not and that statement's costs are never asked about. Once business income is given or proposed, the costs kept from earlier statements are asked about too.
+
 ## Label bank credits with a model file of your own
 
 ```sh
