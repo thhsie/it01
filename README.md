@@ -215,7 +215,9 @@ Leave out of `income` any state benefit paid to a child or a bedridden relative 
 
 `lending` holds peer to peer lending as `interest` and `bad_debts`. 80% of the interest is exempt. The bad debts come off the rest. Bad debts above the whole interest are carried forward.
 
-Seven keys are set aside before the computation and none of them reaches it: `proposed`, `sources`, `documents`, `texts`, `paths`, `answers`, `pending`.
+Ten keys are set aside before the computation and none of them reaches it: `proposed`, `year`, `sources`, `documents`, `texts`, `paths`, `labels`, `paid`, `answers`, `pending`.
+
+`year` holds the income year the case covers, as its first and last month. It starts in July and runs twelve months. `it01 year` sets it. Once the case has a year and has read a document, the year cannot change. The months of money paid in follow it.
 
 `paths` holds the full path each document was read from, so `it01 show` can print the document. `it01 show` refuses a document that is no longer at that path, and one whose file has changed since it was read.
 
@@ -241,6 +243,7 @@ it01 show FACTS.json DOCUMENT.txt       print a document the way it was read
 it01 confirm FACTS.json FACT            accept a proposed figure
 it01 answer FACTS.json QUESTION ANSWER  answer an open question
 it01 change FACTS.json QUESTION KIND    give an answered payment another kind
+it01 year FACTS.json YYYY-MM            set the income year from its first month
 it01 read DOCUMENT.txt                  propose facts through your endpoint
 it01 local DOCUMENT.txt                 propose facts with your model file
 it01 rows STATEMENT.txt                 read transactions

@@ -10,7 +10,7 @@ from it01.tax import JSON_TYPES, PLACES, ZERO, Facts, Figure, amount, assess, fr
 
 TITLES = {"documents": "documents you read", "labels": "how money paid in was labelled", "paid": "how money paid out was labelled",
           "answers": "questions you answered", "pending": "questions still open"}
-WORDING = ("sources", "texts", "paths", *TITLES)
+WORDING = ("year", "sources", "texts", "paths", *TITLES)
 ASIDE = ("proposed", *WORDING)
 NIL = Decimal("0.00")
 GROUPS = {"income": "counts as income", "exempt": "exempt", "unsorted": "still to sort", "other": "not income"}
@@ -23,6 +23,7 @@ PAID_OUT = re.compile(r"(?P<amt>\S+) paid out in \d+ payments? that looks? like 
 LINES = re.compile(r"([^\s;(]+) \([^)]*\)")
 NUMBERED = re.compile(r"payments? (?P<nums>\d+(?:, ?\d+)*)")
 PAID_OUT_ON = re.compile(r"(?P<amt>\S+) paid out on ")
+MONTH = re.compile(r"\d{4}-\d{2}")
 
 def once(pairs:list[tuple[str, Any]]) -> dict[str, Any]:
   ret:dict[str, Any] = {}
@@ -139,6 +140,7 @@ def offered(raw:dict[str, Any]) -> dict[str, Decimal]:
 def apart(raw:Any) -> tuple[dict[str, Any], dict[str, dict[str, str]], dict[str, Decimal]]:
   if not isinstance(raw, dict): raise ValueError("facts must be a JSON object")
   held, proposed = {name: wording(raw, name) for name in WORDING}, offered(raw)
+  if held["year"] and held["year"] != yearly(held["year"].get("from", "")): raise ValueError(f"year must be one income year, not {held['year']}")
   given = {k: v for k, v in raw.items() if k not in ASIDE}
   if both := sorted(n for n in proposed if at(given, n) is not None): raise ValueError(f"proposed repeats facts already given {both}")
   if unknown := sorted(n for n in held["sources"] if not is_given(given, proposed, n)):
@@ -369,6 +371,18 @@ def year_of(month:str) -> tuple[str, ...]:
   first = int(month[:4]) - (int(month[5:]) < YEAR_STARTS)
   return tuple(f"{first + (YEAR_STARTS - 1 + n) // 12}-{(YEAR_STARTS - 1 + n) % 12 + 1:02d}" for n in range(12))
 
+def yearly(first:str) -> dict[str, str]:
+  if not MONTH.fullmatch(first) or int(first[5:]) != YEAR_STARTS: raise ValueError(f"an income year starts in month {YEAR_STARTS}, not {first!r}")
+  return {"from": first, "to": year_of(first)[-1]}
+
+def with_year(text:str, first:str) -> str:
+  given, held, proposed = apart(loaded(text))
+  year = yearly(first)
+  if held["year"] and held["year"] != year and held["documents"]:
+    raise ValueError(f"the case already reads documents for the year from {held['year']['from']}, so its year cannot change")
+  held["year"] = year
+  return as_file(given, held, proposed)
+
 def spoke(src:Source) -> str: return f"{src.doc} {src.section} page {src.page}"
 
 def cited(src:Source) -> dict[str, Any]: return {"doc": src.doc, "section": src.section, "page": src.page, "url": src.url}
@@ -383,7 +397,8 @@ def received(held:dict[str, dict[str, str]], table:Table) -> dict[str, Any]:
   dated = [(p, ways[p.doc][p.date]) for p in found]
   kinds = summed([(p.kind, p.amt) for p in found])
   groups = summed([(where[p.kind], p.amt) for p in found])
-  year = year_of(last) if (last := max((at for _, at in dated if at), default="")) else ()
+  last = max((at for _, at in dated if at), default="")
+  year = year_of(first) if (first := held["year"].get("from") or last) else ()
   by_month = {m: [p for p, at in dated if at == m] for m in year}
   return {"groups": {group: groups.get(group, NIL) for group in GROUPS}, "kinds": dict(sorted(kinds.items(), key=lambda one: -one[1])),
           "group_of": where,
