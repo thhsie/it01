@@ -62,6 +62,16 @@ The dates of a statement's labelled payments say which part is the month. A firs
 
 Money paid in is also added up for each month of one income year. The Act's year starts on 1 July, and the year shown holds the latest payment. A payment dated before that year is listed. `data` also gives, for each month, its sums by group and the labels in each sum.
 
+## Enter a fact yourself
+
+```sh
+it01 set facts.json dependants 2
+it01 set facts.json quarterly_tax_paid 12500
+it01 set facts.json losses_brought_forward ""
+```
+
+`set` writes one fact into the case, with the source `entered by you`. It takes any amount the computation reads, a whole number of `dependants`, and yes or no for `resident` and `spouse_above_interest_bar`. A figure entered this way replaces its proposal. An empty value clears the fact, except `resident`. A value the computation would refuse is not kept.
+
 ## Answer an open question
 
 ```sh
@@ -252,6 +262,7 @@ it01 confirm FACTS.json FACT            accept a proposed figure
 it01 answer FACTS.json QUESTION ANSWER  answer an open question
 it01 change FACTS.json QUESTION KIND    give an answered payment another kind
 it01 year FACTS.json YYYY-MM            set the income year from its first month
+it01 set FACTS.json FACT VALUE          enter a fact yourself, or clear it with an empty value
 it01 read DOCUMENT.txt                  propose facts through your endpoint
 it01 local DOCUMENT.txt                 propose facts with your model file
 it01 rows STATEMENT.txt                 read transactions

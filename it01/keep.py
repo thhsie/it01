@@ -241,7 +241,7 @@ def noted(text:str, seen:dict[str, tuple[Decimal, str]], doc:Document, asking:li
   held["paths"][doc.name] = doc.path
   return as_file(given, held, proposed), how
 
-def put(given:dict[str, Any], name:str, amt:Decimal) -> dict[str, Any]:
+def put(given:dict[str, Any], name:str, amt:Decimal|int|bool) -> dict[str, Any]:
   part, _, field = name.partition(".")
   return given | {part: (given.get(part) or {}) | {field: amt} if field else amt}
 
@@ -249,6 +249,38 @@ def confirm(text:str, name:str) -> str:
   given, held, proposed = apart(loaded(text))
   if name not in proposed: raise ValueError(f"nothing is proposed for {name}")
   return as_file(put(given, name, proposed.pop(name)), held, proposed)
+
+ENTERED = "entered by you"
+
+def yes_or_no(name:str, said:str) -> bool:
+  if said not in ("yes", "no"): raise ValueError(f"{name} takes yes or no, not {said}")
+  return said == "yes"
+
+def whole(name:str, said:str) -> int:
+  if not said.isdecimal(): raise ValueError(f"{name} takes a whole number, not {said}")
+  return int(said)
+
+def money_in(name:str, said:str) -> Decimal: return amount(said)
+
+SETTABLE = {"resident": yes_or_no, "spouse_above_interest_bar": yes_or_no, "dependants": whole} | dict.fromkeys(PLACES, money_in)
+
+def cleared(given:dict[str, Any], name:str) -> dict[str, Any]:
+  part, _, field = name.partition(".")
+  if not field: return {k: v for k, v in given.items() if k != part}
+  return given | {part: {k: v for k, v in (given.get(part) or {}).items() if k != field}}
+
+def set_fact(text:str, name:str, said:str) -> str:
+  given, held, proposed = apart(loaded(text))
+  if (parse := SETTABLE.get(name)) is None: raise ValueError(f"no fact {name} can be entered")
+  if said := said.strip().lower():
+    given = put(given, name, parse(name, said))
+    proposed.pop(name, None)
+    held["sources"][name] = ENTERED
+  else:
+    given = cleared(given, name)
+    if name not in proposed: held["sources"].pop(name, None)
+  from_json(Facts, given)
+  return as_file(given, held, proposed)
 
 def answer(text:str, question:str, said:str) -> str:
   given, held, proposed = apart(loaded(text))

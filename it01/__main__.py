@@ -12,7 +12,7 @@ from it01.kinds import ADRIFT, Paying, paying, picked, spoken
 from it01.keep import Document, answer, apart, case, confirm, dumped, figures, fingerprint, is_given, keep, labelled, loaded, noted, relabelled
 from it01.keep import BOTH, LACKING, ON_LINE, PAID_IN, TITLES, TWICE, adrift, asking_for, closed, lacking, needing, paid_as
 from it01.keep import behind, costed, increased, lines_of, Noted, offering, outgoing, proposing, reanswered, spent_as, taken, with_year, worded
-from it01.keep import year_of
+from it01.keep import set_fact, year_of
 from it01.read import read
 from it01.rows import Check, currency_of, dropped, entries, is_statement, months
 from it01.sheet import sheet, untyped
@@ -24,7 +24,7 @@ USAGE = ("usage: it01 FACTS.json\n       it01 read DOCUMENT\n"
          "       it01 rows STATEMENT\n       it01 credits STATEMENT\n       it01 debits STATEMENT\n"
          "       it01 keep FACTS.json\n       it01 local DOCUMENT\n"
          "       it01 confirm FACTS.json FACT\n       it01 add FACTS.json DOCUMENT\n"
-         "       it01 show FACTS.json DOCUMENT\n       it01 year FACTS.json YYYY-MM\n"
+         "       it01 show FACTS.json DOCUMENT\n       it01 year FACTS.json YYYY-MM\n       it01 set FACTS.json FACT VALUE\n"
          "       it01 answer FACTS.json QUESTION ANSWER\n       it01 change FACTS.json QUESTION KIND\n"
          "       it01 data FACTS.json\n       it01 sheet FACTS.json")
 
@@ -107,6 +107,10 @@ def rewritten(here:pathlib.Path, text:str) -> None:
 def accepted(here:pathlib.Path, name:str) -> list[str]:
   rewritten(here, confirm(here.read_text(encoding="utf-8"), name))
   return [f"{name} is now a fact in {here.name}"]
+
+def written_in(here:pathlib.Path, name:str, said:str) -> list[str]:
+  rewritten(here, set_fact(here.read_text(encoding="utf-8"), name, said))
+  return [f"{name} is now a fact in {here.name}" if said.strip() else f"{name} is cleared from {here.name}"]
 
 def yeared(here:pathlib.Path, first:str) -> list[str]:
   rewritten(here, with_year(here.read_text(encoding="utf-8"), first))
@@ -265,7 +269,8 @@ def to_sheet(text:str) -> list[str]:
 VERBS = {"read": to_proposals, "rows": to_transactions, "credits": to_credits, "debits": to_debits, "keep": keep, "local": to_local,
          "data": to_data, "sheet": to_sheet}
 ON_CASE:dict[str, tuple[Callable[..., list[str]], int]] = {"confirm": (accepted, 2), "add": (added, 2), "answer": (responded, 3),
-                                                           "change": (changed, 3), "show": (opened, 2), "year": (yeared, 2)}
+                                                           "change": (changed, 3), "show": (opened, 2), "year": (yeared, 2),
+                                                           "set": (written_in, 3)}
 
 def main() -> int:
   args = sys.argv[1:]
