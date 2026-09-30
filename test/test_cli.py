@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from unittest import mock
 from it01.__main__ import added, changed, questioned, responded, shaped, to_debits
+from it01.credits import Question
 from it01.labels import Labelled
 from it01.keep import PAID_OUT, adrift, answer, case, fingerprint, keep, lines_of, loaded, offering, outgoing, priced
 from it01.kinds import ADRIFT, paying, spoken
@@ -490,6 +491,20 @@ class TestCli(unittest.TestCase):
   def test_a_certificate_is_asked_for_where_the_statement_cannot_give_the_figure(self):
     spent = (Labelled("04/07/2025", Decimal("18000.00"), "HOME LOAN", "housing_loan", Check.AGREES),)
     self.assertIn("gives the interest paid in the year", next(iter(self.paid_out(spent)[1]["pending"].values())))
+
+  def test_money_dated_outside_the_case_year_is_left_out_and_listed(self):
+    here = on_disk(json.dumps({"resident": True, "year": {"from": "2025-07", "to": "2026-06"}}))
+    self.addCleanup(os.unlink, here)
+    found = (Labelled("20/07/2025", Decimal("900.00"), "RENT JULY", "rent", Check.AGREES),
+             Labelled("20/07/2026", Decimal("950.00"), "RENT JULY", "rent", Check.AGREES))
+    spent = (Labelled("21/07/2026", Decimal("40.00"), "REPAIRS", "business_expense", Check.AGREES),)
+    asked = (Question("20/07/2026", Decimal("950.00"), "RENT JULY", "where did this come from"),)
+    with mock.patch("it01.__main__.label", return_value=(found, asked)), mock.patch("it01.__main__.spending", return_value=spent):
+      said = added(pathlib.Path(here), self.saved_document(STATEMENT))
+    kept = json.loads(pathlib.Path(here).read_text())
+    self.assertEqual((kept["proposed"], "pending" in kept), ({"rent": 900}, False))
+    self.assertEqual(list(kept["outside"].values()), ["paid in", "paid out"])
+    self.assertIn("  950.00 paid in on 20/07/2026, RENT JULY", said)
 
   def test_pay_in_two_statements_asks_once(self):
     here = on_disk(json.dumps({"resident": True}))
