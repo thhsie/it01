@@ -74,6 +74,8 @@ The question moves from `pending` to `answers` with the words you used. An answe
 
 A line the question did not list is refused. Any other answer is kept as a note and moves no figure. A question already answered is refused, so your first words are kept.
 
+A new document can show a figure the case already gives. `it01 add` then asks whether to add it or leave it. The question names the document the figure was read from. The same amount in two documents is asked about once for each.
+
 `it01 keep` prints what each answer would change in the tax to pay. It does this for a payment asked about, a figure read twice, a line of a form and a relief found in money paid out. The change is worked out from the facts you confirmed.
 
 ## Fill in the return
