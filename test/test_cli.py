@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from types import SimpleNamespace
 from unittest import mock
-from it01.__main__ import added, changed, questioned, responded, shaped, to_debits
+from it01.__main__ import added, changed, questioned, rebuilt, responded, shaped, to_debits
 from it01.credits import Question
 from it01.labels import Labelled
 from it01.keep import PAID_OUT, VERSION, adrift, answer, apart, case, dumped, fingerprint, keep, lines_of, loaded, offering, outgoing, priced
@@ -639,6 +639,78 @@ class TestCli(unittest.TestCase):
     self.addCleanup(os.unlink, here)
     responded(here, line, "rent")
     self.assertEqual(apart(loaded(here.read_text()))[2], {"rent": Decimal("1000.00")})
+
+  def test_an_older_case_is_read_again_and_keeps_its_answers(self):
+    paper = self.saved_document(STATEMENT)
+    name, line = pathlib.Path(paper).name, "500.00 paid in on 22/07/2025, CASH"
+    old = {"resident": True, "dependants": 2, "documents": {name: "bank statement"}, "paths": {name: paper}, "proposed": {"rent": 900},
+           "answers": {line: "rent"}}
+    here = pathlib.Path(on_disk(json.dumps(old)))
+    self.addCleanup(os.unlink, here)
+    found = (Labelled("21/07/2025", Decimal("900.00"), "FLAT", "rent", Check.AGREES),
+             Labelled("22/07/2025", Decimal("500.00"), "CASH", "cash", Check.AGREES))
+    asked = (Question("22/07/2025", Decimal("500.00"), "CASH", spoken("labelling").asking["cash"]),)
+    with mock.patch("it01.__main__.label", return_value=(found, asked)), mock.patch("it01.__main__.spending", return_value=()):
+      said = rebuilt(here)
+    given, held, proposed = apart(loaded(here.read_text()))
+    self.assertEqual((said, given["dependants"], proposed, held["answers"]), ([f"{here.name} was read again from its documents"], 2,
+                                                                                {"rent": Decimal("1400.00")}, {line: "rent"}))
+
+  def test_an_older_case_whose_documents_are_gone_is_left_alone(self):
+    old = json.dumps({"resident": True, "documents": {"gone.txt": "bank statement"}, "paths": {"gone.txt": "/nowhere/gone.txt"},
+                      "proposed": {"rent": 9}})
+    here = pathlib.Path(on_disk(old))
+    self.addCleanup(os.unlink, here)
+    with self.assertRaisesRegex(ValueError, "no longer there, so nothing changed: /nowhere/gone.txt"): rebuilt(here)
+    self.assertEqual(here.read_text(), old)
+
+  def test_answers_that_cannot_be_replayed_are_named(self):
+    paper = self.saved_document(STATEMENT)
+    name = pathlib.Path(paper).name
+    line = "300.00 paid in on 23/07/2025, CLIENT"
+    old = {"resident": True, "documents": {name: "bank statement"}, "paths": {name: paper}, "proposed": {},
+           "answers": {"no such question": "rent", line: "business"}}
+    here = pathlib.Path(on_disk(json.dumps(old)))
+    self.addCleanup(os.unlink, here)
+    found = (Labelled("23/07/2025", Decimal("300.00"), "CLIENT", "business", Check.DIFFERS),)
+    with mock.patch("it01.__main__.label", return_value=(found, ())), mock.patch("it01.__main__.spending", return_value=()):
+      self.assertEqual(rebuilt(here)[-3:], ["answers not replayed", f"  {line}", "  no such question"])
+
+  def test_a_rebuild_that_fails_leaves_the_case_and_no_spare_file(self):
+    paper = self.saved_document(STATEMENT)
+    name = pathlib.Path(paper).name
+    old = json.dumps({"resident": True, "documents": {name: "bank statement"}, "paths": {name: paper}, "proposed": {}})
+    here = pathlib.Path(on_disk(old))
+    self.addCleanup(os.unlink, here)
+    with mock.patch("it01.__main__.label", side_effect=ValueError("the model could not read it")), self.assertRaisesRegex(ValueError, "could not"):
+      rebuilt(here)
+    self.assertEqual((here.read_text(), here.with_suffix(".json.rebuilt").exists()), (old, False))
+
+  def test_a_current_case_with_a_bad_entry_is_refused_not_rebuilt(self):
+    bad = json.dumps({"resident": True, "version": VERSION, "sources": {"salary": "x"}})
+    here = pathlib.Path(on_disk(bad))
+    self.addCleanup(os.unlink, here)
+    with self.assertRaisesRegex(ValueError, "does not give"): rebuilt(here)
+    self.assertEqual(here.read_text(), bad)
+
+  def test_a_document_with_no_recorded_path_stops_the_rebuild(self):
+    here = pathlib.Path(on_disk(json.dumps({"resident": True, "documents": {"a.txt": "bank statement"}, "proposed": {}})))
+    self.addCleanup(os.unlink, here)
+    with self.assertRaisesRegex(ValueError, "no recorded path, so nothing changed: a.txt"): rebuilt(here)
+
+  def test_a_copy_of_another_document_is_named_as_skipped(self):
+    first, second = self.saved_document(STATEMENT), self.saved_document(STATEMENT)
+    names = [pathlib.Path(p).name for p in (first, second)]
+    old = {"resident": True, "documents": dict.fromkeys(names, "bank statement"), "paths": dict(zip(names, (first, second))), "proposed": {}}
+    here = pathlib.Path(on_disk(json.dumps(old)))
+    self.addCleanup(os.unlink, here)
+    with mock.patch("it01.__main__.label", return_value=((), ())), mock.patch("it01.__main__.spending", return_value=()):
+      self.assertEqual(rebuilt(here)[-2:], ["documents skipped", f"  {names[1]} is the same file as {names[0]}, so nothing changed"])
+
+  def test_a_current_case_needs_no_rebuild(self):
+    here = pathlib.Path(on_disk(json.dumps({"resident": True})))
+    self.addCleanup(os.unlink, here)
+    self.assertEqual(rebuilt(here), [f"{here.name} needs no rebuild"])
 
   def test_the_same_file_under_another_name_is_not_read_twice(self):
     said = "Total emoluments        1,107,000.00\n"

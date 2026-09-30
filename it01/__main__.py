@@ -12,7 +12,7 @@ from it01.kinds import ADRIFT, Paying, paying, picked, spoken
 from it01.keep import Document, answer, apart, case, confirm, dumped, figures, fingerprint, is_given, keep, labelled, loaded, noted, relabelled
 from it01.keep import DIFFERS, LACKING, UNCHECKED, ON_LINE, PAID_IN, TITLES, adrift, asking_for, closed, lacking, needing, newly, paid_as
 from it01.keep import behind, costed, lines_of, Noted, offering, outgoing, reanswered, spent_as, taken, with_year, worded
-from it01.keep import listed, owned, set_fact, year_of
+from it01.keep import WORDING, at, listed, owned, set_fact, wording, year_of
 from it01.read import read
 from it01.rows import Check, currency_of, dropped, entries, is_statement, months
 from it01.sheet import sheet, untyped
@@ -24,7 +24,8 @@ USAGE = ("usage: it01 FACTS.json\n       it01 read DOCUMENT\n"
          "       it01 rows STATEMENT\n       it01 credits STATEMENT\n       it01 debits STATEMENT\n"
          "       it01 keep FACTS.json\n       it01 local DOCUMENT\n"
          "       it01 confirm FACTS.json FACT\n       it01 add FACTS.json DOCUMENT\n"
-         "       it01 show FACTS.json DOCUMENT\n       it01 year FACTS.json YYYY-MM\n       it01 set FACTS.json FACT VALUE\n"
+         "       it01 show FACTS.json DOCUMENT\n       it01 year FACTS.json YYYY-MM\n"
+         "       it01 set FACTS.json FACT VALUE\n       it01 rebuild FACTS.json\n"
          "       it01 answer FACTS.json QUESTION ANSWER\n       it01 change FACTS.json QUESTION KIND\n"
          "       it01 data FACTS.json\n       it01 sheet FACTS.json")
 
@@ -111,6 +112,33 @@ def accepted(here:pathlib.Path, name:str) -> list[str]:
 def written_in(here:pathlib.Path, name:str, said:str) -> list[str]:
   rewritten(here, set_fact(here.read_text(encoding="utf-8"), name, said))
   return [f"{name} is now a fact in {here.name}" if said.strip() else f"{name} is cleared from {here.name}"]
+
+def rebuilt(here:pathlib.Path) -> list[str]:
+  raw = loaded(here.read_text(encoding="utf-8"))
+  if not isinstance(raw, dict): raise ValueError(f"{here.name} is not a case")
+  if "proposed" not in raw and not (raw.get("documents") and "version" not in raw):
+    apart(raw)
+    return [f"{here.name} needs no rebuild"]
+  docs, paths = wording(raw, "documents"), wording(raw, "paths")
+  if unknown := sorted(set(docs) - set(paths)): raise ValueError(f"these documents have no recorded path, so nothing changed: {', '.join(unknown)}")
+  if missing := [paths[d] for d in docs if not pathlib.Path(paths[d]).is_file()]:
+    raise ValueError(f"these documents are no longer there, so nothing changed: {', '.join(missing)}")
+  kept = {k: v for k, v in raw.items() if k == "year" or k not in ("proposed", *WORDING)}
+  kept |= {"sources": {n: said for n, said in wording(raw, "sources").items() if at(kept, n) is not None}}
+  answers, lost, skipped, spare = dict(wording(raw, "answers")), [], [], here.with_suffix(here.suffix + ".rebuilt")
+  try:
+    spare.write_text(dumped(kept) + "\n", encoding="utf-8")
+    for doc in docs:
+      if (said := added(spare, paths[doc])[0]).endswith("so nothing changed"): skipped.append(said)
+    while again := [q for q in apart(loaded(spare.read_text(encoding="utf-8")))[1]["pending"] if q in answers]:
+      for question in again:
+        try: responded(spare, question, answers.pop(question))
+        except ValueError: lost.append(question)
+    spare.replace(here)
+  finally: spare.unlink(missing_ok=True)
+  left = [*lost, *answers]
+  ret = [f"{here.name} was read again from its documents"] + (["", "documents skipped"] + [f"  {one}" for one in skipped] if skipped else [])
+  return ret + (["", "answers not replayed"] + [f"  {q}" for q in left] if left else [])
 
 def yeared(here:pathlib.Path, first:str) -> list[str]:
   rewritten(here, with_year(here.read_text(encoding="utf-8"), first))
@@ -263,6 +291,7 @@ VERBS = {"read": to_proposals, "rows": to_transactions, "credits": to_credits, "
          "data": to_data, "sheet": to_sheet}
 ON_CASE:dict[str, tuple[Callable[..., list[str]], int]] = {"confirm": (accepted, 2), "add": (added, 2), "answer": (responded, 3),
                                                            "change": (changed, 3), "show": (opened, 2), "year": (yeared, 2),
+                                                           "rebuild": (rebuilt, 1),
                                                            "set": (written_in, 3)}
 
 def main() -> int:
