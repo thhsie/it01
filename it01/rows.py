@@ -179,6 +179,13 @@ def scanned(text:str) -> tuple[list[str], tuple[Amount, ...], tuple[int, ...], t
   starts = breaks(text)
   return rows, found, starts, kinds(len(rows), starts, found)
 
+CURRENCY = re.compile(r"(?i:\bcurrency\b)[ \t:]*([A-Z]{3})\b")
+
+def currency_of(text:str) -> str|None:
+  lines = text.split("\n")
+  head = "\n".join(lines[:min((e.line for e in entries(text)), default=len(lines) + 1) - 1])
+  return m[1] if (m := CURRENCY.search(head)) else None
+
 def is_statement(text:str) -> bool:
   *_, maps = scanned(text)
   return balanced(maps)

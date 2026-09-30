@@ -140,6 +140,8 @@ it01 debits statement.txt
 
 `rows` finds the columns from the arithmetic, checks each balance against the running total and marks each transaction `ok`, `does not agree` or `not checked`. Each transaction starts with the number of the line it was read from, counting from 1, as `it01 show` prints it. An amount it cannot place is counted, per page.
 
+A statement names its currency when a three-letter code follows the word currency above its first transaction. `it01 add` keeps that code in `currencies`. It refuses a statement whose currency differs from one the case already holds.
+
 `credits` labels every payment in through your endpoint, or your model file when `IT01_LABELLER` is set. The kinds are in `it01/labelling.json`. `feeds` says which fact each kind adds to, and `asking` says which kinds it asks you about.
 
 `not_income` names the kinds that are not income. Every kind must be fed, needed, exempt, asked about or not income.
@@ -221,7 +223,7 @@ Leave out of `income` any state benefit paid to a child or a bedridden relative 
 
 `lending` holds peer to peer lending as `interest` and `bad_debts`. 80% of the interest is exempt. The bad debts come off the rest. Bad debts above the whole interest are carried forward.
 
-Eleven keys are set aside before the computation and none of them reaches it: `proposed`, `year`, `sources`, `documents`, `texts`, `paths`, `labels`, `paid`, `outside`, `answers`, `pending`.
+Twelve keys are set aside before the computation and none of them reaches it: `proposed`, `year`, `sources`, `documents`, `texts`, `paths`, `labels`, `paid`, `outside`, `currencies`, `answers`, `pending`.
 
 `year` holds the income year the case covers, as its first and last month. It starts in July and runs twelve months. `it01 year` sets it. Once the case has a year and has read a document, the year cannot change. The months of money paid in follow it. A bank statement line dated outside the year gives no figure and no question. It is kept in `outside`, marked paid in or paid out. A line whose month cannot be read stays in.
 

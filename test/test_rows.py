@@ -1,6 +1,6 @@
 import unittest
 from decimal import Decimal
-from it01.rows import Check, dropped, entries, is_statement, months
+from it01.rows import Check, currency_of, dropped, entries, is_statement, months
 
 SIDE_BY_SIDE = """\
 Date        Description                    Debit       Credit      Balance
@@ -330,5 +330,17 @@ class TestMonths(unittest.TestCase):
     for dates, want in ((("45/02/2025", "03/03/2025"), [None, None]), (("1 Junk 25",), [None]), (("1 June 25", "2 Sep 2025"), ["2025-06", "2025-09"]),
                         (("31/12/2025", "32/01/2025"), ["2025-12", None])):
       with self.subTest(dates): self.assertEqual(list(months(dates).values()), want)
+
+class TestCurrency(unittest.TestCase):
+  def test_a_statement_names_its_currency_above_its_rows_however_it_is_laid_out(self):
+    for said in ("Currency                      XYZ", "Currency : XYZ", "   Currency:      XYZ   Page 1"):
+      with self.subTest(said): self.assertEqual(currency_of(f"Account 123\n{said}\n{SIDE_BY_SIDE}"), "XYZ")
+
+  def test_a_currency_named_in_a_row_is_not_the_statement_currency(self):
+    row = "06/07/2025  Foreign currency ATM            100.00                 4,212.50\n"
+    self.assertIsNone(currency_of(SIDE_BY_SIDE + row))
+
+  def test_a_statement_without_a_currency_names_none(self):
+    self.assertIsNone(currency_of(SIDE_BY_SIDE))
 
 if __name__ == "__main__": unittest.main()

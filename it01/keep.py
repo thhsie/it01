@@ -9,7 +9,8 @@ from it01.rows import months
 from it01.tax import JSON_TYPES, PLACES, ZERO, Facts, Figure, amount, assess, from_json, is_amount, plain, summed
 
 TITLES = {"documents": "documents you read", "labels": "how money paid in was labelled", "paid": "how money paid out was labelled",
-          "outside": "left out, dated outside the income year", "answers": "questions you answered", "pending": "questions still open"}
+          "outside": "left out, dated outside the income year", "currencies": "the currency each statement names",
+          "answers": "questions you answered", "pending": "questions still open"}
 WORDING = ("year", "sources", "texts", "paths", *TITLES)
 ASIDE = ("proposed", *WORDING)
 NIL = Decimal("0.00")
@@ -227,12 +228,14 @@ def filed(into:dict[str, str], doc:str, pairs:tuple[tuple[str, str], ...]) -> No
     into[f"{doc}, {said}" + (f" ({cnt})" if cnt > 1 else "")] = kind
 
 def noted(text:str, seen:dict[str, tuple[Decimal, str]], doc:Document, asking:list[tuple[str, str]],
-          labels:tuple[tuple[str, str], ...]=(), paid:tuple[tuple[str, str], ...]=(), left:tuple[tuple[str, str], ...]=()) -> tuple[str, Noted]:
+          labels:tuple[tuple[str, str], ...]=(), paid:tuple[tuple[str, str], ...]=(), left:tuple[tuple[str, str], ...]=(),
+          currency:str|None=None) -> tuple[str, Noted]:
   given, held, proposed = apart(loaded(text))
   how = placed(given, held, proposed, seen, asking)
   filed(held["labels"], doc.name, labels)
   filed(held["paid"], doc.name, paid)
   filed(held["outside"], doc.name, left)
+  if currency is not None: held["currencies"][doc.name] = currency
   held["documents"][doc.name] = doc.kind
   held["texts"][doc.mark] = doc.name
   held["paths"][doc.name] = doc.path
