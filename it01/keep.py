@@ -250,6 +250,12 @@ def confirm(text:str, name:str) -> str:
   held["confirmed"][name], held["sources"][name] = str(proposed[name]), held["proposing"][name]
   return as_file(put(given, name, proposed[name]), held)
 
+def unconfirmed(text:str, name:str) -> str:
+  given, held, _ = apart(loaded(text))
+  if name not in held["confirmed"] or held["sources"].get(name) == ENTERED: raise ValueError(f"{name} was not confirmed from a proposal")
+  del held["confirmed"][name], held["sources"][name]
+  return as_file(cleared(given, name), held)
+
 ENTERED = "entered by you"
 
 def yes_or_no(name:str, said:str) -> bool:
