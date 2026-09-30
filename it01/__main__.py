@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 from it01.credits import Question, fed, label
 from it01.debits import spending
 from it01.labels import Labelled, totals
-from it01.form import Form, wanted
+from it01.form import Form, is_titled, wanted
 from it01.helpers import data
 from it01.kinds import ADRIFT, Paying, paying, picked, spoken
 from it01.keep import Document, answer, apart, case, confirm, dumped, figures, fingerprint, is_given, keep, labelled, loaded, noted, relabelled
@@ -46,18 +46,17 @@ def source(here:pathlib.Path) -> str:
     raise ValueError(f"nothing could be read on {here.name} page {', '.join(blank)}")
   return "\n\f".join(pages)
 
-def reading(text:str) -> tuple[Form, tuple["Told", ...], tuple["Asked", ...], tuple["Sum", ...]]:
+def reading(form:Form, text:str) -> tuple[tuple["Told", ...], tuple["Asked", ...], tuple["Sum", ...]]:
   try: from it01.local import found, tells
   except ImportError as e: raise ValueError(f"reading with a model file needs pip install 'it01[local]' ({e})") from e
-  form = wanted()
-  return (form, *tells(form, found(text)))
+  return tells(form, found(text))
 
 def shaped(told:tuple["Told", ...], asked:tuple["Asked", ...]) -> tuple[dict[str, tuple[Decimal, str]], list[tuple[str, str]]]:
   seen = {t.fact: (t.amt, t.quote) for t in told}
   return seen, [(f"{q.amt:,} on the line {q.quote}", offering(q.asking, q.lines)) for q in asked]
 
 def to_local(text:str) -> list[str]:
-  _, told, asked, working = reading(text)
+  told, asked, working = reading(wanted(), text)
   ret = []
   for t in told: ret += [f"{t.fact:<32}{t.amt:>16,}", f"  {t.line}, {t.quote}"]
   if asked:
@@ -210,7 +209,9 @@ def added(here:pathlib.Path, document:str) -> list[str]:
     freed = [line for kind, amt in totals(found).items() if (why := table.exempt.get(kind))
              for line in (f"  {kind:<32}{amt:>16,}", f"    {why.section:<42}{why.url}")]
   else:
-    form, told, asked, _ = reading(src)
+    if not is_titled(form := wanted(), src):
+      raise ValueError(f"{paper.name} is neither a bank statement nor a {form.title}, so nothing was read")
+    told, asked, _ = reading(form, src)
     was, seen, asking = form.name, *shaped(told, asked)
   entry = Document(name=paper.name, path=str(paper.resolve()), mark=mark, kind=was)
   text, how = noted(here.read_text(encoding="utf-8"), seen, entry, asking, labels, paid)
