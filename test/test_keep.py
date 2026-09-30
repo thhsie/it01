@@ -1,7 +1,7 @@
 import json, unittest
 from decimal import Decimal
 from it01.keep import (ASIDE, TITLES, WORDING, Document, answer, apart, case, confirm, dumped, figures, fingerprint, increased, keep, loaded,
-                       needing, noted, priced, reanswered, received, shown)
+                       needing, noted, priced, reanswered, received, shown, with_year)
 from it01.kinds import spoken
 from it01.law import Source
 
@@ -355,7 +355,7 @@ class TestReceived(unittest.TestCase):
             "either.pdf, 400.00 paid in on 05/06/2025, TRANSFER": "other", "gone.pdf, 1.00 paid in on 01/01/2025, X": "other",
             "day.pdf, a lot paid in on 01/01/2025, X": "other", "day.pdf, 3.00 paid in on 20/05/2024, OLD": "other"}
 
-  def held(self): return {"documents": dict.fromkeys(("day.pdf", "month.pdf", "either.pdf"), "bank statement"), "labels": self.LABELS}
+  def held(self): return {"documents": dict.fromkeys(("day.pdf", "month.pdf", "either.pdf"), "bank statement"), "labels": self.LABELS, "year": {}}
 
   def test_money_in_is_summed_by_kind_with_the_largest_first(self):
     self.assertEqual(received(self.held(), TABLE)["kinds"], {"pay": Decimal("2000.00"), "other": Decimal("415.00"), "business": Decimal("250.50"),
@@ -376,6 +376,10 @@ class TestReceived(unittest.TestCase):
                      {"total": Decimal("1250.50"), "groups": {"income": Decimal("1250.50")},
                       "payments": {"income": ["day.pdf, 1,000.00 paid in on 03/03/2025, SALARY",
                                               "day.pdf, 250.50 paid in on 03/03/2025, SALARY (2)"]}})
+
+  def test_the_case_year_holds_the_months_whatever_the_latest_payment(self):
+    got = received(self.held() | {"year": {"from": "2023-07", "to": "2024-06"}}, TABLE)
+    self.assertEqual((list(got["months"])[0], "day.pdf, 3.00 paid in on 20/05/2024, OLD" in got["outside"]), ("2023-07", False))
 
   def test_a_payment_before_the_income_year_is_named(self):
     self.assertEqual(received(self.held(), TABLE)["outside"], ["day.pdf, 3.00 paid in on 20/05/2024, OLD"])
@@ -418,6 +422,23 @@ class TestReceived(unittest.TestCase):
     text = dumped({"resident": True, "documents": self.held()["documents"], "labels": self.LABELS})
     got = case(text)["received"]
     self.assertEqual((got["months"]["2025-04"]["total"], [s["page"] for s in got["year_sources"]]), ("7.00", [19, 26]))
+
+class TestYear(unittest.TestCase):
+  def test_a_case_is_given_twelve_months_from_july(self):
+    self.assertEqual(json.loads(with_year(written(), "2025-07"))["year"], {"from": "2025-07", "to": "2026-06"})
+
+  def test_a_year_starts_in_july(self):
+    with self.assertRaisesRegex(ValueError, "starts in month 7, not '2025-01'"): with_year(written(), "2025-01")
+
+  def test_a_case_with_documents_keeps_its_year(self):
+    text = with_year(written(), "2025-07")
+    with self.assertRaisesRegex(ValueError, "already reads documents for the year from 2025-07"): with_year(text, "2024-07")
+
+  def test_a_case_with_documents_and_no_year_can_be_given_one(self):
+    self.assertEqual(json.loads(with_year(written(), "2024-07"))["year"]["to"], "2025-06")
+
+  def test_a_year_that_is_not_twelve_months_is_refused(self):
+    with self.assertRaisesRegex(ValueError, "year must be one income year"): apart(loaded(written(year={"from": "2025-07", "to": "2025-12"})))
 
 class TestReanswered(unittest.TestCase):
   SHORT = "100.00 paid in on 01/02/2026, TRANSFER"

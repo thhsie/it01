@@ -166,6 +166,12 @@ class TestCli(unittest.TestCase):
     ret = run("show", self.cased("/nowhere/payslip.txt", ""), "other.txt")
     self.assertEqual((ret.returncode, ret.stderr), (1, "error: the case does not say where other.txt was read from\n"))
 
+  def test_a_case_is_given_its_income_year(self):
+    here = on_disk(json.dumps({"resident": True}))
+    self.addCleanup(os.unlink, here)
+    ret = run("year", here, "2025-07")
+    self.assertEqual((ret.returncode, json.loads(pathlib.Path(here).read_text())["year"]), (0, {"from": "2025-07", "to": "2026-06"}))
+
   def test_a_document_that_has_moved_says_where_it_was(self):
     ret = run("show", self.cased("/nowhere/payslip.txt", ""), "payslip.txt")
     self.assertEqual((ret.returncode, ret.stderr), (1, "error: payslip.txt is no longer at /nowhere/payslip.txt\n"))
