@@ -6,7 +6,7 @@ from unittest import mock
 from it01.__main__ import added, changed, questioned, responded, shaped, to_debits
 from it01.credits import Question
 from it01.labels import Labelled
-from it01.keep import PAID_OUT, TWICE, adrift, answer, case, fingerprint, keep, lines_of, loaded, offering, outgoing, priced
+from it01.keep import PAID_OUT, VERSION, adrift, answer, apart, case, dumped, fingerprint, keep, lines_of, loaded, offering, outgoing, priced
 from it01.kinds import ADRIFT, paying, spoken
 from it01.rows import Check
 from test.helpers import ROOT
@@ -149,7 +149,7 @@ class TestCli(unittest.TestCase):
 
   def cased(self, paper:str, said:str) -> str:
     name = pathlib.Path(paper).name
-    here = on_disk(json.dumps({"resident": True, "documents": {name: "payslip"}, "paths": {name: paper},
+    here = on_disk(json.dumps({"resident": True, "version": VERSION, "documents": {name: "payslip"}, "paths": {name: paper},
                                "texts": {fingerprint(said.encode()): name}}))
     self.addCleanup(os.unlink, here)
     return here
@@ -191,7 +191,7 @@ class TestCli(unittest.TestCase):
       self.assertEqual(run(*args).returncode, 2, args)
 
   def test_a_document_already_read_is_not_read_again(self):
-    name = on_disk(json.dumps({"resident": True, "documents": {"gone.txt": "payslip"}}))
+    name = on_disk(json.dumps({"resident": True, "version": VERSION, "documents": {"gone.txt": "payslip"}}))
     self.addCleanup(os.unlink, name)
     was = pathlib.Path(name).read_text()
     ret = run("add", name, "gone.txt")
@@ -208,11 +208,12 @@ class TestCli(unittest.TestCase):
   PAYMENT = "20,000.00 paid in on 12/01/2026, WALLET TRANSFER"
 
   def answered_with(self, said:str, keys:tuple[str, ...]=(f"bank.pdf, {PAYMENT}",), asking:str="what was this payment for", **given:object) -> dict:
-    here = on_disk(json.dumps({"resident": True, "labels": dict.fromkeys(keys, "unclear"),
+    documents = dict.fromkeys(sorted({key.split(", ", 1)[0] for key in keys}), "bank statement")
+    here = on_disk(json.dumps({"resident": True, "version": VERSION, "documents": documents, "labels": dict.fromkeys(keys, "unclear"),
                                "pending": {self.PAYMENT: asking}} | given))
     self.addCleanup(os.unlink, here)
     responded(pathlib.Path(here), self.PAYMENT, said)
-    return json.loads(pathlib.Path(here).read_text())
+    return loaded(pathlib.Path(here).read_text())
 
   FORMED = "1,107,000.00 on the line EMOLUMENTS NET OF EXEMPT INCOME 1,107,000.00"
   CHOICES = "which line of the form is this: net_emoluments (the net pay); total (the whole pay)"
@@ -224,11 +225,11 @@ class TestCli(unittest.TestCase):
     return json.loads(pathlib.Path(here).read_text(), parse_float=Decimal)
 
   def test_a_form_answer_naming_a_line_that_feeds_a_fact_proposes_it(self):
-    held = self.answered_on_the_form("net_emoluments")
-    self.assertEqual((held["proposed"], held["sources"]["salary"]), ({"salary": Decimal("1107000.00")}, f"answered {self.FORMED}"))
+    _, held, proposed = apart(self.answered_on_the_form("net_emoluments"))
+    self.assertEqual((proposed, held["sources"]["salary"]), ({"salary": Decimal("1107000.00")}, f"answered {self.FORMED}"))
 
   def test_a_form_answer_naming_a_line_that_feeds_nothing_moves_nothing(self):
-    self.assertNotIn("proposed", self.answered_on_the_form("total"))
+    self.assertEqual(apart(self.answered_on_the_form("total"))[2], {})
 
   def test_a_form_line_the_question_did_not_offer_is_refused(self):
     with self.assertRaisesRegex(ValueError, "with one of: net_emoluments, total"): self.answered_on_the_form("salary")
@@ -237,32 +238,35 @@ class TestCli(unittest.TestCase):
     self.assertEqual(lines_of(offering("which line", (("net_emoluments", "the net pay, after exempt"), ("total", "all of it")))),
                      ["net_emoluments", "total"])
 
-  def test_a_form_answer_for_a_confirmed_fact_becomes_a_question(self):
-    held = self.answered_on_the_form("net_emoluments", salary=1000)
-    self.assertIn("salary read as 1,107,000.00 in answered", next(iter(held["pending"])))
+  def test_a_form_answer_for_a_confirmed_fact_proposes_it_again(self):
+    held = self.answered_on_the_form("net_emoluments", salary=1000, confirmed={"salary": "1000"})
+    got = case(dumped(held))
+    self.assertEqual((got["proposed"], got["changed"], "pending" in held),
+                     ({"salary": "1107000.00"}, {"salary": {"was": "1000", "source": f"answered {self.FORMED}"}}, False))
 
   def test_a_payment_answered_with_a_kind_is_relabelled_and_counted(self):
     held = self.answered_with("business")
-    self.assertEqual((held["labels"], held["proposed"]), ({"bank.pdf, 20,000.00 paid in on 12/01/2026, WALLET TRANSFER": "business"},
-                                                        {"business.gross_income": 20000}))
-    self.assertIn("answered 20,000.00 paid in", held["sources"]["business.gross_income"])
+    _, kept, proposed = apart(held)
+    self.assertEqual((held["labels"], proposed), ({"bank.pdf, 20,000.00 paid in on 12/01/2026, WALLET TRANSFER": "business"},
+                                                  {"business.gross_income": 20000}))
+    self.assertEqual(kept["sources"]["business.gross_income"], "bank.pdf, 1 labelled business")
 
   def test_a_payment_answered_with_a_kind_that_counts_nothing_is_only_relabelled(self):
     held = self.answered_with("other")
-    self.assertEqual((list(held["labels"].values()), "proposed" in held), (["other"], False))
+    self.assertEqual((list(held["labels"].values()), apart(held)[2]), (["other"], {}))
 
   def test_add_answering_another_question_is_kept_as_a_note(self):
     held = self.answered_with("add")
-    self.assertEqual((held["answers"], "proposed" in held), ({self.PAYMENT: "add"}, False))
+    self.assertEqual((held["answers"], apart(held)[2]), ({self.PAYMENT: "add"}, {}))
 
   def test_a_payment_answered_in_words_is_kept_as_a_note(self):
     held = self.answered_with("a gift from my sister")
-    said = (list(held["labels"].values()), "proposed" in held, list(held["answers"].values()))
-    self.assertEqual(said, (["unclear"], False, ["a gift from my sister"]))
+    said = (list(held["labels"].values()), apart(held)[2], list(held["answers"].values()))
+    self.assertEqual(said, (["unclear"], {}, ["a gift from my sister"]))
 
   def test_identical_payments_in_one_statement_are_all_counted(self):
     held = self.answered_with("business", keys=(f"bank.pdf, {self.PAYMENT}", f"bank.pdf, {self.PAYMENT} (2)"))
-    self.assertEqual((held["proposed"], set(held["labels"].values())), ({"business.gross_income": 40000}, {"business"}))
+    self.assertEqual((apart(held)[2], set(held["labels"].values())), ({"business.gross_income": 40000}, {"business"}))
 
   def test_the_same_payment_in_two_statements_is_refused(self):
     with self.assertRaisesRegex(ValueError, "more than one document"):
@@ -270,7 +274,7 @@ class TestCli(unittest.TestCase):
 
   def test_a_payment_left_out_for_its_balance_stays_a_note(self):
     held = self.answered_with("noted", asking="the balance after this does not agree, so it is left out")
-    self.assertEqual((list(held["labels"].values()), "proposed" in held), (["unclear"], False))
+    self.assertEqual((list(held["labels"].values()), apart(held)[2]), (["unclear"], {}))
 
   def test_a_payment_left_out_for_its_balance_takes_only_noted(self):
     for asking in (ADRIFT, adrift()):
@@ -278,61 +282,55 @@ class TestCli(unittest.TestCase):
 
   def test_a_case_without_labels_keeps_the_answer_as_a_note(self):
     held = self.answered_with("business", keys=())
-    self.assertEqual((held["answers"], "proposed" in held), ({self.PAYMENT: "business"}, False))
+    self.assertEqual((held["answers"], apart(held)[2]), ({self.PAYMENT: "business"}, {}))
 
-  def test_a_payment_answered_with_a_kind_already_confirmed_becomes_a_question(self):
-    held = self.answered_with("business", business={"gross_income": 100000})
-    self.assertEqual(("proposed" in held, len(held["pending"])), (False, 1))
-
-  def settled(self, said:str) -> tuple[dict, str]:
-    here = on_disk(json.dumps({"resident": True, "business": {"gross_income": 100000}, "labels": {f"bank.pdf, {self.PAYMENT}": "unclear"},
-                               "pending": {self.PAYMENT: "what was this payment for"}}))
-    self.addCleanup(os.unlink, here)
-    responded(pathlib.Path(here), self.PAYMENT, "business")
-    responded(pathlib.Path(here), "business gross income", said)
-    return json.loads(pathlib.Path(here).read_text()), pathlib.Path(here).read_text()
-
-  def test_a_figure_already_confirmed_grows_only_when_the_answer_is_add(self):
-    for said, gross in (("add", 120000), ("leave", 100000)):
-      with self.subTest(said):
-        held, _ = self.settled(said)
-        self.assertEqual((held["business"]["gross_income"], "pending" in held), (gross, False))
-
-  def test_a_figure_already_confirmed_is_answered_only_with_add_or_leave(self):
-    with self.assertRaisesRegex(ValueError, "with one of: add, leave"): self.settled("yes please")
+  def test_a_payment_answered_with_a_kind_already_confirmed_proposes_it_again(self):
+    got = case(dumped(self.answered_with("business", business={"gross_income": 100000}, confirmed={"business.gross_income": "100000"})))
+    self.assertEqual((got["proposed"], got["changed"], got["pending"]),
+                     ({"business.gross_income": "20000.00"},
+                      {"business.gross_income": {"was": "100000", "source": "bank.pdf, 1 labelled business"}}, {}))
 
   def changed_to(self, first:str, then:str, **given:object) -> dict:
-    here = on_disk(json.dumps({"resident": True, "labels": {f"bank.pdf, {self.PAYMENT}": "unclear"},
-                               "pending": {self.PAYMENT: "what was this payment for"}} | given))
+    here = on_disk(json.dumps({"resident": True, "version": VERSION, "documents": {"bank.pdf": "bank statement"},
+                               "labels": {f"bank.pdf, {self.PAYMENT}": "unclear"}, "pending": {self.PAYMENT: "what was this payment for"}} | given))
     self.addCleanup(os.unlink, here)
     responded(pathlib.Path(here), self.PAYMENT, first)
     changed(pathlib.Path(here), self.PAYMENT[:20], then)
-    return json.loads(pathlib.Path(here).read_text())
+    return loaded(pathlib.Path(here).read_text())
 
   def test_a_changed_kind_moves_the_amount_to_the_new_fact(self):
     held = self.changed_to("business", "rent")
-    self.assertEqual((held["proposed"], list(held["labels"].values()), held["answers"]), ({"rent": 20000}, ["rent"], {self.PAYMENT: "rent"}))
-    self.assertEqual((list(held["sources"]), held["sources"]["rent"]), (["rent"], f"answered {self.PAYMENT}"))
+    _, kept, proposed = apart(held)
+    self.assertEqual((proposed, list(held["labels"].values()), held["answers"]), ({"rent": 20000}, ["rent"], {self.PAYMENT: "rent"}))
+    self.assertEqual(("sources" in held, kept["sources"]), (False, {"rent": "bank.pdf, 1 labelled rent"}))
 
   def test_a_kind_changed_to_one_that_counts_nothing_takes_the_amount_back(self):
     held = self.changed_to("business", "other")
-    self.assertEqual(("proposed" in held, "sources" in held, list(held["labels"].values())), (False, False, ["other"]))
+    self.assertEqual((apart(held)[2], "sources" in held, list(held["labels"].values())), ({}, False, ["other"]))
 
   def test_an_answer_in_words_can_become_a_kind(self):
-    self.assertEqual(self.changed_to("a gift", "business")["proposed"], {"business.gross_income": 20000})
+    self.assertEqual(apart(self.changed_to("a gift", "business"))[2], {"business.gross_income": 20000})
 
-  def test_a_change_after_the_figure_was_confirmed_is_refused(self):
-    here = on_disk(json.dumps({"resident": True, "labels": {f"bank.pdf, {self.PAYMENT}": "unclear"},
-                               "pending": {self.PAYMENT: "what was this payment for"}}))
+  def test_a_change_after_the_figure_was_confirmed_proposes_the_confirmed_figure_at_zero(self):
+    here = on_disk(json.dumps({"resident": True, "version": VERSION, "documents": {"bank.pdf": "bank statement"},
+                               "labels": {f"bank.pdf, {self.PAYMENT}": "unclear"}, "pending": {self.PAYMENT: "what was this payment for"}}))
     self.addCleanup(os.unlink, here)
     responded(pathlib.Path(here), self.PAYMENT, "business")
     run("confirm", here, "business.gross_income")
-    with self.assertRaisesRegex(ValueError, "is confirmed, so .* cannot be changed"): changed(pathlib.Path(here), self.PAYMENT, "rent")
+    changed(pathlib.Path(here), self.PAYMENT, "rent")
+    got = case(pathlib.Path(here).read_text())
+    gone = {"business.gross_income": {"was": "20000.00", "source": "no longer read from any document"}}
+    self.assertEqual((got["proposed"], got["changed"]), ({"business.gross_income": "0", "rent": "20000.00"}, gone))
 
-  def test_a_change_to_a_kind_whose_fact_is_confirmed_becomes_a_question(self):
-    held = self.changed_to("rent", "business", business={"gross_income": 100000})
-    self.assertEqual(("business.gross_income" in held.get("proposed", {}), list(held["labels"].values())), (False, ["business"]))
-    self.assertEqual(len(held["pending"]), 1)
+  def test_a_line_left_out_for_its_balance_counts_once_its_kind_is_changed(self):
+    key = f"bank.pdf, {self.PAYMENT}"
+    here = on_disk(json.dumps({"resident": True, "version": VERSION, "documents": {"bank.pdf": "bank statement"}, "labels": {key: "business"},
+                               "checks": {key: "does not agree"}, "answers": {self.PAYMENT: "noted"}}))
+    self.addCleanup(os.unlink, here)
+    before = apart(loaded(pathlib.Path(here).read_text()))[2]
+    changed(pathlib.Path(here), self.PAYMENT, "business")
+    after = loaded(pathlib.Path(here).read_text())
+    self.assertEqual((before, apart(after)[2], "checks" in after), ({}, {"business.gross_income": 20000}, False))
 
   def test_only_a_kind_can_replace_an_answer(self):
     with self.assertRaisesRegex(ValueError, "only a payment's kind can be changed"): self.changed_to("business", "a gift")
@@ -382,7 +380,7 @@ class TestCli(unittest.TestCase):
     question = next(iter(held["pending"]))
     with self.assertRaisesRegex(ValueError, "from 0.01 to 500.00"): responded(pathlib.Path(here), question, "600")
     responded(pathlib.Path(here), question, "120.50")
-    self.assertEqual(json.loads(pathlib.Path(here).read_text())["proposed"], {"business.utilities": 120.5})
+    self.assertEqual(apart(loaded(pathlib.Path(here).read_text()))[2], {"business.utilities": Decimal("120.50")})
 
   SUPPLIES = tuple(Labelled(f"0{n}/07/2025", Decimal(amt), f"SUPPLIER {n}", "business_expense", Check.AGREES)
                    for n, amt in ((4, "100.00"), (5, "250.50"), (6, "40.00")))
@@ -412,11 +410,11 @@ class TestCli(unittest.TestCase):
         responded(pathlib.Path(here), next(iter(held["pending"])), wrong)
 
   def test_the_payments_named_are_added_up_by_the_engine(self):
-    for said, want in (("payments 1, 3", 140), ("payments 1, 2, 3", 390.5)):
+    for said, want in (("payments 1, 3", "140.00"), ("payments 1, 2, 3", "390.50")):
       with self.subTest(said):
         here, held = self.paid_out(self.SUPPLIES, business={"gross_income": 100000})
         responded(pathlib.Path(here), next(iter(held["pending"])), said)
-        self.assertEqual(json.loads(pathlib.Path(here).read_text())["proposed"], {"business.other_expenses": want})
+        self.assertEqual(apart(loaded(pathlib.Path(here).read_text()))[2], {"business.other_expenses": Decimal(want)})
 
   def test_a_case_saved_before_payments_were_kept_offers_no_numbers(self):
     question = "140.00 paid out in 2 payments that look like business expense, in bank.pdf"
@@ -428,7 +426,9 @@ class TestCli(unittest.TestCase):
   SALARY = "money labelled pay came in and the case gives no salary"
 
   def test_the_salary_question_closes_once_a_salary_is_proposed(self):
-    text = json.dumps({"resident": True, "proposed": {"salary": 60000}, "pending": {self.SALARY: "add it", "cash of 1.00": "where from"}})
+    read = {"version": VERSION, "documents": {"pay.txt": "statement of emoluments"},
+            "read": {"pay.txt, salary": "60,000.00 read from Total 60,000.00"}}
+    text = json.dumps({"resident": True, "pending": {self.SALARY: "add it", "cash of 1.00": "where from"}} | read)
     self.assertEqual(loaded(answer(text, "cash of 1.00", "a gift")).get("pending", {}), {})
     self.assertNotIn(self.SALARY, case(text)["pending"])
 
@@ -443,13 +443,14 @@ class TestCli(unittest.TestCase):
     labels = {"bank.txt, 20,000.00 paid in on 20/07/2025, TRANSFER": "pay", "bank.txt, 5,000.00 paid in on 20/08/2025, TRANSFER": "pay",
               "bank.txt, 7,000.00 paid in on 20/08/2024, TRANSFER": "pay"}
     year = {"from": "2025-07", "to": "2026-06"}
-    held = {"documents": {"bank.txt": "bank statement"}, "labels": labels, "pending": {self.SALARY: "add it"}, "year": year}
+    held = {"version": VERSION, "documents": {"bank.txt": "bank statement"}, "labels": labels, "pending": {self.SALARY: "add it"}, "year": year}
     here = on_disk(json.dumps({"resident": True} | held))
     self.addCleanup(os.unlink, here)
     responded(pathlib.Path(here), self.SALARY, "business")
-    kept = json.loads(pathlib.Path(here).read_text())
-    self.assertEqual((set(kept["labels"].values()), kept["proposed"]), ({"business"}, {"business.gross_income": 25000}))
-    self.assertTrue(kept["sources"]["business.gross_income"].startswith(f"answered {self.SALARY}"))
+    kept = loaded(pathlib.Path(here).read_text())
+    _, held, proposed = apart(kept)
+    self.assertEqual((set(kept["labels"].values()), proposed), ({"business"}, {"business.gross_income": 25000}))
+    self.assertEqual(held["sources"]["business.gross_income"], "bank.txt, 2 labelled business")
 
   def test_a_certificate_question_is_closed_without_moving_a_figure(self):
     spent = (Labelled("04/07/2025", Decimal("18000.00"), "HOME LOAN", "housing_loan", Check.AGREES),)
@@ -457,15 +458,15 @@ class TestCli(unittest.TestCase):
       with self.subTest(said):
         here, held = self.paid_out(spent)
         responded(pathlib.Path(here), next(iter(held["pending"])), said)
-        after = json.loads(pathlib.Path(here).read_text())
-        self.assertEqual((after.get("pending", {}), "proposed" in after), ({}, False))
+        after = loaded(pathlib.Path(here).read_text())
+        self.assertEqual((after.get("pending", {}), apart(after)[2]), ({}, {}))
 
   def test_payments_out_of_one_kind_are_asked_about_once(self):
     _, held = self.paid_out(self.PENSION)
     question, asks = next(iter(held["pending"].items()))
     self.assertEqual((len(held["pending"]), question.split(", in ")[0]), (1, "2,000.00 paid out in 2 payments that look like pension"))
     self.assertIn("approved under the insurance law", asks)
-    self.assertNotIn("proposed", held)
+    self.assertEqual(apart(held)[2], {})
 
   def test_each_claim_question_names_its_kind_whatever_the_count(self):
     for kind in paying().claims:
@@ -484,8 +485,8 @@ class TestCli(unittest.TestCase):
         here, held = self.paid_out(self.PENSION)
         question = next(iter(held["pending"]))
         responded(pathlib.Path(here), question, said)
-        after = json.loads(pathlib.Path(here).read_text())
-        self.assertEqual(after.get("proposed", {}), proposed)
+        _, after, got = apart(loaded(pathlib.Path(here).read_text()))
+        self.assertEqual(got, proposed)
         if proposed: self.assertEqual(after["sources"]["pension_contributions"], f"answered {question}")
 
   def test_a_relief_question_takes_only_yes_or_no(self):
@@ -538,23 +539,10 @@ class TestCli(unittest.TestCase):
     asked = (Question("20/07/2026", Decimal("950.00"), "RENT JULY", "where did this come from"),)
     with mock.patch("it01.__main__.label", return_value=(found, asked)), mock.patch("it01.__main__.spending", return_value=spent):
       said = added(pathlib.Path(here), self.saved_document(STATEMENT))
-    kept = json.loads(pathlib.Path(here).read_text())
-    self.assertEqual((kept["proposed"], "pending" in kept), ({"rent": 900}, False))
+    kept = loaded(pathlib.Path(here).read_text())
+    self.assertEqual((apart(kept)[2], "pending" in kept), ({"rent": 900}, False))
     self.assertEqual(list(kept["outside"].values()), ["paid in", "paid out"])
     self.assertIn("  950.00 paid in on 20/07/2026, RENT JULY", said)
-
-  def test_a_leave_answered_for_one_statement_is_not_reused_for_another(self):
-    here = on_disk(json.dumps({"resident": True, "business": {"gross_income": 300000}}))
-    self.addCleanup(os.unlink, here)
-    found = (Labelled("10/07/2025", Decimal("50000.00"), "CLIENT", "business", Check.AGREES),)
-    with mock.patch("it01.__main__.label", return_value=(found, ())), mock.patch("it01.__main__.spending", return_value=()):
-      first = self.saved_document(STATEMENT)
-      added(pathlib.Path(here), first)
-      responded(pathlib.Path(here), next(iter(json.loads(pathlib.Path(here).read_text())["pending"])), "leave")
-      second = self.saved_document(STATEMENT + "\n")
-      added(pathlib.Path(here), second)
-    pending = json.loads(pathlib.Path(here).read_text())["pending"]
-    self.assertEqual([TWICE.fullmatch(q)["quote"] for q in pending], [f"{pathlib.Path(second).name}, 1 labelled business"])
 
   def test_pay_in_two_statements_asks_once(self):
     here = on_disk(json.dumps({"resident": True}))
@@ -566,7 +554,9 @@ class TestCli(unittest.TestCase):
 
   def test_pay_in_the_bank_asks_for_the_salary_only_when_the_case_has_none(self):
     found = (Labelled("02/07/2025", Decimal("5000.00"), "Salary", "pay", Check.AGREES),)
-    for given, asked in (({}, 1), ({"salary": 1200000}, 0), ({"proposed": {"salary": 1200000}}, 0)):
+    read = {"version": VERSION, "documents": {"pay.txt": "statement of emoluments"},
+            "read": {"pay.txt, salary": "1,200,000.00 read from Total 1,200,000.00"}}
+    for given, asked in (({}, 1), ({"salary": 1200000}, 0), (read, 0)):
       here = on_disk(json.dumps({"resident": True} | given))
       self.addCleanup(os.unlink, here)
       with self.subTest(given), mock.patch("it01.__main__.label", return_value=(found, ())): added(pathlib.Path(here), self.saved_document(STATEMENT))
@@ -590,7 +580,8 @@ class TestCli(unittest.TestCase):
       with self.subTest(said): self.assertIn(f"{why}, and this case covers 2025-07 to 2026-06", ret.stderr)
 
   def test_a_statement_in_another_currency_than_the_case_is_not_read(self):
-    here = on_disk(json.dumps({"resident": True, "documents": {"first.txt": "bank statement"}, "currencies": {"first.txt": "ABC"}}))
+    here = on_disk(json.dumps({"resident": True, "version": VERSION, "documents": {"first.txt": "bank statement"},
+                               "currencies": {"first.txt": "ABC"}}))
     self.addCleanup(os.unlink, here)
     ret = run("add", here, paper := self.saved_document("Currency : XYZ\n" + STATEMENT))
     self.assertIn(f"{pathlib.Path(paper).name} is in XYZ, and this case is in ABC, so nothing was read", ret.stderr)
@@ -611,9 +602,48 @@ class TestCli(unittest.TestCase):
     self.assertEqual(json.loads(pathlib.Path(here).read_text())["read"],
                      {f"{pathlib.Path(paper).name}, salary": "1,107,000.00 read from Total 1,107,000.00"})
 
+  def test_each_figure_is_worked_out_from_what_was_read_and_answered(self):
+    here = pathlib.Path(on_disk(json.dumps({"resident": True, "year": {"from": "2025-07", "to": "2026-06"}})))
+    self.addCleanup(os.unlink, here)
+    table = spoken("labelling")
+    found = (Labelled("20/07/2025", Decimal("9000.00"), "CLIENT A", "business", Check.AGREES),
+             Labelled("21/07/2025", Decimal("900.00"), "FLAT", "rent", Check.UNCHECKED),
+             Labelled("22/07/2025", Decimal("500.00"), "CASH", "cash", Check.AGREES),
+             Labelled("23/07/2025", Decimal("300.00"), "CLIENT B", "business", Check.DIFFERS))
+    asked = (Question("22/07/2025", Decimal("500.00"), "CASH", table.asking["cash"]),)
+    spent = (Labelled("24/07/2025", Decimal("2000.00"), "PENSION", "pension", Check.AGREES),
+             Labelled("25/07/2025", Decimal("400.00"), "STOCK", "business_expense", Check.AGREES))
+    with mock.patch("it01.__main__.label", return_value=(found, asked)), mock.patch("it01.__main__.spending", return_value=spent):
+      added(here, bank := self.saved_document(STATEMENT))
+    told = (SimpleNamespace(fact="salary", amt=Decimal("1107000.00"), quote="Total 1,107,000.00"),)
+    with mock.patch("it01.__main__.reading", return_value=(told, (), ())):
+      added(here, pay := self.saved_document("Statement of emoluments for the income year ended 30 June 2026\nTotal 1,107,000.00\n"))
+    for question in list(json.loads(here.read_text())["pending"]):
+      said = "business" if "CASH" in question else "noted" if "CLIENT B" in question else "yes"
+      responded(here, question, said)
+    _, held, proposed = apart(loaded(here.read_text()))
+    bank, pay = pathlib.Path(bank).name, pathlib.Path(pay).name
+    spent = f"paid out in 1 payment that looks like pension, in {bank}", f"paid out in 1 payment that looks like business expense, in {bank}"
+    self.assertEqual({fact: (amt, held["sources"][fact]) for fact, amt in proposed.items()},
+                     {"business.gross_income": (Decimal("9500.00"), f"{bank}, 2 labelled business"),
+                      "rent": (Decimal("900.00"), f"{bank}, 1 labelled rent, 1 unchecked"),
+                      "salary": (Decimal("1107000.00"), f"{pay}, Total 1,107,000.00"),
+                      "pension_contributions": (Decimal("2000.00"), f"answered 2,000.00 {spent[0]}"),
+                      "business.other_expenses": (Decimal("400.00"), f"answered 400.00 {spent[1]}")})
+
+  def test_an_unclear_payment_that_does_not_agree_counts_once_it_is_answered(self):
+    line = "1,000.00 paid in on 20/07/2025, TRANSFER"
+    raw = {"resident": True, "version": VERSION, "documents": {"bank.txt": "bank statement"}, "labels": {f"bank.txt, {line}": "unclear"},
+           "checks": {f"bank.txt, {line}": "does not agree"}, "pending": {line: spoken("labelling").asking["unclear"]}}
+    here = pathlib.Path(on_disk(json.dumps(raw)))
+    self.addCleanup(os.unlink, here)
+    responded(here, line, "rent")
+    self.assertEqual(apart(loaded(here.read_text()))[2], {"rent": Decimal("1000.00")})
+
   def test_the_same_file_under_another_name_is_not_read_twice(self):
     said = "Total emoluments        1,107,000.00\n"
-    was = json.dumps({"resident": True, "documents": {"payslip.txt": "payslip"}, "texts": {fingerprint(said.encode()): "payslip.txt"}})
+    was = json.dumps({"resident": True, "version": VERSION, "documents": {"payslip.txt": "payslip"},
+                      "texts": {fingerprint(said.encode()): "payslip.txt"}})
     name = on_disk(was)
     self.addCleanup(os.unlink, name)
     with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as f: f.write(said)
@@ -630,12 +660,12 @@ class TestCli(unittest.TestCase):
     self.assertIn("same file as first.txt", said[0])
 
   def test_confirming_moves_a_figure_into_the_facts(self):
-    name = on_disk(json.dumps({"resident": True, "salary": 1200000, "proposed": {"other_income": 40000},
-                               "sources": {"other_income": "Rent received 40,000.00"}}))
+    name = on_disk(json.dumps({"resident": True, "salary": 1200000, "version": VERSION, "documents": {"rent.txt": "statement of emoluments"},
+                               "read": {"rent.txt, other_income": "40,000.00 read from Rent received 40,000.00"}}))
     self.addCleanup(os.unlink, name)
     ret = run("confirm", name, "other_income")
-    held = json.loads(pathlib.Path(name).read_text())
-    self.assertEqual((ret.returncode, held["other_income"], "proposed" in held), (0, 40000, False))
+    held = loaded(pathlib.Path(name).read_text())
+    self.assertEqual((ret.returncode, held["other_income"], held["confirmed"], apart(held)[2]), (0, 40000, {"other_income": "40000.00"}, {}))
     self.assertIn("other_income", ret.stdout)
 
   def test_confirming_a_figure_that_was_not_proposed_leaves_the_file_alone(self):

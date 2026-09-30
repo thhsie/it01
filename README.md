@@ -50,11 +50,17 @@ A document is read as text. A PDF can be given instead, and each of its pages is
 
 `add` works out what the document is. A running balance column means a bank statement, which is labelled through your endpoint or a model file. Anything else is read with a model file of your own.
 
-What it finds goes to `proposed`, with a note of where it came from. What it cannot place goes to `pending` as a question. A question you have already answered is not asked again, and the command says so. A figure for a name already proposed is added to it, and both notes are kept.
+The case keeps what it reads: the label of each payment and each figure a form shows. What it cannot place goes to `pending` as a question. A question you have already answered is not asked again, and the command says so.
 
-A document whose name is already in `documents` is not read at all, and the file is left alone. A file identical to one read before is refused the same way, whatever it is called. A figure for a fact you have confirmed becomes a question, so a second document never changes a confirmed figure on its own.
+A document whose name is already in `documents` is not read at all, and the file is left alone. A file identical to one read before is refused the same way, whatever it is called.
 
-`keep` prints everything processed so far. `confirm` moves one figure into the facts, and nothing else does. `data` prints the same case as JSON, with every number as text. It also gives a short headline for an open question about salary, money read twice, a payment left out, or money paid out. It lists the payments behind each question about business costs paid out.
+The proposed figures are not kept in the file. Each time the case is read, they are worked out from what was read and what you answered. Each payment labelled with a kind that feeds a fact adds to it, and so does each figure a form shows.
+
+A relief or business cost you answered yes to, and a form line you chose, add too. Each figure notes where it came from.
+
+`keep` prints everything processed so far. `confirm` moves one figure into the facts, and keeps the amount in `confirmed`. When a later document or answer changes that figure, it is proposed again, and `data` lists its old amount under `changed`. A confirmed figure no longer read from any document is proposed at 0.
+
+`data` prints the same case as JSON, with every number as text. It also gives a short headline for an open question about salary, a payment left out, or money paid out. It lists the payments behind each question about business costs paid out.
 
 `keep` also adds up the money paid in by the kind it was labelled, and names the group of each kind. It also sums it by group: income, exempt, still to sort, or not income. A label that does not read as money paid in is listed, not counted. `data` carries the same totals and the group of each kind.
 
@@ -84,9 +90,7 @@ The question moves from `pending` to `answers` with the words you used. An answe
 
 A line the question did not list is refused. Any other answer is kept as a note and moves no figure. A question already answered is refused, so your first words are kept.
 
-A new document can show a figure the case already gives. `it01 add` then asks whether to add it or leave it. The question names the document the figure was read from. The same amount in two documents is asked about once for each.
-
-`it01 keep` prints what each answer would change in the tax to pay. It does this for a payment asked about, a figure read twice, a line of a form and a relief found in money paid out. The change is worked out from the facts you confirmed.
+`it01 keep` prints what each answer would change in the tax to pay. It does this for a payment asked about, a line of a form and a relief found in money paid out. The change is worked out from the facts you confirmed.
 
 ## Fill in the return
 
@@ -108,9 +112,9 @@ Facts the return has no single field for are listed last, with where to enter th
 it01 change facts.json "1,200.00 paid in on 12/08" rent
 ```
 
-`change` gives an answered payment another kind. The amount the old kind added to a proposed figure is taken back. The new kind adds the amount to its own proposed figure, if it has one.
+`change` gives an answered payment another kind. The proposed figures are worked out again, so the old kind's figure loses the amount and the new kind's figure gains it.
 
-A figure you have confirmed is left alone, and the change is refused. Only a kind can replace an answer.
+When the change moves a figure you confirmed, that figure is proposed again. Only a kind can replace an answer.
 
 ## Read with a model file of your own
 
@@ -233,7 +237,9 @@ Leave out of `income` any state benefit paid to a child or a bedridden relative 
 
 `lending` holds peer to peer lending as `interest` and `bad_debts`. 80% of the interest is exempt. The bad debts come off the rest. Bad debts above the whole interest are carried forward.
 
-Thirteen keys are set aside before the computation and none of them reaches it: `proposed`, `year`, `sources`, `documents`, `texts`, `paths`, `labels`, `paid`, `read`, `outside`, `currencies`, `answers`, `pending`.
+Fifteen keys are set aside before the computation and none of them reaches it: `version`, `year`, `sources`, `confirmed`, `documents`, `texts`, `paths`, `labels`, `paid`, `read`, `checks`, `outside`, `currencies`, `answers`, `pending`.
+
+`checks` names each payment into the account whose balance did not agree or was not checked. A payment whose balance did not agree gives no figure until you give it a kind, by answering or with `change`. A figure notes how many of its payments were not checked. A case that has read a document but has no `version`, or that has `proposed`, is refused.
 
 `year` holds the income year the case covers, as its first and last month. It starts in July and runs twelve months. `it01 year` sets it. Once the case has a year and has read a document, the year cannot change. The months of money paid in follow it. A bank statement line dated outside the year gives no figure and no question. It is kept in `outside`, marked paid in or paid out. A line whose month cannot be read stays in.
 
