@@ -215,6 +215,7 @@ def added(here:pathlib.Path, document:str) -> list[str]:
   paid:tuple[tuple[str, str], ...] = ()
   left:tuple[tuple[str, str], ...] = ()
   currency:str|None = None
+  read:tuple[tuple[str, str], ...] = ()
   freed:list[str] = []
   hint = ""
   if is_statement(src):
@@ -241,9 +242,10 @@ def added(here:pathlib.Path, document:str) -> list[str]:
       raise ValueError(f"{paper.name} {covers}, and this case covers {year['from']} to {year['to']}, so nothing was read")
     told, asked, _ = reading(form, src)
     was, seen, asking = form.name, *shaped(told, asked)
+    read = tuple((fact, f"{amt:,} read from {quote}") for fact, (amt, quote) in seen.items())
   seen = {name: (amt, f"{paper.name}, {quote}") for name, (amt, quote) in seen.items()}
   entry = Document(name=paper.name, path=str(paper.resolve()), mark=mark, kind=was)
-  text, how = noted(here.read_text(encoding="utf-8"), seen, entry, asking, labels, paid, left, currency)
+  text, how = noted(here.read_text(encoding="utf-8"), seen, entry, asking, labels, paid, left, currency, read)
   text, costs = costed(text)
   rewritten(here, text)
   how = replace(how, asked=how.asked + costs.asked)

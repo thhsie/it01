@@ -1,6 +1,7 @@
 import importlib, json, os, pathlib, subprocess, sys, tempfile, tomllib, unittest
 from dataclasses import dataclass
 from decimal import Decimal
+from types import SimpleNamespace
 from unittest import mock
 from it01.__main__ import added, changed, questioned, responded, shaped, to_debits
 from it01.credits import Question
@@ -600,6 +601,15 @@ class TestCli(unittest.TestCase):
     with mock.patch("it01.__main__.label", return_value=((), ())), mock.patch("it01.__main__.spending", return_value=()):
       added(pathlib.Path(here), paper := self.saved_document("Currency : ABC\n" + STATEMENT))
     self.assertEqual(json.loads(pathlib.Path(here).read_text())["currencies"], {pathlib.Path(paper).name: "ABC"})
+
+  def test_each_line_a_form_was_read_as_is_kept(self):
+    here = on_disk(json.dumps({"resident": True}))
+    self.addCleanup(os.unlink, here)
+    told = (SimpleNamespace(fact="salary", amt=Decimal("1107000.00"), quote="Total 1,107,000.00"),)
+    with mock.patch("it01.__main__.reading", return_value=(told, (), ())):
+      added(pathlib.Path(here), paper := self.saved_document("Statement of emoluments\nTotal 1,107,000.00\n"))
+    self.assertEqual(json.loads(pathlib.Path(here).read_text())["read"],
+                     {f"{pathlib.Path(paper).name}, salary": "1,107,000.00 read from Total 1,107,000.00"})
 
   def test_the_same_file_under_another_name_is_not_read_twice(self):
     said = "Total emoluments        1,107,000.00\n"

@@ -14,6 +14,7 @@ FACTS = {"resident": True, "dependants": 1, "salary": 1107000, "paye_withheld": 
          "paid": {"bank.txt, 40.00 paid out on 06/07/2025, STATIONERY": "business_expense"},
          "outside": {"bank.txt, 9.00 paid in on 30/06/2025, OLD": "paid in"},
          "currencies": {"bank.txt": "ABC"},
+         "read": {"statement.txt, salary": "1,107,000.00 read from Total emoluments        1,107,000.00"},
          "pending": {"cash of 1,200.00 on 12/08/2025": "where did this come from"},
          "proposed": {"other_income": 40000}}
 
