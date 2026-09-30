@@ -1,7 +1,7 @@
 import json, unittest
 from decimal import Decimal
 from it01.keep import (ASIDE, TITLES, WORDING, Document, answer, apart, case, confirm, dumped, figures, fingerprint, increased, keep, loaded,
-                       needing, noted, priced, reanswered, received, shown, with_year)
+                       needing, noted, priced, reanswered, received, set_fact, shown, with_year)
 from it01.kinds import spoken
 from it01.law import Source
 
@@ -429,6 +429,39 @@ class TestReceived(unittest.TestCase):
     text = dumped({"resident": True, "documents": self.held()["documents"], "labels": self.LABELS})
     got = case(text)["received"]
     self.assertEqual((got["months"]["2025-04"]["total"], [s["page"] for s in got["year_sources"]]), ("7.00", [19, 26]))
+
+class TestSet(unittest.TestCase):
+  def test_an_amount_is_entered_with_its_source(self):
+    got = loaded(set_fact(written(), "quarterly_tax_paid", "12,500.00"))
+    self.assertEqual((got["quarterly_tax_paid"], got["sources"]["quarterly_tax_paid"]), (Decimal("12500.00"), "entered by you"))
+
+  def test_a_count_and_a_yes_or_no_are_entered(self):
+    got = loaded(set_fact(set_fact(written(), "dependants", "2"), "spouse_above_interest_bar", "Yes"))
+    self.assertEqual((got["dependants"], got["spouse_above_interest_bar"]), (2, True))
+
+  def test_a_business_line_is_entered_inside_the_business(self):
+    self.assertEqual(loaded(set_fact(written(), "business.cost_of_sales", "4000"))["business"], {"cost_of_sales": Decimal("4000.00")})
+
+  def test_an_entered_figure_replaces_its_proposal(self):
+    self.assertNotIn("proposed", loaded(set_fact(written(), "other_income", "35000")))
+
+  def test_a_cleared_fact_is_gone_with_its_source(self):
+    for name in ("dependants", "salary"):
+      given, held, _ = apart(loaded(set_fact(written(), name, "")))
+      with self.subTest(name): self.assertEqual((name in given, name in held["sources"]), (False, False))
+
+  def test_a_cleared_business_line_leaves_the_rest_of_the_business(self):
+    text = set_fact(set_fact(written(), "business.cost_of_sales", "4000"), "business.gross_income", "9000")
+    self.assertEqual(apart(loaded(set_fact(text, "business.cost_of_sales", "")))[0]["business"], {"gross_income": Decimal("9000.00")})
+
+  def test_an_unknown_fact_or_value_is_refused(self):
+    for name, said, why in (("wealth", "1", "no fact wealth"), ("wealth", "", "no fact wealth"), ("business", "", "no fact business"),
+                            ("dependants", "two", "takes a whole number"), ("rent", "-5", "not an amount"),
+                            ("resident", "", "missing facts")):
+      with self.subTest(name), self.assertRaisesRegex(ValueError, why): set_fact(written(), name, said)
+
+  def test_a_fact_the_computation_refuses_is_not_kept(self):
+    with self.assertRaisesRegex(ValueError, "school_fees"): set_fact(written(school_fees=[1000, 1000]), "dependants", "1")
 
 class TestYear(unittest.TestCase):
   def test_a_case_is_given_twelve_months_from_july(self):
