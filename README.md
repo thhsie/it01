@@ -68,6 +68,14 @@ The dates of a statement's labelled payments say which part is the month. A firs
 
 Money paid in is also added up for each month of one income year. The Act's year starts on 1 July, and the year shown holds the latest payment. A payment dated before that year is listed. `data` also gives, for each month, its sums by group and the labels in each sum.
 
+## Take a document out
+
+```sh
+it01 remove facts.json statement-march.pdf
+```
+
+`remove` drops everything read from one document: its labels, payments out, form figures and checks. Questions and answers about that document go too. Other answers stay. The figures are worked out again, so a figure you confirmed from that document is proposed again without it. A form cannot be taken out while another form shares its line answers.
+
 ## Enter a fact yourself
 
 ```sh
@@ -274,6 +282,7 @@ it01 change FACTS.json QUESTION KIND    give an answered payment another kind
 it01 year FACTS.json YYYY-MM            set the income year from its first month
 it01 set FACTS.json FACT VALUE          enter a fact yourself, or clear it with an empty value
 it01 rebuild FACTS.json                 read an older case's documents again
+it01 remove FACTS.json DOCUMENT         take a document out of the case
 it01 read DOCUMENT.txt                  propose facts through your endpoint
 it01 local DOCUMENT.txt                 propose facts with your model file
 it01 rows STATEMENT.txt                 read transactions
