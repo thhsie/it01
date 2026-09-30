@@ -1,7 +1,7 @@
 import json, unittest
 from decimal import Decimal
 from it01.keep import (TITLES, VERSION, WORDING, Document, answer, apart, case, confirm, derived, dumped, figures, fingerprint, keep, loaded,
-                       needing, newly, noted, priced, reanswered, received, relabelled, set_fact, shown, with_year)
+                       needing, newly, noted, priced, reanswered, received, relabelled, removed, set_fact, shown, with_year)
 from it01.kinds import spoken
 from it01.law import Source
 
@@ -505,6 +505,66 @@ class TestSet(unittest.TestCase):
 
   def test_a_fact_the_computation_refuses_is_not_kept(self):
     with self.assertRaisesRegex(ValueError, "school_fees"): set_fact(written(school_fees=[1000, 1000]), "dependants", "1")
+
+class TestRemoved(unittest.TestCase):
+  LINE = "9,000.00 paid in on 20/07/2025, CLIENT"
+  CASE = {"resident": True, "version": {"case": "2"}, "documents": {"a.pdf": "bank statement", "b.pdf": "bank statement"},
+          "paths": {"a.pdf": "/in/a.pdf", "b.pdf": "/in/b.pdf"}, "texts": {"m1": "a.pdf", "m2": "b.pdf"},
+          "labels": {f"a.pdf, {LINE}": "business", "b.pdf, 100.00 paid in on 21/07/2025, FLAT": "rent",
+                     "b.pdf, 5.00 paid in on 22/07/2025, X": "cash"},
+          "paid": {"a.pdf, 40.00 paid out on 23/07/2025, STOCK": "business_expense"},
+          "pending": {"5.00 paid in on 22/07/2025, X": "where did this cash come from",
+                      "40.00 paid out in 1 payment that looks like business expense, in a.pdf": "which were costs"}}
+
+  def test_a_removed_document_takes_what_was_read_from_it(self):
+    _, held, proposed = apart(loaded(removed(dumped(self.CASE), "a.pdf")))
+    self.assertEqual((list(held["documents"]), list(held["labels"]), held["paid"], list(held["texts"].values()), proposed),
+                     (["b.pdf"], ["b.pdf, 100.00 paid in on 21/07/2025, FLAT", "b.pdf, 5.00 paid in on 22/07/2025, X"], {}, ["b.pdf"],
+                      {"rent": Decimal("100.00")}))
+
+  def test_questions_about_a_removed_document_are_dropped_and_the_rest_kept(self):
+    held = apart(loaded(removed(dumped(self.CASE), "a.pdf")))[1]
+    self.assertEqual(list(held["pending"]), ["5.00 paid in on 22/07/2025, X"])
+
+  def test_a_confirmed_figure_from_a_removed_document_is_proposed_at_zero(self):
+    confirmed = loaded(confirm(dumped(self.CASE), "business.gross_income"))
+    self.assertEqual(apart(loaded(removed(dumped(confirmed), "a.pdf")))[2]["business.gross_income"], Decimal(0))
+
+  def test_each_kind_of_question_about_a_removed_document_goes(self):
+    raw = self.CASE | {"pending": {"money labelled pay came in and the case gives no salary": "add it",
+                                   "1 payment in a.pdf looks like costs of a business, and the case has no business income": "say",
+                                   "1 payment in b.pdf looks like costs of a business, and the case has no business income": "say",
+                                   "7.00 on the line Other 7.00": "which line", "5.00 paid in on 22/07/2025, X": "where did this cash come from"}}
+    raw["labels"] = raw["labels"] | {"a.pdf, 1.00 paid in on 24/07/2025, PAY": "pay"}
+    held = apart(loaded(removed(dumped(raw), "a.pdf")))[1]
+    self.assertEqual(sorted(held["pending"]), ["1 payment in b.pdf looks like costs of a business, and the case has no business income",
+                                               "5.00 paid in on 22/07/2025, X"])
+
+  def test_answers_about_a_removed_document_go_with_their_figures(self):
+    question = "40.00 paid out in 1 payment that looks like business expense, in a.pdf"
+    for said in ("yes", "payment 1"):
+      raw = self.CASE | {"pending": {}, "answers": {question: said, "5.00 paid in on 22/07/2025, X": "a gift"}}
+      _, held, proposed = apart(loaded(removed(dumped(raw), "a.pdf")))
+      kept = (list(held["answers"]), "business.other_expenses" in proposed)
+      with self.subTest(said): self.assertEqual(kept, (["5.00 paid in on 22/07/2025, X"], False))
+
+  def test_an_answer_about_a_payment_in_a_removed_document_goes(self):
+    raw = self.CASE | {"labels": self.CASE["labels"] | {"a.pdf, 7.00 paid in on 25/07/2025, Y": "other"},
+                       "answers": {"7.00 paid in on 25/07/2025, Y": "gift", "money labelled pay came in and the case gives no salary": "business"}}
+    self.assertEqual(apart(loaded(removed(dumped(raw), "a.pdf")))[1]["answers"], {})
+
+  def test_a_form_that_shares_line_answers_with_another_cannot_be_removed(self):
+    raw = self.CASE | {"documents": {"a.pdf": "statement_of_emoluments", "b.pdf": "statement_of_emoluments"}, "labels": {}, "paid": {},
+                       "pending": {"7.00 on the line Other 7.00": "which line"}}
+    with self.assertRaisesRegex(ValueError, "a.pdf shares form line answers with another form"): removed(dumped(raw), "a.pdf")
+
+  def test_an_answer_about_a_kept_line_ending_in_a_bracketed_number_stays(self):
+    line = "9.00 paid in on 20/07/2025, INVOICE (3)"
+    raw = self.CASE | {"labels": self.CASE["labels"] | {f"b.pdf, {line}": "other"}, "answers": {line: "gift"}}
+    self.assertEqual(apart(loaded(removed(dumped(raw), "a.pdf")))[1]["answers"], {line: "gift"})
+
+  def test_a_document_the_case_does_not_hold_is_refused(self):
+    with self.assertRaisesRegex(ValueError, "holds no document c.pdf"): removed(dumped(self.CASE), "c.pdf")
 
 class TestYear(unittest.TestCase):
   def test_a_case_is_given_twelve_months_from_july(self):

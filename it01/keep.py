@@ -446,6 +446,30 @@ def yearly(first:str) -> dict[str, str]:
   if not MONTH.fullmatch(first) or int(first[5:]) != YEAR_STARTS: raise ValueError(f"an income year starts in month {YEAR_STARTS}, not {first!r}")
   return {"from": first, "to": year_of(first)[-1]}
 
+def removed(text:str, name:str) -> str:
+  given, held, _ = apart(loaded(text))
+  if name not in held["documents"]: raise ValueError(f"the case holds no document {name}")
+  form = wanted().name
+  if (held["documents"][name] == form and list(held["documents"].values()).count(form) > 1
+      and any(ON_LINE.fullmatch(q) for q in (*held["pending"], *held["answers"]))):
+    raise ValueError(f"{name} shares form line answers with another form, so it cannot be removed")
+  docs = listed(held)
+  def is_its(key:str) -> bool: return (part := owned(key, docs)) is not None and part[0] == name
+  own = {v for k, v in held["labels"].items() if is_its(k)}
+  for record in ("labels", "paid", "read", "checks", "outside"): held[record] = {k: v for k, v in held[record].items() if not is_its(k)}
+  for record in ("documents", "paths", "currencies"): held[record].pop(name, None)
+  held["texts"] = {mark: doc for mark, doc in held["texts"].items() if doc != name}
+  lines = {line for key in held["labels"] if (part := owned(key, docs)) for line in (part[1], re.sub(r" \(\d+\)$", "", part[1]))}
+  kinds, forms = set(held["labels"].values()), form in held["documents"].values()
+  def is_left(question:str, said:str|None) -> bool:
+    if (spent := PAID_OUT.fullmatch(question)) or (spent := NO_INCOME.fullmatch(question)): return spent["doc"] != name
+    if ON_LINE.fullmatch(question): return forms
+    if need := LACKING.fullmatch(question): return need["kind"] in kinds if said is None else not {need["kind"], said.strip()} & own
+    return not PAID_IN.match(question) or question in lines
+  held["pending"] = {q: asks for q, asks in held["pending"].items() if is_left(q, None)}
+  held["answers"] = {q: said for q, said in held["answers"].items() if is_left(q, said)}
+  return as_file(given, held)
+
 def with_year(text:str, first:str) -> str:
   given, held, _ = apart(loaded(text))
   year = yearly(first)
