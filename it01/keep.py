@@ -9,7 +9,7 @@ from it01.rows import months
 from it01.tax import JSON_TYPES, PLACES, ZERO, Facts, Figure, amount, assess, from_json, is_amount, plain, summed
 
 TITLES = {"documents": "documents you read", "labels": "how money paid in was labelled", "paid": "how money paid out was labelled",
-          "answers": "questions you answered", "pending": "questions still open"}
+          "outside": "left out, dated outside the income year", "answers": "questions you answered", "pending": "questions still open"}
 WORDING = ("year", "sources", "texts", "paths", *TITLES)
 ASIDE = ("proposed", *WORDING)
 NIL = Decimal("0.00")
@@ -211,11 +211,12 @@ def filed(into:dict[str, str], doc:str, pairs:tuple[tuple[str, str], ...]) -> No
     into[f"{doc}, {said}" + (f" ({cnt})" if cnt > 1 else "")] = kind
 
 def noted(text:str, seen:dict[str, tuple[Decimal, str]], doc:Document, asking:list[tuple[str, str]],
-          labels:tuple[tuple[str, str], ...]=(), paid:tuple[tuple[str, str], ...]=()) -> tuple[str, Noted]:
+          labels:tuple[tuple[str, str], ...]=(), paid:tuple[tuple[str, str], ...]=(), left:tuple[tuple[str, str], ...]=()) -> tuple[str, Noted]:
   given, held, proposed = apart(loaded(text))
   how = placed(given, held, proposed, seen, asking)
   filed(held["labels"], doc.name, labels)
   filed(held["paid"], doc.name, paid)
+  filed(held["outside"], doc.name, left)
   held["documents"][doc.name] = doc.kind
   held["texts"][doc.mark] = doc.name
   held["paths"][doc.name] = doc.path
@@ -395,10 +396,11 @@ def received(held:dict[str, dict[str, str]], table:Table) -> dict[str, Any]:
   found = [p for p in read.values() if p is not None]
   ways = {doc: months(tuple(p.date for p in found if p.doc == doc)) for doc in {p.doc for p in found}}
   dated = [(p, ways[p.doc][p.date]) for p in found]
-  kinds = summed([(p.kind, p.amt) for p in found])
-  groups = summed([(where[p.kind], p.amt) for p in found])
   last = max((at for _, at in dated if at), default="")
   year = year_of(first) if (first := held["year"].get("from") or last) else ()
+  counted = [p for p, at in dated if at is None or at in year]
+  kinds = summed([(p.kind, p.amt) for p in counted])
+  groups = summed([(where[p.kind], p.amt) for p in counted])
   by_month = {m: [p for p, at in dated if at == m] for m in year}
   return {"groups": {group: groups.get(group, NIL) for group in GROUPS}, "kinds": dict(sorted(kinds.items(), key=lambda one: -one[1])),
           "group_of": where,

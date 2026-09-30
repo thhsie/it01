@@ -12,6 +12,7 @@ FACTS = {"resident": True, "dependants": 1, "salary": 1107000, "paye_withheld": 
          "documents": {"statement.txt": "statement of emoluments"},
          "labels": {"bank.txt, 12.50 paid in on 05/07/2025, INTEREST": "interest"},
          "paid": {"bank.txt, 40.00 paid out on 06/07/2025, STATIONERY": "business_expense"},
+         "outside": {"bank.txt, 9.00 paid in on 30/06/2025, OLD": "paid in"},
          "pending": {"cash of 1,200.00 on 12/08/2025": "where did this come from"},
          "proposed": {"other_income": 40000}}
 
@@ -355,10 +356,11 @@ class TestReceived(unittest.TestCase):
             "either.pdf, 400.00 paid in on 05/06/2025, TRANSFER": "other", "gone.pdf, 1.00 paid in on 01/01/2025, X": "other",
             "day.pdf, a lot paid in on 01/01/2025, X": "other", "day.pdf, 3.00 paid in on 20/05/2024, OLD": "other"}
 
-  def held(self): return {"documents": dict.fromkeys(("day.pdf", "month.pdf", "either.pdf"), "bank statement"), "labels": self.LABELS, "year": {}}
+  def held(self):
+    return {"documents": dict.fromkeys(("day.pdf", "month.pdf", "either.pdf"), "bank statement"), "labels": self.LABELS, "year": {}, "outside": {}}
 
   def test_money_in_is_summed_by_kind_with_the_largest_first(self):
-    self.assertEqual(received(self.held(), TABLE)["kinds"], {"pay": Decimal("2000.00"), "other": Decimal("415.00"), "business": Decimal("250.50"),
+    self.assertEqual(received(self.held(), TABLE)["kinds"], {"pay": Decimal("2000.00"), "other": Decimal("412.00"), "business": Decimal("250.50"),
                                                         "interest": Decimal("12.25")})
 
   def test_a_statement_says_by_its_dates_which_part_is_the_month(self):
@@ -381,13 +383,17 @@ class TestReceived(unittest.TestCase):
     got = received(self.held() | {"year": {"from": "2023-07", "to": "2024-06"}}, TABLE)
     self.assertEqual((list(got["months"])[0], "day.pdf, 3.00 paid in on 20/05/2024, OLD" in got["outside"]), ("2023-07", False))
 
+  def test_a_payment_outside_the_year_is_not_counted(self):
+    labels = {"day.pdf, 3.00 paid in on 20/05/2024, OLD": "other", "day.pdf, 1.00 paid in on 20/05/2025, NEW": "other"}
+    self.assertEqual(received(self.held() | {"labels": labels}, TABLE)["kinds"], {"other": Decimal("1.00")})
+
   def test_a_payment_before_the_income_year_is_named(self):
     self.assertEqual(received(self.held(), TABLE)["outside"], ["day.pdf, 3.00 paid in on 20/05/2024, OLD"])
 
   def test_money_in_is_summed_by_what_it_counts_as(self):
     held = self.held() | {"labels": self.LABELS | {"month.pdf, 9.00 paid in on 04/01/2025, CASH": "cash"}}
     self.assertEqual(received(held, TABLE)["groups"], {"income": Decimal("2250.50"), "exempt": Decimal("12.25"), "unsorted": Decimal("9.00"),
-                                                  "other": Decimal("415.00")})
+                                                  "other": Decimal("412.00")})
 
   def test_each_kind_names_its_group(self):
     self.assertEqual(received(self.held(), TABLE)["group_of"], {"business": "income", "dividend": "income", "rent": "income", "pay": "income",
