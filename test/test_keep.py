@@ -195,7 +195,7 @@ class TestKeep(unittest.TestCase):
     shown = case(json.dumps({"resident": True, "pending": {salary: "x", left: old, pension: "x", loan: "x"}}))
     self.assertEqual(shown["headlines"], {salary: "add your salary statement", left: "a payment was left out of the totals",
                                           pension: "were these paid into your own approved pension?", loan: "add your housing loan certificate"})
-    self.assertTrue(shown["pending"][salary].endswith(": not (this is not my salary)"))
+    self.assertTrue(shown["pending"][salary].endswith("; other (label it other instead)"))
     self.assertEqual(shown["pending"][left], "the balance after this does not agree, so it is left out: noted (leave it out)")
     self.assertTrue(shown["pending"][loan].endswith("; not (this was not for housing loan)"))
 

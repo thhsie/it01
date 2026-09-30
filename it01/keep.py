@@ -69,7 +69,14 @@ def costing() -> str:
                                                                                     ("not", "they are not business costs")))
 
 def lacking(kind:str, fact:str) -> str: return f"money labelled {kind} came in and the case gives no {plain(fact)}"
-def needing(table:Table, kind:str) -> str: return offering(table.needs[kind][1], (("not", f"this is not my {plain(table.needs[kind][0])}"),))
+def needing(table:Table, kind:str) -> str:
+  return offering(table.needs[kind][1], tuple((instead, f"label it {instead} instead") for instead in picked(table) if instead != kind))
+
+def paid_as(text:str, kind:str) -> tuple[list[str], Decimal]|None:
+  held = apart(loaded(text))[1]
+  if not (keys := [key for key, was in held["labels"].items() if was == kind]): return None
+  _, dated, year = placed_in_year(held, spoken("labelling"))
+  return keys, sum((p.amt for p, at in dated if p.kind == kind and at in (None, *year)), ZERO)
 def adrift() -> str: return offering(ADRIFT, (("noted", "leave it out"),))
 
 def answers_to(question:str, asks:str) -> str:
@@ -418,16 +425,19 @@ def spoke(src:Source) -> str: return f"{src.doc} {src.section} page {src.page}"
 
 def cited(src:Source) -> dict[str, Any]: return {"doc": src.doc, "section": src.section, "page": src.page, "url": src.url}
 
-def received(held:dict[str, dict[str, str]], table:Table) -> dict[str, Any]:
-  where = {kind: group for group, kinds in (("income", (*table.feeds, *table.needs)), ("exempt", table.exempt), ("unsorted", table.asking),
-                                             ("other", table.not_income)) for kind in kinds}
+def placed_in_year(held:dict[str, dict[str, str]], table:Table) -> tuple[dict[str, Paid|None], list[tuple[Paid, str|None]], tuple[str, ...]]:
   docs = sorted(held["documents"], key=len, reverse=True)
   read = {key: credited(key, kind, docs, table) for key, kind in held["labels"].items()}
   found = [p for p in read.values() if p is not None]
   ways = {doc: months(tuple(p.date for p in found if p.doc == doc)) for doc in {p.doc for p in found}}
   dated = [(p, ways[p.doc][p.date]) for p in found]
   last = max((at for _, at in dated if at), default="")
-  year = year_of(first) if (first := held["year"].get("from") or last) else ()
+  return read, dated, year_of(first) if (first := held["year"].get("from") or last) else ()
+
+def received(held:dict[str, dict[str, str]], table:Table) -> dict[str, Any]:
+  where = {kind: group for group, kinds in (("income", (*table.feeds, *table.needs)), ("exempt", table.exempt), ("unsorted", table.asking),
+                                             ("other", table.not_income)) for kind in kinds}
+  read, dated, year = placed_in_year(held, table)
   counted = [p for p, at in dated if at is None or at in year]
   kinds = summed([(p.kind, p.amt) for p in counted])
   groups = summed([(where[p.kind], p.amt) for p in counted])
