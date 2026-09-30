@@ -372,7 +372,8 @@ class TestCli(unittest.TestCase):
            "money labelled pay came in and the case gives no salary": "add the statement of emoluments",
            "10.00 paid in on 02/07/2025, IN rent": ADRIFT}
     shown = case(json.dumps({"resident": True, "pending": old}))["pending"]
-    self.assertEqual([lines_of(asks) for asks in shown.values()], [["later", "not"], ["yes", "no"], ["not"], ["noted"]])
+    instead = ["business", "interest", "dividend", "rent", "other"]
+    self.assertEqual([lines_of(asks) for asks in shown.values()], [["later", "not"], ["yes", "no"], instead, ["noted"]])
 
   def test_a_business_payment_takes_a_typed_share_up_to_its_total(self):
     spent = (Labelled("04/07/2025", Decimal("500.00"), "PHONE", "bills", Check.AGREES),)
@@ -430,12 +431,24 @@ class TestCli(unittest.TestCase):
     self.assertEqual(loaded(answer(text, "cash of 1.00", "a gift")).get("pending", {}), {})
     self.assertNotIn(self.SALARY, case(text)["pending"])
 
-  def test_the_salary_question_takes_only_the_answer_that_it_is_not_salary(self):
+  def test_the_salary_question_takes_only_what_the_money_was_instead(self):
     here = on_disk(json.dumps({"resident": True, "pending": {self.SALARY: "add it"}}))
     self.addCleanup(os.unlink, here)
-    with self.assertRaisesRegex(ValueError, "with one of: not"): responded(pathlib.Path(here), self.SALARY, "later")
-    responded(pathlib.Path(here), self.SALARY, "not")
+    with self.assertRaisesRegex(ValueError, "with one of: business, interest"): responded(pathlib.Path(here), self.SALARY, "later")
+    responded(pathlib.Path(here), self.SALARY, "other")
     self.assertEqual(json.loads(pathlib.Path(here).read_text()).get("pending", {}), {})
+
+  def test_money_that_was_not_salary_is_relabelled_as_what_it_was(self):
+    labels = {"bank.txt, 20,000.00 paid in on 20/07/2025, TRANSFER": "pay", "bank.txt, 5,000.00 paid in on 20/08/2025, TRANSFER": "pay",
+              "bank.txt, 7,000.00 paid in on 20/08/2024, TRANSFER": "pay"}
+    year = {"from": "2025-07", "to": "2026-06"}
+    held = {"documents": {"bank.txt": "bank statement"}, "labels": labels, "pending": {self.SALARY: "add it"}, "year": year}
+    here = on_disk(json.dumps({"resident": True} | held))
+    self.addCleanup(os.unlink, here)
+    responded(pathlib.Path(here), self.SALARY, "business")
+    kept = json.loads(pathlib.Path(here).read_text())
+    self.assertEqual((set(kept["labels"].values()), kept["proposed"]), ({"business"}, {"business.gross_income": 25000}))
+    self.assertTrue(kept["sources"]["business.gross_income"].startswith(f"answered {self.SALARY}"))
 
   def test_a_certificate_question_is_closed_without_moving_a_figure(self):
     spent = (Labelled("04/07/2025", Decimal("18000.00"), "HOME LOAN", "housing_loan", Check.AGREES),)

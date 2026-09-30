@@ -10,7 +10,7 @@ from it01.form import Form, ending, is_titled, wanted
 from it01.helpers import data
 from it01.kinds import ADRIFT, Paying, paying, picked, spoken
 from it01.keep import Document, answer, apart, case, confirm, dumped, figures, fingerprint, is_given, keep, labelled, loaded, noted, relabelled
-from it01.keep import BOTH, ON_LINE, PAID_IN, TITLES, TWICE, adrift, asking_for, closed, lacking, needing
+from it01.keep import BOTH, LACKING, ON_LINE, PAID_IN, TITLES, TWICE, adrift, asking_for, closed, lacking, needing, paid_as
 from it01.keep import behind, costed, increased, lines_of, Noted, offering, outgoing, proposing, reanswered, spent_as, taken, with_year, worded
 from it01.keep import year_of
 from it01.read import read
@@ -150,6 +150,11 @@ def responded(here:pathlib.Path, asked:str, said:str) -> list[str]:
   if keys:
     text, lines = kinded(text, question, keys, kind, table.feeds.get(kind))
     ret += lines
+  if (need := LACKING.fullmatch(question)) and (paid := paid_as(text, need["kind"])):
+    keys, total = paid
+    kind, fact = said.strip(), table.feeds.get(said.strip())
+    text, how = relabelled(text, keys, kind, {fact: (total, f"answered {question}")} if fact and total else {})
+    ret += [f"labelled {kind}"] + told(how)
   text, how = costed(text)
   rewritten(here, text)
   return ret + told(how)
