@@ -112,6 +112,8 @@ The `local` command takes an encoder that scores runs of words. It reads the doc
 
 `it01/model.json` says what your file calls the nine things the package needs, along with the wording it expects. `it01/reading.json` holds the form, and the instruction the endpoint reader sends.
 
+The form's `title` is the heading a document must print to be read as that form. `it01 add` refuses a document that is neither a bank statement nor titled. The key is optional.
+
 ## Read a PDF off its pages
 
 ```sh

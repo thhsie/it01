@@ -508,6 +508,14 @@ class TestCli(unittest.TestCase):
       pending = json.loads(pathlib.Path(here).read_text()).get("pending", {})
       self.assertEqual(len([q for q in pending if "the case gives no salary" in q]), asked)
 
+  def test_a_payslip_is_not_read_as_the_form(self):
+    here = on_disk(json.dumps({"resident": True}))
+    self.addCleanup(os.unlink, here)
+    ret = run("add", here, paper := self.saved_document("PAY STATEMENT\nPERIOD: June 2026\nNet Pay 90 552,00\n"))
+    self.assertEqual(ret.returncode, 1)
+    self.assertIn(f"{pathlib.Path(paper).name} is neither a bank statement nor a statement of emoluments", ret.stderr)
+    self.assertEqual(json.loads(pathlib.Path(here).read_text()), {"resident": True})
+
   def test_the_same_file_under_another_name_is_not_read_twice(self):
     said = "Total emoluments        1,107,000.00\n"
     was = json.dumps({"resident": True, "documents": {"payslip.txt": "payslip"}, "texts": {fingerprint(said.encode()): "payslip.txt"}})

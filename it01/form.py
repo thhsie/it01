@@ -1,3 +1,4 @@
+import re
 from dataclasses import dataclass
 from typing import Any
 from it01.helpers import data
@@ -15,6 +16,10 @@ class Form:
   fields: tuple[tuple[str, str], ...]
   feeds: tuple[tuple[str, str], ...] = ()
   checks: tuple[Working, ...] = ()
+  title: str = ""
+
+def is_titled(form:Form, said:str) -> bool:
+  return not form.title or re.search(r"\s+".join(re.escape(word) for word in form.title.split()), said, re.I) is not None
 
 def text(held:dict[str, Any], key:str, where:str) -> str:
   if not isinstance(got := held.get(key), str) or not got.strip(): raise ValueError(f"{where} must hold {key} as a piece of text")
@@ -35,7 +40,8 @@ def wanted() -> Form:
   if unknown := sorted(set(feeds) - set(fields)): raise ValueError(f"reading.json feeds lines the form does not have {unknown}")
   if unknown := sorted(set(feeds.values()) - set(AMOUNTS)): raise ValueError(f"reading.json feeds facts the package does not know {unknown}")
   if len(set(feeds.values())) != len(feeds): raise ValueError(f"reading.json feeds one fact from more than one line {sorted(feeds)}")
-  return Form(name, tuple(fields.items()), tuple(feeds.items()), checked(held.get("checks", []), set(fields)))
+  if not isinstance(title := held.get("title", ""), str): raise ValueError("reading.json must hold title as text")
+  return Form(name, tuple(fields.items()), tuple(feeds.items()), checked(held.get("checks", []), set(fields)), title)
 
 def checked(given:Any, lines:set[str]) -> tuple[Working, ...]:
   if not isinstance(given, list): raise ValueError("reading.json must hold checks as a list of sums")
