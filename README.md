@@ -58,7 +58,7 @@ The proposed figures are not kept in the file. Each time the case is read, they 
 
 A relief or business cost you answered yes to, and a form line you chose, add too. Each figure notes where it came from.
 
-`keep` prints everything processed so far. `confirm` moves one figure into the facts, and keeps the amount in `confirmed`. When a later document or answer changes that figure, it is proposed again, and `data` lists its old amount under `changed`. A confirmed figure no longer read from any document is proposed at 0.
+`keep` prints everything processed so far. `confirm` moves one figure into the facts, and keeps the amount in `confirmed`. When a later document or answer changes that figure, it is proposed again, and `data` lists its old amount under `changed`. A confirmed figure no longer read from any document is proposed at 0. `unconfirm` takes a confirmed figure out of the facts, and it is proposed again. A figure you entered is cleared with `set`.
 
 `data` prints the same case as JSON, with every number as text. It also gives a short headline for an open question about salary, a payment left out, or money paid out. It lists the payments behind each question about business costs paid out.
 
@@ -283,6 +283,7 @@ it01 year FACTS.json YYYY-MM            set the income year from its first month
 it01 set FACTS.json FACT VALUE          enter a fact yourself, or clear it with an empty value
 it01 rebuild FACTS.json                 read an older case's documents again
 it01 remove FACTS.json DOCUMENT         take a document out of the case
+it01 unconfirm FACTS.json FACT          take back a confirmed figure
 it01 read DOCUMENT.txt                  propose facts through your endpoint
 it01 local DOCUMENT.txt                 propose facts with your model file
 it01 rows STATEMENT.txt                 read transactions

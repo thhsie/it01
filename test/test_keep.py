@@ -1,7 +1,7 @@
 import json, unittest
 from decimal import Decimal
 from it01.keep import (TITLES, VERSION, WORDING, Document, answer, apart, case, confirm, derived, dumped, figures, fingerprint, keep, loaded,
-                       needing, newly, noted, priced, reanswered, received, relabelled, removed, set_fact, shown, with_year)
+                       needing, newly, noted, priced, reanswered, received, relabelled, removed, set_fact, shown, unconfirmed, with_year)
 from it01.kinds import spoken
 from it01.law import Source
 
@@ -505,6 +505,16 @@ class TestSet(unittest.TestCase):
 
   def test_a_fact_the_computation_refuses_is_not_kept(self):
     with self.assertRaisesRegex(ValueError, "school_fees"): set_fact(written(school_fees=[1000, 1000]), "dependants", "1")
+
+class TestUnconfirmed(unittest.TestCase):
+  def test_a_confirmed_figure_goes_back_to_waiting(self):
+    given, held, proposed = apart(loaded(unconfirmed(confirm(written(), "other_income"), "other_income")))
+    self.assertEqual(("other_income" in given, "other_income" in held["confirmed"], proposed), (False, False, {"other_income": Decimal(40000)}))
+
+  def test_a_figure_never_confirmed_or_entered_by_hand_is_refused(self):
+    for label, text in (("never confirmed", written()), ("entered", set_fact(written(), "other_income", "35000"))):
+      with self.subTest(label), self.assertRaisesRegex(ValueError, "other_income was not confirmed from a proposal"):
+        unconfirmed(text, "other_income")
 
 class TestRemoved(unittest.TestCase):
   LINE = "9,000.00 paid in on 20/07/2025, CLIENT"
