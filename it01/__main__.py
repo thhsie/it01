@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 from it01.credits import Question, fed, label
 from it01.debits import spending
 from it01.labels import Labelled, totals
-from it01.form import Form, is_titled, wanted
+from it01.form import Form, ending, is_titled, wanted
 from it01.helpers import data
 from it01.kinds import ADRIFT, Paying, paying, picked, spoken
 from it01.keep import Document, answer, apart, case, confirm, dumped, figures, fingerprint, is_given, keep, labelled, loaded, noted, relabelled
@@ -211,6 +211,9 @@ def added(here:pathlib.Path, document:str) -> list[str]:
   else:
     if not is_titled(form := wanted(), src):
       raise ValueError(f"{paper.name} is neither a bank statement nor a {form.title}, so nothing was read")
+    if form.ends and (year := held["year"]) and (end := ending(form, src)) != year["to"]:
+      covers = f"covers the income year ending {end}" if end else "does not say which income year it covers"
+      raise ValueError(f"{paper.name} {covers}, and this case covers {year['from']} to {year['to']}, so nothing was read")
     told, asked, _ = reading(form, src)
     was, seen, asking = form.name, *shaped(told, asked)
   entry = Document(name=paper.name, path=str(paper.resolve()), mark=mark, kind=was)

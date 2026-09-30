@@ -516,6 +516,14 @@ class TestCli(unittest.TestCase):
     self.assertIn(f"{pathlib.Path(paper).name} is neither a bank statement nor a statement of emoluments", ret.stderr)
     self.assertEqual(json.loads(pathlib.Path(here).read_text()), {"resident": True})
 
+  def test_a_statement_for_another_year_is_not_read(self):
+    for said, why in (("for the income year ended 30 June 2025", "covers the income year ending 2025-06"),
+                      ("", "does not say which income year it covers")):
+      here = on_disk(json.dumps({"resident": True, "year": {"from": "2025-07", "to": "2026-06"}}))
+      self.addCleanup(os.unlink, here)
+      ret = run("add", here, self.saved_document(f"Statement of emoluments {said}\nSalary 1,200.00\n"))
+      with self.subTest(said): self.assertIn(f"{why}, and this case covers 2025-07 to 2026-06", ret.stderr)
+
   def test_the_same_file_under_another_name_is_not_read_twice(self):
     said = "Total emoluments        1,107,000.00\n"
     was = json.dumps({"resident": True, "documents": {"payslip.txt": "payslip"}, "texts": {fingerprint(said.encode()): "payslip.txt"}})
