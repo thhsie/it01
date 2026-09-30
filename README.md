@@ -241,6 +241,8 @@ Fifteen keys are set aside before the computation and none of them reaches it: `
 
 `checks` names each payment into the account whose balance did not agree or was not checked. A payment whose balance did not agree gives no figure until you give it a kind, by answering or with `change`. A figure notes how many of its payments were not checked. A case that has read a document but has no `version`, or that has `proposed`, is refused.
 
+`it01 rebuild` reads such a case's documents again from their paths. It keeps the facts you gave and their sources, and proposes again any that differ from a reading. It replays the answers that still fit, and lists the rest and any document it skipped. Nothing changes if a document has no recorded path or is no longer there.
+
 `year` holds the income year the case covers, as its first and last month. It starts in July and runs twelve months. `it01 year` sets it. Once the case has a year and has read a document, the year cannot change. The months of money paid in follow it. A bank statement line dated outside the year gives no figure and no question. It is kept in `outside`, marked paid in or paid out. A line whose month cannot be read stays in.
 
 `read` holds each figure a form was read as, under the document and the fact, with the line it came from.
@@ -271,6 +273,7 @@ it01 answer FACTS.json QUESTION ANSWER  answer an open question
 it01 change FACTS.json QUESTION KIND    give an answered payment another kind
 it01 year FACTS.json YYYY-MM            set the income year from its first month
 it01 set FACTS.json FACT VALUE          enter a fact yourself, or clear it with an empty value
+it01 rebuild FACTS.json                 read an older case's documents again
 it01 read DOCUMENT.txt                  propose facts through your endpoint
 it01 local DOCUMENT.txt                 propose facts with your model file
 it01 rows STATEMENT.txt                 read transactions
