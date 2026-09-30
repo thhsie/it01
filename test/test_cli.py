@@ -588,6 +588,19 @@ class TestCli(unittest.TestCase):
       ret = run("add", here, self.saved_document(f"Statement of emoluments {said}\nSalary 1,200.00\n"))
       with self.subTest(said): self.assertIn(f"{why}, and this case covers 2025-07 to 2026-06", ret.stderr)
 
+  def test_a_statement_in_another_currency_than_the_case_is_not_read(self):
+    here = on_disk(json.dumps({"resident": True, "documents": {"first.txt": "bank statement"}, "currencies": {"first.txt": "ABC"}}))
+    self.addCleanup(os.unlink, here)
+    ret = run("add", here, paper := self.saved_document("Currency : XYZ\n" + STATEMENT))
+    self.assertIn(f"{pathlib.Path(paper).name} is in XYZ, and this case is in ABC, so nothing was read", ret.stderr)
+
+  def test_each_statement_keeps_the_currency_it_names(self):
+    here = on_disk(json.dumps({"resident": True}))
+    self.addCleanup(os.unlink, here)
+    with mock.patch("it01.__main__.label", return_value=((), ())), mock.patch("it01.__main__.spending", return_value=()):
+      added(pathlib.Path(here), paper := self.saved_document("Currency : ABC\n" + STATEMENT))
+    self.assertEqual(json.loads(pathlib.Path(here).read_text())["currencies"], {pathlib.Path(paper).name: "ABC"})
+
   def test_the_same_file_under_another_name_is_not_read_twice(self):
     said = "Total emoluments        1,107,000.00\n"
     was = json.dumps({"resident": True, "documents": {"payslip.txt": "payslip"}, "texts": {fingerprint(said.encode()): "payslip.txt"}})

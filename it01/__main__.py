@@ -14,7 +14,7 @@ from it01.keep import BOTH, LACKING, ON_LINE, PAID_IN, TITLES, TWICE, adrift, as
 from it01.keep import behind, costed, increased, lines_of, Noted, offering, outgoing, proposing, reanswered, spent_as, taken, with_year, worded
 from it01.keep import year_of
 from it01.read import read
-from it01.rows import Check, dropped, entries, is_statement, months
+from it01.rows import Check, currency_of, dropped, entries, is_statement, months
 from it01.sheet import sheet, untyped
 from it01.tax import Facts, amount, from_json
 if TYPE_CHECKING: from it01.local import Asked, Sum, Told
@@ -210,9 +210,12 @@ def added(here:pathlib.Path, document:str) -> list[str]:
   labels:tuple[tuple[str, str], ...] = ()
   paid:tuple[tuple[str, str], ...] = ()
   left:tuple[tuple[str, str], ...] = ()
+  currency:str|None = None
   freed:list[str] = []
   hint = ""
   if is_statement(src):
+    if (currency := currency_of(src)) and (others := sorted(set(held["currencies"].values()) - {currency})):
+      raise ValueError(f"{paper.name} is in {currency}, and this case is in {', '.join(others)}, so nothing was read")
     table = spoken("labelling")
     was = table.prompt.name
     found, questions, spent, left = within(held["year"], *label(src), spending(src))
@@ -236,7 +239,7 @@ def added(here:pathlib.Path, document:str) -> list[str]:
     was, seen, asking = form.name, *shaped(told, asked)
   seen = {name: (amt, f"{paper.name}, {quote}") for name, (amt, quote) in seen.items()}
   entry = Document(name=paper.name, path=str(paper.resolve()), mark=mark, kind=was)
-  text, how = noted(here.read_text(encoding="utf-8"), seen, entry, asking, labels, paid, left)
+  text, how = noted(here.read_text(encoding="utf-8"), seen, entry, asking, labels, paid, left, currency)
   text, costs = costed(text)
   rewritten(here, text)
   how = replace(how, asked=how.asked + costs.asked)
