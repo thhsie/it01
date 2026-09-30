@@ -1,5 +1,5 @@
 import unittest
-from it01.form import Form, is_titled, wanted
+from it01.form import Form, ending, is_titled, wanted
 
 class TestForm(unittest.TestCase):
   def test_the_shipped_form_knows_its_title(self):
@@ -13,5 +13,11 @@ class TestForm(unittest.TestCase):
 
   def test_a_form_with_no_title_reads_any_document(self):
     self.assertTrue(is_titled(Form("soe", (("total", "the total"),)), "PAY STATEMENT"))
+
+  def test_the_shipped_form_reads_the_last_month_of_its_year(self):
+    self.assertEqual(ending(wanted(), "for the Income Year ended 30 June 2026"), "2026-06")
+
+  def test_a_month_that_is_not_a_month_gives_no_year_end(self):
+    self.assertIsNone(ending(wanted(), "income year ended 30 Juno 2026"))
 
 if __name__ == "__main__": unittest.main()

@@ -3,6 +3,7 @@
   "form": {
     "name": "statement_of_emoluments",
     "title": "statement of emoluments",
+    "ends": "income\\s+year\\s+ended\\s+\\d{1,2}\\s+(?P<month>[a-z]+)\\s+(?P<year>\\d{4})",
     "fields": {
       "salary": "Amount of salary, wages, leave pay, fee, overtime pay, perquisite, allowance, gratuity, commission or other reward",
       "bonus": "Amount of bonus including end-of-year bonus",
