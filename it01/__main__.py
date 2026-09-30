@@ -229,6 +229,7 @@ def added(here:pathlib.Path, document:str) -> list[str]:
       raise ValueError(f"{paper.name} {covers}, and this case covers {year['from']} to {year['to']}, so nothing was read")
     told, asked, _ = reading(form, src)
     was, seen, asking = form.name, *shaped(told, asked)
+  seen = {name: (amt, f"{paper.name}, {quote}") for name, (amt, quote) in seen.items()}
   entry = Document(name=paper.name, path=str(paper.resolve()), mark=mark, kind=was)
   text, how = noted(here.read_text(encoding="utf-8"), seen, entry, asking, labels, paid, left)
   text, costs = costed(text)

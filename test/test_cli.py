@@ -5,7 +5,7 @@ from unittest import mock
 from it01.__main__ import added, changed, questioned, responded, shaped, to_debits
 from it01.credits import Question
 from it01.labels import Labelled
-from it01.keep import PAID_OUT, adrift, answer, case, fingerprint, keep, lines_of, loaded, offering, outgoing, priced
+from it01.keep import PAID_OUT, TWICE, adrift, answer, case, fingerprint, keep, lines_of, loaded, offering, outgoing, priced
 from it01.kinds import ADRIFT, paying, spoken
 from it01.rows import Check
 from test.helpers import ROOT
@@ -528,6 +528,19 @@ class TestCli(unittest.TestCase):
     self.assertEqual((kept["proposed"], "pending" in kept), ({"rent": 900}, False))
     self.assertEqual(list(kept["outside"].values()), ["paid in", "paid out"])
     self.assertIn("  950.00 paid in on 20/07/2026, RENT JULY", said)
+
+  def test_a_leave_answered_for_one_statement_is_not_reused_for_another(self):
+    here = on_disk(json.dumps({"resident": True, "business": {"gross_income": 300000}}))
+    self.addCleanup(os.unlink, here)
+    found = (Labelled("10/07/2025", Decimal("50000.00"), "CLIENT", "business", Check.AGREES),)
+    with mock.patch("it01.__main__.label", return_value=(found, ())), mock.patch("it01.__main__.spending", return_value=()):
+      first = self.saved_document(STATEMENT)
+      added(pathlib.Path(here), first)
+      responded(pathlib.Path(here), next(iter(json.loads(pathlib.Path(here).read_text())["pending"])), "leave")
+      second = self.saved_document(STATEMENT + "\n")
+      added(pathlib.Path(here), second)
+    pending = json.loads(pathlib.Path(here).read_text())["pending"]
+    self.assertEqual([TWICE.fullmatch(q)["quote"] for q in pending], [f"{pathlib.Path(second).name}, 1 labelled business"])
 
   def test_pay_in_two_statements_asks_once(self):
     here = on_disk(json.dumps({"resident": True}))
