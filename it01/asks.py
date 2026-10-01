@@ -9,7 +9,7 @@ from it01.kinds import Paying, Table, paying, picked, spoken
 from it01.law import YEAR_STARTS
 from it01.tax import ZERO, Facts, Figure, amount, assess, from_json, plain
 
-OUT, SAME, WRONG, GONE = "out", "same", "wrong", "no longer read from any document"
+OUT, SAME, WRONG, EACH, GONE = "out", "same", "wrong", "each", "no longer read from any document"
 ADRIFT = "the balance after this does not agree, so it is left out"
 NUMBERED = re.compile(r"payments? (?P<nums>\d+(?:, ?\d+)*)")
 
@@ -77,6 +77,12 @@ def read_as(held:Case, t:Tables, p:Payment) -> str:
     raise ValueError(f"{p.document} holds a payment labelled {p.label}, which the labelling tables do not list")
   if p.way == "in" and p.label in t.into.needs and (instead := held.decisions.get(needing(p.label))) in picked(t.into): return str(instead)
   return p.label
+
+def is_named(word:str) -> bool: return not any(c.isdigit() for c in word) or (word.isdigit() and len(word) >= 6)
+
+def payer(p:Payment) -> str: return " ".join(w for w in p.description.upper().split() if is_named(w))
+
+def alike(p:Payment) -> str: return f"payments paid {p.way} worded like {payer(p)}"
 
 def said_of(held:Case, t:Tables, key:str, p:Payment) -> str|None:
   return said if (said := held.decisions.get(key)) is not None and (said in (OUT, SAME) or said in kinds_of(t, p.way)) else None
@@ -202,8 +208,22 @@ def is_given(held:Case, proposed:dict[str, Decimal], name:str) -> bool: return a
 
 def costing() -> tuple[tuple[str, str], ...]: return (("business", "they are costs of my business"), ("not", "they are not business costs"))
 
+def together(held:Case, t:Tables, subject:str, members:list[tuple[str, Payment, str]]) -> list[Asked]:
+  if len(members) < 2 or held.decisions.get(subject) == EACH:
+    return [Asked(key, worded(p), t.into.asking[kind], relabelling(t, "in"), p.document, amount=p.amount) for key, p, kind in members]
+  total = sum((p.amount for _, p, _ in members), ZERO)
+  about = f"{len(members)} payments paid in worded like {payer(members[0][1])}, {total:,} in all"
+  asks = "say what these payments were. The answer counts for each payment listed"
+  return [Asked(subject, about, asks, (*relabelling(t, "in"), (EACH, "they differ, so ask about each one")), None,
+                "payments worded alike", total, paid=tuple(key for key, _, _ in members))]
+
+def is_alike(q:Asked) -> bool: return EACH in dict(q.choices)
+
+def decided(q:Asked, said:str) -> dict[str, str]: return dict.fromkeys(q.paid, said) if is_alike(q) and said != EACH else {q.subject: said}
+
 def questions(held:Case, t:Tables, proposed:dict[str, Decimal]) -> list[Asked]:
   months, ret = months_of(held), []
+  groups:dict[str, list[tuple[str, Payment, str]]] = {}
   copied = copies(held, t, months)
   for key, p in held.payments.items():
     if not is_inside(p, months): continue
@@ -213,9 +233,10 @@ def questions(held:Case, t:Tables, proposed:dict[str, Decimal]) -> list[Asked]:
       continue
     if p.way != "in": continue
     if (kind := read_as(held, t, p)) in t.into.asking:
-      ret.append(Asked(key, worded(p), t.into.asking[kind], relabelling(t, "in"), p.document, amount=p.amount))
+      groups.setdefault(key if key in held.decisions or not payer(p) else alike(p), []).append((key, p, kind))
     elif kind in t.into.feeds and p.check == DIFFERS:
       ret.append(Asked(key, worded(p), ADRIFT, relabelling(t, "in"), p.document, "a payment was left out of the totals", p.amount))
+  for subject, members in groups.items(): ret += together(held, t, subject, members)
   for kind, (fact, asking) in t.into.needs.items():
     came = any(p.way == "in" and p.label == kind and is_inside(p, months) and said_of(held, t, key, p) is None for key, p in held.payments.items())
     if (subject := needing(kind)) in held.decisions or (came and not is_given(held, proposed, fact)):
@@ -303,8 +324,8 @@ def priced(held:Case, t:Tables, q:Asked, base:Base) -> dict[str, Figure]:
   if base.before is None or q.closes: return ret
   part, elsewhere = scoped(held, q.document), bool(q.document and base.earning - {q.document})
   months, was = months_of(part), amounts(derived(part, t, base.trading))
-  for choice in (c for c, _ in q.choices if c not in t.into.needs):
-    said = held.decisions | {q.subject: choice}
+  for choice in (c for c, _ in q.choices if c not in t.into.needs and c != EACH):
+    said = held.decisions | decided(q, choice)
     chosen = replace(part, decisions=said)
     rows = counted(chosen, t, months)
     if is_trading(chosen, parts := earned(chosen, t, rows), elsewhere) == base.trading:

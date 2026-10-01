@@ -1,7 +1,8 @@
 import json, unittest
 from dataclasses import replace
 from decimal import Decimal
-from it01.asks import OUT, SAME, Asked, balance, based, derived, months_of, priced, projected, proposals, questions, tables, year_of, yearly
+from it01.asks import EACH, OUT, SAME, Asked, balance, based, derived, months_of, priced, projected, proposals, questions, tables, year_of, yearly
+from it01.asks import decided, payer
 from it01.held import VERSION, Case, Document, Line, Payment, Reading, dumped, loaded, opened, written
 from it01.keep import ENTERED, answered, case, confirm, figures, forgot, keep, noted, received, removed, set_fact, shown, unconfirmed, with_year
 from it01.keep import said_to
@@ -155,6 +156,35 @@ class TestKeep(unittest.TestCase):
     self.assertEqual(gaps(made(*first)), [])
     q = gaps(held)[0]
     self.assertEqual(said_to(answered(held, T, q.subject, "none"), q), "none")
+
+  def alike(self, *more:Payment) -> Case: return made(paid("700.00", "cash", date="15/07/2025"), paid("300.00", "cash", date="20/07/2025"), *more)
+
+  def test_credits_worded_alike_take_one_answer(self):
+    held = self.alike()
+    self.assertEqual([q.subject for q in questions(held, T, proposed(held))], ["payments paid in worded like CLIENT"])
+    self.assertEqual(proposed(answered(held, T, "payments paid in worded like CLIENT", "business")), {"business.gross_income": Decimal("1000.00")})
+
+  def test_an_alike_answer_moves_only_the_payments_it_listed(self):
+    held = answered(self.alike(paid("5000.00", "business", date="25/07/2025")), T, "payments paid in worded like CLIENT", "other")
+    self.assertEqual(proposed(held), {"business.gross_income": Decimal("5000.00")})
+    later = noted(held, "two.txt", Document("bank statement", "q", "z"), [("x", paid("50.00", "cash", doc="two.txt"))], [], [])
+    self.assertIn("two.txt, x", [q.subject for q in questions(later, T, proposed(later)) if said_to(later, q) is None])
+
+  def test_an_alike_question_is_priced_by_all_its_payments(self):
+    held = self.alike(paid("1200000.00", "business", date="25/07/2025"))
+    q = next(q for q in questions(held, T, proposed(held)) if q.subject == "payments paid in worded like CLIENT")
+    both = replace(held, decisions=decided(q, "business"))
+    moved = balance(projected(both, derived(both, T))).amt - balance(projected(held, derived(held, T))).amt
+    self.assertGreater(moved, 0)
+    self.assertEqual(priced(held, T, q, based(held, T))["business"].amt, moved)
+
+  def test_alike_credits_can_be_asked_about_one_by_one(self):
+    held = answered(self.alike(), T, "payments paid in worded like CLIENT", EACH)
+    self.assertEqual(len([q for q in questions(held, T, proposed(held)) if q.subject in held.payments]), 2)
+
+  def test_account_numbers_keep_payers_apart(self):
+    one, two = (replace(paid("5.00", "cash"), description=f"IB TRANSFER FROM {n} REF A1B2") for n in ("00123456", "00987654"))
+    self.assertNotEqual(payer(one), payer(two))
 
   def test_bank_interest_is_proposed_as_exempt_interest(self):
     self.assertEqual(proposed(made(paid("12.50", "interest"), paid("7.50", "interest"))), {"exempt_interest": Decimal("20.00")})
@@ -329,7 +359,7 @@ class TestKeep(unittest.TestCase):
       before = balance(projected(given, derived(given, T)))
       for q in questions(given, T, proposed(given)):
         for choice, fig in priced(given, T, q, based(given, T)).items():
-          chosen = replace(given, decisions=given.decisions | {q.subject: choice})
+          chosen = replace(given, decisions=given.decisions | decided(q, choice))
           with self.subTest(q.subject, choice=choice):
             self.assertEqual(fig.amt, balance(projected(given, derived(chosen, T))).amt - before.amt)
 
@@ -388,7 +418,7 @@ class TestKeep(unittest.TestCase):
     before = balance(projected(held, derived(held, T)))
     for q in questions(held, T, proposed(held)):
       for choice, fig in priced(held, T, q, based(held, T)).items():
-        chosen = replace(held, decisions=held.decisions | {q.subject: choice})
+        chosen = replace(held, decisions=held.decisions | decided(q, choice))
         with self.subTest(q.subject, choice=choice): self.assertEqual(fig.amt, balance(projected(held, derived(chosen, T))).amt - before.amt)
 
   def test_a_question_waiting_for_a_figure_carries_no_price(self):
