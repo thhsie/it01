@@ -84,7 +84,7 @@ def removed(held:Case, t:Tables, name:str) -> Case:
   def kept[T:(Payment, Reading, Line)](part:dict[str, T]) -> dict[str, T]: return {k: v for k, v in part.items() if v.document != name}
   payments = kept(held.payments)
   gone = {*held.payments, *held.readings, *held.lines} - {*payments, *kept(held.readings), *kept(held.lines)}
-  gone |= {trading_in(name), *(costs_of(name, kind) for kind in t.out.prompt.kinds)}
+  gone |= {trading_in(name), *(costs_of(name, kind) for kind in t.out.prompt.kinds), *(costs_of(name, kind, "in") for kind in t.into.business)}
   needs, labels = {needing(kind): kind for kind in t.into.needs}, {p.label for p in payments.values() if p.way == "in"}
   def is_kept(subject:str) -> bool: return subject not in gone and (subject not in needs or needs[subject] in labels)
   return replace(held, documents={k: v for k, v in held.documents.items() if k != name}, payments=payments, readings=kept(held.readings),
@@ -140,8 +140,8 @@ def texted(value:Any) -> Any:
 def received(held:Case, t:Tables) -> dict[str, Any]:
   table = t.into
   earning = tuple(kind for kind in (*table.feeds, *table.needs) if kind not in table.exempt)
-  where = {kind: group for group, kinds in (("income", earning), ("exempt", table.exempt), ("unsorted", table.asking), ("other", table.not_income))
-           for kind in kinds}
+  where = {kind: group for group, kinds in (("income", earning), ("exempt", table.exempt), ("unsorted", table.asking),
+                                             ("other", (*table.not_income, *table.business))) for kind in kinds}
   months = months_of(held)
   copied = copies(held, t, months)
   paid = [(key, p, where.get(label_of(held, t, key, p), "unsorted"), label_of(held, t, key, p)) for key, p in held.payments.items()

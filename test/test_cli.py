@@ -255,7 +255,8 @@ class TestCase(unittest.TestCase):
   def test_a_payment_whose_balance_does_not_agree_is_left_out_until_answered(self):
     self.banked(here := self.made(), (pay("13/07/2025", "900.00", "RENT JULY", "rent", Check.DIFFERS),))
     key = "bank.txt, 900.00 paid in on 13/07/2025, RENT JULY"
-    self.assertEqual((self.proposed(here), self.asked(here, key)), ({}, ["out", "pay", "business", "interest", "dividend", "rent", "other"]))
+    kinds = ["out", "pay", "business", "interest", "dividend", "rent", "refund", "other"]
+    self.assertEqual((self.proposed(here), self.asked(here, key)), ({}, kinds))
     responded(here, key, "rent")
     self.assertEqual(self.proposed(here), {"rent": Decimal("900.00")})
     responded(here, key, "out")
