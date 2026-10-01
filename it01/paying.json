@@ -16,8 +16,9 @@
     "green_equipment": "A purchase of solar panels, a solar water heater, rainwater harvesting equipment or an electric vehicle charger.",
     "business_expense": "A cost of running a business, such as stock, supplies, premises, staff or services bought for the business.",
     "bills": "A bill for electricity, water, phone, internet or television.",
+    "tax_paid": "A payment of income tax to the tax authority, such as a quarterly payment or the balance due on a return.",
     "unclear": "A payment whose payee or purpose the statement does not show, such as a transfer to a person or a wallet with no stated purpose.",
-    "no_claim": "Everyday spending, cash, bank fees, card repayments, taxes, and transfers between the holder's own accounts."
+    "no_claim": "Everyday spending, cash withdrawals, bank fees, card repayments, taxes other than income tax, and transfers between the holder's own accounts."
   },
   "examples": [],
   "claims": {
@@ -61,6 +62,12 @@
       "asking": "pick the bills for your business, or type the business share"
     }
   },
+  "picks": {
+    "tax_paid": {
+      "fact": "quarterly_tax_paid",
+      "asking": "pick the payments of income tax for this income year. Tax paid for an earlier year does not count"
+    }
+  },
   "headlines": {
     "business_expense": "which of these payments were costs of your business?",
     "bills": "which of these bills were for your business?",
@@ -70,7 +77,8 @@
     "medical_insurance": "add your medical insurance certificate",
     "school_fees": "add the school fees receipt",
     "housing_loan": "add your housing loan certificate",
-    "green_equipment": "add the invoice for the equipment"
+    "green_equipment": "add the invoice for the equipment",
+    "tax_paid": "which of these paid your income tax for this year?"
   },
   "aside": [
     "unclear",
