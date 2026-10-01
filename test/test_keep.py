@@ -202,6 +202,11 @@ class TestKeep(unittest.TestCase):
     later = noted(held, "two.txt", Document("bank statement", "q", "z"), [("x", paid("50.00", "cash", doc="two.txt"))], [], [])
     self.assertIn("two.txt, x", [q.subject for q in questions(forgot(later, T, "payments paid in worded like CLIENT"), T, proposed(later))])
 
+  def test_the_case_data_names_each_payments_wording_group(self):
+    data = case(made(paid("700.00", "cash"), replace(paid("5.00", "cash"), description="12345")), T)["payments"]
+    self.assertEqual(sorted((one["description"], one["alike"]) for one in data.values()),
+                     [("12345", None), ("CLIENT", "payments paid in worded like CLIENT")])
+
   def test_only_an_answered_payment_with_wording_is_remembered(self):
     one, digits = "bank.txt, 700.00 paid in on 15/07/2025, CLIENT", replace(paid("5.00", "cash"), description="12345")
     for held, key, says in ((made(paid("700.00", "cash")), one, "say what"),
