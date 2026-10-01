@@ -120,18 +120,23 @@ def windows(tok:Any, said:tuple[tuple[str, int, int], ...], form:Form, shape:Sha
     at += max(cnt - max(cnt // QUARTER, 1), 1)
   return ret
 
-def fixed(session:Any, takes:tuple[str, ...], roles:tuple[str, ...], where:str) -> dict[str, int]:
-  held = {}
+def fixed(session:Any, takes:tuple[str, ...], roles:tuple[str, ...], where:str, any_length:bool=False) -> dict[str, int|None]:
+  held:dict[str, int|None] = {}
   for d in session.get_inputs():
     if len(d.shape) != 2: raise ValueError(f"the model file takes {d.name} in {len(d.shape)} dimensions and this gives 2")
-    if not isinstance(size := d.shape[1], int): raise ValueError(f"the model file leaves {d.name} unsized, and this reads a model of fixed size")
+    size = d.shape[1] if isinstance(d.shape[1], int) else None
+    if size is None and not any_length: raise ValueError(f"the model file leaves {d.name} unsized, and this reads a model of fixed size")
     held[d.name] = size
   if set(held) != set(takes): raise ValueError(f"the model file wants {sorted(held)} and {where} names {list(takes)}")
   return {role: held[name] for role, name in zip(roles, takes)}
 
-def sizes(session:Any, shape:Shape) -> dict[str, int]: return fixed(session, shape.takes, ROLES, "model.json")
+def sizes(session:Any, shape:Shape) -> dict[str, int]:
+  held = fixed(session, shape.takes, ROLES, "model.json")
+  assert all(size is not None for size in held.values())
+  return {role: size for role, size in held.items() if size is not None}
 
-def filled(values:list[int], size:int, name:str) -> tuple[np.ndarray, np.ndarray]:
+def filled(values:list[int], size:int|None, name:str) -> tuple[np.ndarray, np.ndarray]:
+  size = len(values) if size is None else size
   if len(values) > size: raise ValueError(f"this needs room for {len(values)} {name} and the model file takes {size}")
   spare = size - len(values)
   return np.array([values + [0] * spare], dtype=np.int64), np.array([[True] * len(values) + [False] * spare])
@@ -303,7 +308,7 @@ def classified(paid:tuple[tuple[Decimal, str], ...], prompt:Prompt) -> tuple[str
   if not isinstance(listed := session.get_modelmeta().custom_metadata_map.get("tasks"), str):
     raise ValueError(f"{IT01_LABELLER} names no tasks it labels, so it cannot label {prompt.task}")
   if prompt.task not in listed.split(","): raise ValueError(f"{IT01_LABELLER} labels {listed}, not {prompt.task}")
-  size, mark, names = fixed(session, sort.takes, SORTING, "labeller.json"), marker(tok, sort.marks["label_mark"]), list(prompt.kinds)
+  size, mark, names = fixed(session, sort.takes, SORTING, "labeller.json", any_length=True), marker(tok, sort.marks["label_mark"]), list(prompt.kinds)
   ret = []
   for amt, description in paid:
     said = prompt.line.format(amount=f"{amt:,}", description=description)
