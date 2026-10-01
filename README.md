@@ -114,15 +114,17 @@ Some lines end with `filled in by the return, check it`. The return fills those 
 
 Facts the return has no single field for are listed last, with where to enter them. The sheet refuses a quarter, because the return takes a year.
 
-## Change a payment's kind
+## Change an answer
 
 ```sh
 it01 change facts.json "1,200.00 paid in on 12/08" rent
 ```
 
-`change` gives an answered payment another kind. The proposed figures are worked out again, so the old kind's figure loses the amount and the new kind's figure gains it.
+`change` puts the question back as it was asked, then answers it again with any answer the question takes. A payment returns to cash or unclear. A payment left out for its balance is left out again. The proposed figures are worked out again.
 
-When the change moves a figure you confirmed, that figure is proposed again. Only a kind can replace an answer.
+When the change moves a figure you confirmed, that figure is proposed again. An answer that does not fit leaves the case as it was. An answer about a missing statement cannot be changed, and neither can one given before its wording was kept.
+
+A payment left out because its balance did not agree can also be counted as an income kind. Answer the kind instead of noted.
 
 ## Read with a model file of your own
 
@@ -245,7 +247,7 @@ Leave out of `income` any state benefit paid to a child or a bedridden relative 
 
 `lending` holds peer to peer lending as `interest` and `bad_debts`. 80% of the interest is exempt. The bad debts come off the rest. Bad debts above the whole interest are carried forward.
 
-Fifteen keys are set aside before the computation and none of them reaches it: `version`, `year`, `sources`, `confirmed`, `documents`, `texts`, `paths`, `labels`, `paid`, `read`, `checks`, `outside`, `currencies`, `answers`, `pending`.
+Sixteen keys are set aside before the computation and none of them reaches it: `version`, `year`, `sources`, `confirmed`, `documents`, `texts`, `paths`, `asked`, `labels`, `paid`, `read`, `checks`, `outside`, `currencies`, `answers`, `pending`.
 
 `checks` names each payment into the account whose balance did not agree or was not checked. A payment whose balance did not agree gives no figure until you give it a kind, by answering or with `change`. A figure notes how many of its payments were not checked. A case that has read a document but has no `version`, or that has `proposed`, is refused.
 
@@ -278,7 +280,7 @@ it01 keep FACTS.json                    print everything so far
 it01 show FACTS.json DOCUMENT.txt       print a document the way it was read
 it01 confirm FACTS.json FACT            accept a proposed figure
 it01 answer FACTS.json QUESTION ANSWER  answer an open question
-it01 change FACTS.json QUESTION KIND    give an answered payment another kind
+it01 change FACTS.json QUESTION ANSWER  answer a question again
 it01 year FACTS.json YYYY-MM            set the income year from its first month
 it01 set FACTS.json FACT VALUE          enter a fact yourself, or clear it with an empty value
 it01 rebuild FACTS.json                 read an older case's documents again

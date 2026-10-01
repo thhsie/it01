@@ -12,7 +12,7 @@ TITLES = {"documents": "documents you read", "labels": "how money paid in was la
           "outside": "left out, dated outside the income year", "currencies": "the currency each statement names",
           "read": "what each form was read as", "checks": "money paid in whose balance did not agree or was not checked",
           "answers": "questions you answered", "pending": "questions still open"}
-WORDING = ("version", "year", "sources", "confirmed", "texts", "paths", *TITLES)
+WORDING = ("version", "year", "sources", "confirmed", "texts", "paths", "asked", *TITLES)
 VERSION = {"case": "2"}
 DIFFERS, UNCHECKED = "does not agree", "not checked"
 GONE = "no longer read from any document"
@@ -68,7 +68,9 @@ def needing(table:Table, kind:str) -> str:
   return offering(table.needs[kind][1], tuple((instead, f"label it {instead} instead") for instead in picked(table) if instead != kind))
 
 def paid_as(text:str, kind:str) -> list[str]: return [key for key, was in apart(loaded(text))[1]["labels"].items() if was == kind]
-def adrift() -> str: return offering(ADRIFT, (("noted", "leave it out"),))
+def adrift() -> str:
+  kinds = tuple((kind, f"count it as {kind}") for kind in spoken("labelling").feeds)
+  return offering(ADRIFT, (("noted", "leave it out"), *kinds))
 
 def answers_to(question:str, asks:str) -> str:
   out, table = paying(), spoken("labelling")
@@ -294,14 +296,16 @@ def answer(text:str, question:str, said:str) -> str:
   if question not in held["pending"]: raise ValueError(f"no open question {question}")
   if question in held["answers"]: raise ValueError(f"already answered {question}")
   if not said.strip(): raise ValueError(f"the answer to {question} is blank")
-  held["answers"][question] = said
-  del held["pending"][question]
+  held["answers"][question], held["asked"][question] = said, held["pending"].pop(question)
   return as_file(given, held)
 
-def reanswered(text:str, question:str, said:str) -> str:
+def reopened(text:str, question:str) -> str:
   given, held, _ = apart(loaded(text))
   if question not in held["answers"]: raise ValueError(f"{question} was never answered")
-  held["answers"][question] = said
+  if not (asks := held["asked"].pop(question, None) or answers_to(question, "")):
+    raise ValueError(f"{question} was answered before its wording was kept, so it cannot be changed")
+  del held["answers"][question]
+  held["pending"][question] = asks
   return as_file(given, held)
 
 def labelled(text:str, credit:str) -> list[str]:
@@ -331,6 +335,11 @@ def costed(text:str) -> tuple[str, Noted]:
            for doc, kinds in costs.items() if doc not in refused for kind, amts in kinds.items() if (kind, doc) not in spent]
   how = placed(held, ask)
   return as_file(given, held), how
+
+def doubted(text:str, keys:list[str]) -> str:
+  given, held, _ = apart(loaded(text))
+  held["checks"] |= dict.fromkeys(keys, DIFFERS)
+  return as_file(given, held)
 
 def relabelled(text:str, keys:list[str], kind:str, vouched:bool=False) -> str:
   given, held, _ = apart(loaded(text))
@@ -474,6 +483,7 @@ def removed(text:str, name:str) -> str:
     return not PAID_IN.match(question) or question in lines
   held["pending"] = {q: asks for q, asks in held["pending"].items() if is_left(q, None)}
   held["answers"] = {q: said for q, said in held["answers"].items() if is_left(q, said)}
+  held["asked"] = {q: asks for q, asks in held["asked"].items() if q in held["answers"]}
   return as_file(given, held)
 
 def with_year(text:str, first:str) -> str:
