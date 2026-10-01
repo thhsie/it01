@@ -75,7 +75,7 @@ def spoken(name:str) -> Table:
       raise ValueError(f"{name}.json must give the document, section and page that exempt {kind}")
     exempt[str(kind)] = Source(src["doc"], src["section"], src["page"])
   if unknown := sorted(set(exempt) - set(kinds)): raise ValueError(f"{name}.json exempts unknown kinds {unknown}")
-  if both := sorted(set(exempt) & (set(feeds) | set(needs) | set(asking))): raise ValueError(f"{name}.json both exempts and uses {both}")
+  if both := sorted(set(exempt) & (set(needs) | set(asking))): raise ValueError(f"{name}.json both exempts and uses {both}")
   aside = held.get("not_income", [])
   if not isinstance(aside, list) or not all(isinstance(k, str) for k in aside):
     raise ValueError(f"{name}.json must hold not_income as a list of kinds")

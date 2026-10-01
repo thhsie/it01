@@ -62,6 +62,7 @@ def person(r:random.Random) -> PersonCtx:
   if p.chance(0.3):
     for m in r.sample(YEAR, 3): p.row("in", p.amt(5000, 15000), "TENANT", "rent", month=m, fact="rent")
   if p.chance(0.3): p.row("in", p.amt(1000, 30000), "DIVIDEND FROM A COMPANY", "dividend", fact="resident_dividends")
+  if p.chance(0.3): p.row("in", p.amt(10, 2000), "INTEREST PAID", "interest", fact="exempt_interest")
   if p.chance(0.4):
     p.approved = p.chance(0.8)
     for m in r.sample(YEAR, 4):

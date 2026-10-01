@@ -29,6 +29,7 @@
   "feeds": {
     "business": "business.gross_income",
     "dividend": "resident_dividends",
+    "interest": "exempt_interest",
     "rent": "rent"
   },
   "needs": {
