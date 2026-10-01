@@ -2,7 +2,7 @@ import random, unittest
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
-from it01.asks import OUT, SAME, Asked, proposals, questions, tables, worded, year_of
+from it01.asks import EACH, OUT, SAME, Asked, proposals, questions, tables, worded, year_of
 from it01.held import Case, Document, Payment, Reading, opened
 from it01.keep import answered, confirm, noted, said_to, set_fact, with_year
 from it01.tax import Facts, from_json
@@ -55,7 +55,8 @@ def person(r:random.Random) -> PersonCtx:
     for m in r.sample(YEAR, 0 if starting else r.randint(1, 12)):
       p.row("in", p.amt(2000, 90000), f"CLIENT {r.randint(1, 4)}", "business", month=m, fact="business.gross_income")
     for _ in range(0 if starting else r.randint(0, 3)):
-      p.row("in", p.amt(500, 20000), "CASH DEPOSIT", "cash", "business", fact="business.gross_income")
+      if p.chance(0.3): p.row("in", p.amt(500, 20000), "CASH DEPOSIT", "cash", "other")
+      else: p.row("in", p.amt(500, 20000), "CASH DEPOSIT", "cash", "business", fact="business.gross_income")
     for _ in range(r.randint(1 if starting else 0, 6)):
       p.row("out", p.amt(300, 15000), "SUPPLIER", "business_expense", fact="business.other_expenses")
   for _ in range(r.randint(0, 2)): p.row("in", p.amt(500, 5000), "OWN TRANSFER", "other")
@@ -124,6 +125,10 @@ def replied(p:PersonCtx, held:Case, q:Asked) -> Case:
   if q.subject in held.payments:
     truth = truth_of(p, held, q.subject)
     return answered(held, T, q.subject, SAME if SAME in choices else truth if truth in choices else OUT)
+  if EACH in choices:
+    truths = {truth_of(p, held, key) for key in q.paid}
+    if len(truths) > 1: return answered(held, T, q.subject, EACH)
+    return answered(held, T, q.subject, one if (one := truths.pop()) in choices else OUT)
   if q.closes == "salary" and p.form:
     salary, withheld = p.form
     read = [Reading("form.txt", "salary", salary, "Net emoluments"), Reading("form.txt", "paye_withheld", withheld, "Tax withheld")]

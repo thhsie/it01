@@ -4,7 +4,7 @@ from dataclasses import replace
 from decimal import Decimal
 from typing import Any
 from it01.asks import WRONG, Asked, Base, Tables, based, copies, costs_of, derived, fits, fitted, is_dropped, is_inside, label_of, months_of
-from it01.asks import needing, priced, proposals, proposed_from, put, questions, read_as, said_of, subject_of, trading_in, yearly
+from it01.asks import decided, is_alike, needing, priced, proposals, proposed_from, put, questions, read_as, said_of, subject_of, trading_in, yearly
 from it01.held import Case, Document, Line, Payment, Reading, at
 from it01.kinds import picked
 from it01.law import YEAR_SRC, Source
@@ -73,7 +73,7 @@ def set_fact(held:Case, t:Tables, name:str, said:str) -> Case:
 
 def answered(held:Case, t:Tables, subject:str, said:str) -> Case:
   q = subject_of(held, t, subject)
-  return replace(held, decisions=held.decisions | {subject: fitted(held, q, said)})
+  return replace(held, decisions=held.decisions | decided(q, fitted(held, q, said)))
 
 def forgot(held:Case, subject:str) -> Case:
   if subject not in held.decisions: raise ValueError(f"nothing was said about {subject}")
@@ -217,7 +217,8 @@ def keep(held:Case, t:Tables) -> list[str]:
     for q in waiting:
       ret += [f"  {q.subject}"] + ([f"      {q.headline}"] if q.headline else []) + ([f"      {q.about}"] if q.about != q.subject else [])
       ret += [f"      {q.asks}: " + "; ".join(f"{n} ({d})" for n, d in q.choices)]
-      if q.share: ret += [f"      {n}. {p.date} {p.amount:,} {p.description}" for n, p in enumerate((held.payments[k] for k in q.paid), 1)]
+      listed = enumerate((held.payments[k] for k in q.paid), 1) if q.share or is_alike(q) else ()
+      ret += [f"      {n}. {p.date} {p.amount:,} {p.description}" for n, p in listed]
       for choice, fig in priced(held, t, q, base).items(): ret += [f"      {choice:<30}{fig.amt:>+14,}"]
   if done := [(q, said) for q in asked if (said := said_to(held, q)) is not None]:
     ret += ["", "questions you answered"] + [line for q, said in done for line in (f"  {q.subject}", f"      {said}")]
