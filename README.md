@@ -205,7 +205,7 @@ export IT01_LABELLER=labeller.onnx IT01_TOKENISER=tokenizer.json
 it01 credits bank.txt
 ```
 
-With `IT01_LABELLER` set, each credit is labelled by a classifier on this computer and the endpoint is not called. The file scores every kind in `it01/labelling.json` for one credit at a time, and the highest score wins.
+With `IT01_LABELLER` set, each credit is labelled by a classifier on this computer and the endpoint is not called. The file scores every kind in `it01/labelling.json` for one credit at a time, and the highest score wins. Its inputs may have a fixed length or any length. A file of any length reads each credit at its own length.
 
 `it01/labeller.json` says what your file calls its four inputs and its output, and the marks and wording around each kind and example. The task name, the instruction and the layout of one credit are under `model` in `it01/labelling.json`. The kinds, their descriptions and the examples are there too. The labeller reads with the same `IT01_TOKENISER` as the reader.
 

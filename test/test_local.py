@@ -453,9 +453,9 @@ class Unmarked(Pieces):
   def encode(self, piece, add_special_tokens=False): return Coded([1], [])
 
 class Sorting:
-  def __init__(self, best, tasks="source,purpose"): self.best, self.fed, self.tasks = best, [], tasks
+  def __init__(self, best, tasks="source,purpose", sized=True): self.best, self.fed, self.tasks, self.sized = best, [], tasks, sized
   def get_modelmeta(self): return mock.Mock(custom_metadata_map={"tasks": self.tasks} if self.tasks else {})
-  def get_inputs(self): return [Size(n, 64 if n == SORT.takes[0] else 8) for n in SORT.takes]
+  def get_inputs(self): return [Size(n, (64 if n == SORT.takes[0] else 8) if self.sized else "length") for n in SORT.takes]
   def run(self, names, feed):
     self.fed.append(feed)
     return [np.array([[1.0 if n == self.best else 0.0 for n in range(8)]])]
@@ -481,6 +481,13 @@ class TestLabeller(unittest.TestCase):
       said = classified(((Decimal("5000.00"), "SALARY"), (Decimal("20.00"), "REFUND")), self.prompt)
     self.assertEqual((said, len(session.fed)), (("other", "other"), 2))
     self.assertEqual(session.fed[0][SORT.takes[3]].tolist(), [[True, True] + [False] * 6])
+
+  def test_a_labeller_of_any_length_reads_each_line_at_its_own_length(self):
+    session = Sorting(best=0, sized=False)
+    with mock.patch("it01.local.loaded", return_value=(session, Pieces())):
+      self.assertEqual(classified(((Decimal("5000.00"), "SALARY"),), self.prompt), ("pay",))
+    tokens, attention, kinds = (session.fed[0][SORT.takes[n]] for n in (0, 1, 3))
+    self.assertEqual((bool(attention.all()), kinds.tolist()), (True, [[True, True]]))
 
   def test_a_labeller_that_does_not_name_the_task_is_refused(self):
     for tasks, says in (("", "names no tasks it labels, so it cannot label source"), ("purpose", "labels purpose, not source")):
