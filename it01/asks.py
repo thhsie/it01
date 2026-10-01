@@ -51,6 +51,18 @@ def months_of(held:Case) -> tuple[str, ...]:
 
 def is_inside(p:Payment, months:tuple[str, ...]) -> bool: return p.month is None or p.month in months
 
+def uncovered(held:Case, months:tuple[str, ...]) -> list[str]:
+  dated = [[p.month for p in held.payments.values() if p.document == doc and p.month] for doc in held.documents]
+  if not held.year or not (spans := [(min(one), max(one)) for one in dated if one]): return []
+  return [m for m in months if not any(first <= m <= last for first, last in spans)]
+
+def unread(missing:list[str]) -> list[Asked]:
+  if not missing: return []
+  return [Asked(f"months no statement covers, {', '.join(missing)}", f"no statement covers {', '.join(missing)}",
+               "money paid in those months is not counted. Add the statements, or say your accounts had no payments then",
+               (("later", "I'll add the statements"), ("none", "my accounts had no payments in those months")), None,
+               "a statement seems to be missing")]
+
 def needing(kind:str) -> str: return f"money labelled {kind}"
 def costs_of(doc:str, kind:str, way:str="out") -> str: return f"{doc}, paid {way} as {plain(kind)}"
 def trading_in(doc:str) -> str: return f"{doc}, business costs"
@@ -220,7 +232,7 @@ def questions(held:Case, t:Tables, proposed:dict[str, Decimal]) -> list[Asked]:
                        "and the case has no business income", "say whether you run a business, even one with no income yet", costing(), doc,
                        "costs of a business with no income yet?"))
     ret += [q for q in costs if is_owed(held, q, trading)]
-  return ret + [q for q in owed if not q.trade and not is_closed(held, q)] + form_lines(held, t)
+  return unread(uncovered(held, months)) + ret + [q for q in owed if not q.trade and not is_closed(held, q)] + form_lines(held, t)
 
 def is_closed(held:Case, q:Asked) -> bool: return q.closes is not None and at(held.given, q.closes) not in (None, [])
 
