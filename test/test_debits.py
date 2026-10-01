@@ -48,7 +48,7 @@ class TestDebits(unittest.TestCase):
 
   def test_the_shipped_table_says_how_every_kind_counts(self):
     table = paying()
-    self.assertEqual(sorted({*table.claims, *table.certificates, *table.business, *table.aside}), sorted(PROMPT.kinds))
+    self.assertEqual(sorted({*table.claims, *table.certificates, *table.business, *table.picks, *table.aside}), sorted(PROMPT.kinds))
 
   def test_a_table_that_leaves_a_kind_out_or_uses_one_twice_is_refused(self):
     held = data("paying")

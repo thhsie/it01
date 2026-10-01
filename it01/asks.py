@@ -118,12 +118,13 @@ def claims(t:Tables, rows:Rows) -> list[Asked]:
     if p.way == "out" and kind not in t.out.aside: groups.setdefault((p.document, kind), []).append((key, p.amount))
   ret = []
   for (doc, kind), paid in groups.items():
-    total, claim = sum((amt for _, amt in paid), ZERO), (t.out.claims | t.out.business).get(kind)
+    total, claim = sum((amt for _, amt in paid), ZERO), (t.out.claims | t.out.business | t.out.picks).get(kind)
     asking, closes = (claim[1], None) if claim else t.out.certificates[kind]
     if claim: choices = (("yes", f"adds {total:,} to {plain(claim[0])}"), ("no", "adds nothing"))
     else: choices = (("later", "I'll add it later"), ("not", f"this was not for {plain(kind)}"))
     ret.append(Asked(costs_of(doc, kind), outgoing(total, len(paid), kind, doc), asking, choices, doc, t.out.headlines.get(kind), total,
-                     (("yes", claim[0]),) if claim else (), tuple(k for k, _ in paid), kind in t.out.business, closes, trade=kind in t.out.business))
+                     (("yes", claim[0]),) if claim else (), tuple(k for k, _ in paid), kind in t.out.business or kind in t.out.picks, closes,
+                     trade=kind in t.out.business))
   return ret
 
 def form_lines(held:Case, t:Tables) -> list[Asked]:

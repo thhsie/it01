@@ -94,6 +94,7 @@ class Paying:
   claims: dict[str, tuple[str, str]]
   certificates: dict[str, tuple[str, str|None]]
   business: dict[str, tuple[str, str]]
+  picks: dict[str, tuple[str, str]]
   aside: tuple[str, ...]
   headlines: dict[str, str]
 
@@ -126,13 +127,14 @@ def figured(held:dict[str, Any]) -> dict[str, tuple[str, str|None]]:
 def paying() -> Paying:
   held = data("paying")
   prompt = prompted("paying", held)
-  claims, business, certificates = facts("paying", held, "claims"), facts("paying", held, "business"), figured(held)
+  claims, business, picks = (facts("paying", held, part) for part in ("claims", "business", "picks"))
+  certificates = figured(held)
   if not isinstance(aside := held.get("aside", []), list) or not all(isinstance(k, str) for k in aside):
     raise ValueError("paying.json must hold aside as a list of kinds")
   headlines = questions("paying", held, "headlines")
-  uses = (set(claims), set(certificates), set(business), set(aside))
+  uses = (set(claims), set(certificates), set(business), set(picks), set(aside))
   if unknown := sorted(set().union(*uses) - set(prompt.kinds)): raise ValueError(f"paying.json uses unknown kinds {unknown}")
   if twice := sorted(k for k in prompt.kinds if sum(k in use for use in uses) > 1): raise ValueError(f"paying.json gives {twice} more than one use")
   if loose := sorted(set(prompt.kinds) - set().union(*uses)): raise ValueError(f"paying.json says nothing of how {loose} count")
   if stray := sorted(set(headlines) - set(prompt.kinds)): raise ValueError(f"paying.json gives headlines for unknown kinds {stray}")
-  return Paying(prompt, claims, certificates, business, tuple(aside), headlines)
+  return Paying(prompt, claims, certificates, business, picks, tuple(aside), headlines)

@@ -3,7 +3,7 @@ from dataclasses import replace
 from decimal import Decimal
 from it01.asks import OUT, SAME, balance, based, derived, months_of, priced, projected, proposals, questions, tables, year_of, yearly
 from it01.held import VERSION, Case, Document, Line, Payment, Reading, dumped, loaded, opened, written
-from it01.keep import ENTERED, case, confirm, figures, forgot, keep, noted, received, removed, set_fact, shown, unconfirmed, with_year
+from it01.keep import ENTERED, answered, case, confirm, figures, forgot, keep, noted, received, removed, set_fact, shown, unconfirmed, with_year
 
 T = tables()
 BANK = Document("bank statement", "in/bank.txt", "a")
@@ -122,6 +122,12 @@ class TestKeep(unittest.TestCase):
     held = confirm(made(paid("500.00", "business")), T, "business.gross_income")
     self.assertEqual(held.given["business"], {"gross_income": Decimal("500.00")})
     self.assertEqual(held.sources["business.gross_income"], "bank.txt, 1 labelled business")
+
+  def test_income_tax_paid_is_picked_without_a_business(self):
+    held = made(paid("9000.00", "tax_paid", way="out"), paid("4000.00", "tax_paid", date="15/08/2025", way="out", month="2025-08"))
+    subject = "bank.txt, paid out as tax paid"
+    self.assertIn(subject, [q.subject for q in questions(held, T, proposed(held))])
+    self.assertEqual(proposed(answered(held, T, subject, "payments 1")), {"quarterly_tax_paid": Decimal("9000.00")})
 
   def test_bank_interest_is_proposed_as_exempt_interest(self):
     self.assertEqual(proposed(made(paid("12.50", "interest"), paid("7.50", "interest"))), {"exempt_interest": Decimal("20.00")})
