@@ -171,9 +171,14 @@ def told(how:Noted, before:str, after:str) -> list[str]:
 def responded(here:pathlib.Path, asked:str, said:str) -> list[str]:
   if not (asked := asked.strip()): raise ValueError("the question to answer is blank")
   text = here.read_text(encoding="utf-8")
+  question = matched(apart(loaded(text))[1]["pending"], asked, "open")
+  text, lines = answering(text, question, said)
+  rewritten(here, text)
+  return [f"answered {question}", f"  {said}"] + lines
+
+def answering(text:str, question:str, said:str) -> tuple[str, list[str]]:
   pending = apart(loaded(text))[1]["pending"]
-  question = matched(pending, asked, "open")
-  table, ret, before = spoken("labelling"), [f"answered {question}", f"  {said}"], text
+  table, ret, before = spoken("labelling"), [], text
   keys = labelled(text, question) if pending[question] in table.asking.values() and (kind := said.strip()) in picked(table) else []
   taken(question, said, behind(apart(loaded(text))[1], question))
   if (allowed := closed(question, pending[question])) and said.strip() not in allowed:
@@ -189,8 +194,7 @@ def responded(here:pathlib.Path, asked:str, said:str) -> list[str]:
     text = relabelled(text, paid, said.strip())
     ret += [f"labelled {said.strip()}"]
   text, how = costed(text)
-  rewritten(here, text)
-  return ret + told(how, before, text)
+  return text, ret + told(how, before, text)
 
 def changed(here:pathlib.Path, asked:str, said:str) -> list[str]:
   if not (asked := asked.strip()): raise ValueError("the question to change is blank")
