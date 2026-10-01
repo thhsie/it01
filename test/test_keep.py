@@ -354,6 +354,11 @@ class TestKeep(unittest.TestCase):
         chosen = replace(held, decisions=held.decisions | {q.subject: choice})
         with self.subTest(q.subject, choice=choice): self.assertEqual(fig.amt, balance(projected(held, derived(chosen, T))).amt - before.amt)
 
+  def test_a_question_waiting_for_a_figure_carries_no_price(self):
+    held = made(paid("900000.00", "pay"))
+    q = next(q for q in case(held, T)["questions"] if q["subject"] == "money labelled pay")
+    self.assertEqual((q["closes"], q["prices"]), ("salary", {}))
+
   def test_a_value_reads_the_way_a_person_says_it(self):
     self.assertEqual([shown(v) for v in (True, False, "x", Decimal("1200.5"))], ["yes", "no", "x", "1,200.5"])
 
