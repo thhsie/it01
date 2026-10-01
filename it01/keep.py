@@ -2,8 +2,8 @@ import hashlib
 from dataclasses import replace
 from decimal import Decimal
 from typing import Any
-from it01.asks import OUT, WRONG, Asked, Base, Tables, based, costs_of, derived, fits, fitted, is_inside, label_of, months_of, needing, priced
-from it01.asks import proposals, proposed_from, put, questions, read_as, subject_of, trading_in, yearly
+from it01.asks import WRONG, Asked, Base, Tables, based, copies, costs_of, derived, fits, fitted, is_dropped, is_inside, label_of, months_of
+from it01.asks import needing, priced, proposals, proposed_from, put, questions, read_as, said_of, subject_of, trading_in, yearly
 from it01.held import Case, Document, Line, Payment, Reading, at
 from it01.kinds import picked
 from it01.law import YEAR_SRC, Source
@@ -138,8 +138,9 @@ def received(held:Case, t:Tables) -> dict[str, Any]:
   where = {kind: group for group, kinds in (("income", (*table.feeds, *table.needs)), ("exempt", table.exempt), ("unsorted", table.asking),
                                              ("other", table.not_income)) for kind in kinds}
   months = months_of(held)
+  copied = copies(held, t, months)
   paid = [(key, p, where.get(label_of(held, t, key, p), "unsorted"), label_of(held, t, key, p)) for key, p in held.payments.items()
-          if p.way == "in" and held.decisions.get(key) != OUT]
+          if p.way == "in" and not is_dropped(said_of(held, t, key, p), key, copied)]
   inside = [one for one in paid if is_inside(one[1], months)]
   def by_month(m:str) -> list[tuple[str, Payment, str, str]]: return [one for one in inside if one[1].month == m]
   return {"groups": {g: summed([(group, p.amount) for _, p, group, _ in inside]).get(g, NIL) for g in GROUPS},
