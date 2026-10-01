@@ -87,6 +87,15 @@ class TestCredits(unittest.TestCase):
       with self.subTest(aside), mock.patch("it01.kinds.data", return_value=base | {"not_income": aside}):
         with self.assertRaisesRegex(ValueError, says): spoken("labelling")
 
+  def test_a_business_kind_must_be_listed_and_used_once(self):
+    base = MODEL | {"name": "a statement", "kinds": {"one": "a", "two": "b"}, "asking": {"one": "what is this"}}
+    claim = {"fact": "business.other_income", "asking": "pick them"}
+    for extra, says in (({"business": {"nope": claim, "two": claim}}, r"unknown kinds as business \['nope'\]"),
+                        ({"business": {"one": claim, "two": claim}}, r"gives \['one'\] more than one use"),
+                        ({"business": {"two": claim}, "headlines": {"nope": "which?"}}, r"headlines for unknown kinds \['nope'\]")):
+      with self.subTest(extra), mock.patch("it01.kinds.data", return_value=base | extra):
+        with self.assertRaisesRegex(ValueError, says): spoken("labelling")
+
   def test_interest_is_exempt_under_the_schedule_that_says_so(self):
     self.assertEqual(TABLE.exempt["interest"].url, "https://www.mra.mu/download/ITAConsolidated.pdf#page=267")
 

@@ -52,7 +52,7 @@ def months_of(held:Case) -> tuple[str, ...]:
 def is_inside(p:Payment, months:tuple[str, ...]) -> bool: return p.month is None or p.month in months
 
 def needing(kind:str) -> str: return f"money labelled {kind}"
-def costs_of(doc:str, kind:str) -> str: return f"{doc}, paid out as {plain(kind)}"
+def costs_of(doc:str, kind:str, way:str="out") -> str: return f"{doc}, paid {way} as {plain(kind)}"
 def trading_in(doc:str) -> str: return f"{doc}, business costs"
 
 def kinds_of(t:Tables, way:str) -> tuple[str, ...]: return picked(t.into) if way == "in" else tuple(t.out.prompt.kinds)
@@ -109,22 +109,25 @@ def twice(t:Tables, way:str, doc:str) -> tuple[tuple[str, str], ...]:
 
 def worded(p:Payment) -> str: return f"{p.amount:,} paid {p.way} on {p.date}, {p.description}"
 
-def outgoing(amt:Decimal, cnt:int, kind:str, doc:str) -> str:
-  return f"{amt:,} paid out in {cnt} payment{'s' if cnt > 1 else ''} that look{'' if cnt > 1 else 's'} like {plain(kind)}, in {doc}"
+def outgoing(amt:Decimal, cnt:int, kind:str, doc:str, way:str) -> str:
+  return f"{amt:,} paid {way} in {cnt} payment{'s' if cnt > 1 else ''} that look{'' if cnt > 1 else 's'} like {plain(kind)}, in {doc}"
 
 def claims(t:Tables, rows:Rows) -> list[Asked]:
-  groups:dict[tuple[str, str], list[tuple[str, Decimal]]] = {}
+  groups:dict[tuple[str, str, str], list[tuple[str, Decimal]]] = {}
   for key, p, kind in rows:
-    if p.way == "out" and kind not in t.out.aside: groups.setdefault((p.document, kind), []).append((key, p.amount))
+    is_asked = kind in t.into.business if p.way == "in" else kind not in t.out.aside
+    if is_asked: groups.setdefault((p.document, p.way, kind), []).append((key, p.amount))
   ret = []
-  for (doc, kind), paid in groups.items():
-    total, claim = sum((amt for _, amt in paid), ZERO), (t.out.claims | t.out.business | t.out.picks).get(kind)
+  for (doc, way, kind), paid in groups.items():
+    trading = t.into.business if way == "in" else t.out.business
+    picking = trading | (t.out.picks if way == "out" else {})
+    claimable, headlines = picking | (t.out.claims if way == "out" else {}), (t.into if way == "in" else t.out).headlines
+    total, claim = sum((amt for _, amt in paid), ZERO), claimable.get(kind)
     asking, closes = (claim[1], None) if claim else t.out.certificates[kind]
     if claim: choices = (("yes", f"adds {total:,} to {plain(claim[0])}"), ("no", "adds nothing"))
     else: choices = (("later", "I'll add it later"), ("not", f"this was not for {plain(kind)}"))
-    ret.append(Asked(costs_of(doc, kind), outgoing(total, len(paid), kind, doc), asking, choices, doc, t.out.headlines.get(kind), total,
-                     (("yes", claim[0]),) if claim else (), tuple(k for k, _ in paid), kind in t.out.business or kind in t.out.picks, closes,
-                     trade=kind in t.out.business))
+    ret.append(Asked(costs_of(doc, kind, way), outgoing(total, len(paid), kind, doc, way), asking, choices, doc, headlines.get(kind), total,
+                     (("yes", claim[0]),) if claim else (), tuple(k for k, _ in paid), kind in picking, closes, trade=kind in trading))
   return ret
 
 def form_lines(held:Case, t:Tables) -> list[Asked]:
@@ -211,8 +214,8 @@ def questions(held:Case, t:Tables, proposed:dict[str, Decimal]) -> list[Asked]:
   owed, trading = claims(t, rows), is_trading(held, earned(held, t, rows))
   for doc in dict.fromkeys(q.document for q in owed if q.trade and q.document):
     costs = [q for q in owed if q.trade and q.document == doc]
-    if not trading or trading_in(doc) in held.decisions:
-      cnt = sum(len(q.paid) for q in costs)
+    if (spent := [q for q in costs if held.payments[q.paid[0]].way == "out"]) and (not trading or trading_in(doc) in held.decisions):
+      cnt = sum(len(q.paid) for q in spent)
       ret.append(Asked(trading_in(doc), f"{cnt} payment{'s' if cnt > 1 else ''} in {doc} look{'' if cnt > 1 else 's'} like costs of a business, "
                        "and the case has no business income", "say whether you run a business, even one with no income yet", costing(), doc,
                        "costs of a business with no income yet?"))

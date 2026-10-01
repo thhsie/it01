@@ -137,6 +137,14 @@ class TestKeep(unittest.TestCase):
     held = made(paid("900.00", "business"), paid("75.00", "bank_charges", way="out"))
     self.assertEqual(proposed(answered(held, T, subject, "yes"))["business.bank_charges"], Decimal("75.00"))
 
+  def test_a_refund_of_a_business_cost_is_business_income(self):
+    subject = "bank.txt, paid in as refund"
+    alone = made(paid("40.00", "refund"))
+    self.assertEqual(questions(alone, T, proposed(alone)), [])
+    held = made(paid("900.00", "business"), paid("40.00", "refund"))
+    self.assertIn(subject, [q.subject for q in questions(held, T, proposed(held))])
+    self.assertEqual(proposed(answered(held, T, subject, "yes"))["business.other_income"], Decimal("40.00"))
+
   def test_bank_interest_is_proposed_as_exempt_interest(self):
     self.assertEqual(proposed(made(paid("12.50", "interest"), paid("7.50", "interest"))), {"exempt_interest": Decimal("20.00")})
 

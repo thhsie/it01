@@ -12,7 +12,8 @@
     "interest": "Interest paid by a bank on a deposit or a savings account.",
     "dividend": "A dividend or a distribution from a company or a fund.",
     "rent": "Rent from a tenant for property let out.",
-    "other": "A transfer the taxpayer made between their own accounts, a refund, a reversal, a loan paid out to them, a reimbursement of what they spent, or a private gift.",
+    "refund": "Money paid back by a shop, a supplier or a service for something the taxpayer bought, such as a refund, a reversal or a chargeback.",
+    "other": "A transfer the taxpayer made between their own accounts, a loan paid out to them, a reimbursement of what they spent, or a private gift.",
     "cash": "Money paid in as cash, whatever else the wording says.",
     "unclear": "The wording does not say where the money came from."
   },
@@ -22,7 +23,7 @@
     ["Credit 3,000.00\nOWN ACCOUNT TRANSFER FROM SAVINGS FT25101PL2\\BNK", "other"],
     ["Credit 88,400.00\nInward Remittance FT25140WW9\\BNK /ROC/77120/URI/DESIGN STUDIO LTD - WEBSITE PROJECT", "business"],
     ["Credit 12.40\nInterest Paid : 01-04-2025 to 30-04-2025", "interest"],
-    ["Credit 499.00\nREV POS PURCH SUNSET ELECTRONICS", "other"],
+    ["Credit 499.00\nREV POS PURCH SUNSET ELECTRONICS", "refund"],
     ["Credit 7,000.00\nCASH DEP ATM 0412", "cash"],
     ["Credit 6,500.00\nInstant Transfer FT25177RB4\\BNK MR TOMAS HALE", "unclear"]
   ],
@@ -41,6 +42,15 @@
   },
   "exempt": {
     "interest": {"doc": "ita", "section": "Second Schedule Part II Sub-Part B item 3(c)", "page": 267}
+  },
+  "business": {
+    "refund": {
+      "fact": "business.other_income",
+      "asking": "pick the refunds of costs of your business, or type the business part. They count as other income of the business"
+    }
+  },
+  "headlines": {
+    "refund": "which of these refunds paid back costs of your business?"
   },
   "not_income": ["other"],
   "asking": {

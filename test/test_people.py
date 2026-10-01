@@ -81,6 +81,9 @@ def person(r:random.Random) -> PersonCtx:
     p.share = Decimal("0.5")
     for m in r.sample(YEAR, 3): p.row("out", Decimal(r.randint(500, 2000) * 2), "ELECTRICITY BILL", "bills", month=m)
     p.add("business.utilities", sum((one.amount for one in p.rows if one.label == "bills"), ZERO) * p.share)
+  for _ in range(r.randint(0, 3)):
+    if trading and p.chance(0.5): p.row("in", p.amt(100, 2000), "REFUND FROM SUPPLIER", "refund", "business_refund", fact="business.other_income")
+    else: p.row("in", p.amt(100, 2000), "REFUND FROM SHOP", "refund")
   if trading and p.chance(0.5):
     for m in r.sample(YEAR, 4): p.row("out", p.amt(50, 300), "ACCOUNT FEE", "bank_charges", month=m, fact="business.bank_charges")
   if trading and p.chance(0.5):
@@ -118,9 +121,11 @@ def replied(p:PersonCtx, held:Case, q:Asked) -> Case:
   if q.closes: return set_fact(held, T, q.closes, p.certificates[q.closes])
   if "business" in choices: return answered(held, T, q.subject, "business" if "business" in p.facts else "not")
   kind = held.payments[q.paid[0]].label
-  this_year = [str(n) for n, key in enumerate(q.paid, 1) if truth_of(p, held, key) == "tax_paid"]
+  def picked(truth:str) -> str:
+    ours = [str(n) for n, key in enumerate(q.paid, 1) if truth_of(p, held, key) == truth]
+    return f"payments {', '.join(ours)}" if ours else "no"
   said = {"bills": str(q.amount * p.share), "business_expense": "yes", "bank_charges": "yes", "donation": "yes",
-          "pension": "yes" if p.approved else "no", "tax_paid": f"payments {', '.join(this_year)}" if this_year else "no"}
+          "pension": "yes" if p.approved else "no", "tax_paid": picked("tax_paid"), "refund": picked("business_refund")}
   if kind not in said: raise AssertionError(f"the person has no answer for {kind}")
   return answered(held, T, q.subject, said[kind])
 

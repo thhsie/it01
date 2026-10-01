@@ -39,6 +39,7 @@ class Table:
   exempt: dict[str, Source]
   not_income: tuple[str, ...]
   headlines: dict[str, str]
+  business: dict[str, tuple[str, str]]
 
 def spoken(name:str) -> Table:
   held = data(name)
@@ -79,12 +80,18 @@ def spoken(name:str) -> Table:
   aside = held.get("not_income", [])
   if not isinstance(aside, list) or not all(isinstance(k, str) for k in aside):
     raise ValueError(f"{name}.json must hold not_income as a list of kinds")
+  business = facts(name, held, "business")
+  headlines |= questions(name, held, "headlines")
+  if unknown := sorted(set(business) - set(kinds)): raise ValueError(f"{name}.json counts unknown kinds as business {unknown}")
+  if stray := sorted(set(headlines) - set(kinds)): raise ValueError(f"{name}.json gives headlines for unknown kinds {stray}")
   if unknown := sorted(set(aside) - set(kinds)): raise ValueError(f"{name}.json calls unknown kinds not income {unknown}")
   if both := sorted(set(aside) & (set(feeds) | set(needs) | set(asking) | set(exempt))):
     raise ValueError(f"{name}.json both uses and sets aside {both}")
-  if loose := sorted(set(kinds) - set(feeds) - set(needs) - set(asking) - set(exempt) - set(aside)):
+  if twice := sorted(set(business) & (set(feeds) | set(needs) | set(asking) | set(exempt) | set(aside))):
+    raise ValueError(f"{name}.json gives {twice} more than one use")
+  if loose := sorted(set(kinds) - set(feeds) - set(needs) - set(asking) - set(exempt) - set(aside) - set(business)):
     raise ValueError(f"{name}.json says nothing of how {loose} count")
-  return Table(prompt, feeds, asking, needs, exempt, tuple(aside), headlines)
+  return Table(prompt, feeds, asking, needs, exempt, tuple(aside), headlines, business)
 
 def picked(table:Table) -> tuple[str, ...]: return tuple(kind for kind in table.prompt.kinds if kind not in table.asking)
 
