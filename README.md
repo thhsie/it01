@@ -58,7 +58,9 @@ The proposed figures are not kept in the file. Each time the case is read, they 
 
 A relief or business cost you answered yes to, and a form line you chose, add too. Each figure notes where it came from.
 
-`keep` prints everything processed so far. `confirm` moves one figure into the facts, and keeps the amount in `confirmed`. When a later document or answer changes that figure, it is proposed again, and `data` lists its old amount under `changed`. A confirmed figure no longer read from any document is proposed at 0. `unconfirm` takes a confirmed figure out of the facts, and it is proposed again. A figure you entered is cleared with `set`.
+`keep` prints everything processed so far. `confirm` moves one figure into the facts, and keeps the amount in `confirmed`. When a later document or answer changes that figure, it is proposed again, and `data` lists its old amount under `changed`. A confirmed figure no longer read from any document is proposed at 0.
+
+`unconfirm` takes a confirmed figure out of the facts, and it is proposed again. A figure you entered is cleared with `set`.
 
 `data` prints the same case as JSON, with every number as text. It also gives a short headline for an open question about salary, a payment left out, or money paid out. It lists the payments behind each question about business costs paid out.
 
@@ -74,7 +76,9 @@ Money paid in is also added up for each month of one income year. The Act's year
 it01 remove facts.json statement-march.pdf
 ```
 
-`remove` drops everything read from one document: its labels, payments out, form figures and checks. Questions and answers about that document go too. Other answers stay. The figures are worked out again, so a figure you confirmed from that document is proposed again without it. A form cannot be taken out while another form shares its line answers.
+`remove` drops everything read from one document: its labels, payments out, form figures and checks. Questions and answers about that document go too. Other answers stay.
+
+The figures are worked out again, so a figure you confirmed from that document is proposed again without it. A form cannot be taken out while another form shares its line answers.
 
 ## Enter a fact yourself
 
@@ -84,7 +88,9 @@ it01 set facts.json quarterly_tax_paid 12500
 it01 set facts.json losses_brought_forward ""
 ```
 
-`set` writes one fact into the case, with the source `entered by you`. It takes any amount the computation reads, a whole number of `dependants`, and yes or no for `resident` and `spouse_above_interest_bar`. A figure entered this way replaces its proposal. An empty value clears the fact, except `resident`. A value the computation would refuse is not kept.
+`set` writes one fact into the case, with the source `entered by you`. It takes any amount the computation reads, a whole number of `dependants`, and yes or no for `resident` and `spouse_above_interest_bar`. A figure entered this way replaces its proposal.
+
+An empty value clears the fact, except `resident`. A value the computation would refuse is not kept.
 
 ## Answer an open question
 
@@ -110,7 +116,9 @@ This prints what to type in the return, one field a line, in the order the retur
 
 The last lines are the return's own totals, so you can check them after typing. The return keeps whole amounts and drops the fraction as you type.
 
-Some lines end with `filled in by the return, check it`. The return fills those fields itself. Check that each figure matches your document. A line ending with `the total of all rows` belongs to a table with one row per employer or payer, so split it across the rows as your documents do.
+Some lines end with `filled in by the return, check it`. The return fills those fields itself. Check that each figure matches your document.
+
+A line ending with `the total of all rows` belongs to a table with one row per employer or payer. Split it across the rows as your documents do.
 
 Facts the return has no single field for are listed last, with where to enter them. The sheet refuses a quarter, because the return takes a year.
 
@@ -142,7 +150,9 @@ The `local` command takes an encoder that scores runs of words. It reads the doc
 
 `it01/model.json` says what your file calls the nine things the package needs, along with the wording it expects. `it01/reading.json` holds the form, and the instruction the endpoint reader sends.
 
-The form's `title` is the heading a document must print to be read as that form. `it01 add` refuses a document that is neither a bank statement nor titled. The form's `ends` finds the last month of the income year the document covers. When the case has a year, a document for another year is refused, and so is one whose year cannot be read. Both keys are optional.
+The form's `title` is the heading a document must print to be read as that form. `it01 add` refuses a document that is neither a bank statement nor titled.
+
+The form's `ends` finds the last month of the income year the document covers. When the case has a year, a document for another year is refused, and so is one whose year cannot be read. Both keys are optional.
 
 ## Read a PDF off its pages
 
@@ -180,11 +190,17 @@ A statement names its currency when a three-letter code follows the word currenc
 
 `business` names the kinds asked about only when the case has business income. A yes adds the total to the accounts line it names, and a typed amount adds only that part. `aside` names the kinds that count for nothing. A payment whose balance does not agree is left out of the totals.
 
-A question about money paid out, a missing statement or a balance that does not agree lists its answers after a colon. Each answer says what it does. A question about a missing statement closes once the figure is known. Its answers say what the money was instead, such as business or rent. The answer relabels every payment of that kind. It proposes their total within the year under the fact for the new kind. A question about a payment in takes one of the kinds `it01 add` prints. A question saved before its answers were listed shows them when the case is read.
+A question about money paid out, a missing statement or a balance that does not agree lists its answers after a colon. Each answer says what it does.
+
+A question about a missing statement closes once the figure is known. Its answers say what the money was instead, such as business or rent. The answer relabels every payment of that kind. It proposes their total within the year under the fact for the new kind.
+
+A question about a payment in takes one of the kinds `it01 add` prints. A question saved before its answers were listed shows them when the case is read.
 
 A question about business costs paid out lists its payments by number. It takes yes, no, the business part as an amount, or the payments that were business costs, such as `payments 1, 3`. The engine adds up the payments named.
 
-Payments that look like business costs are kept even when the case has no business income. Each statement then asks once whether they are costs of your business. Answer business and each kind of cost is asked about, even with no business income yet. Answer not and that statement's costs are never asked about. Once business income is given or proposed, the costs kept from earlier statements are asked about too.
+Payments that look like business costs are kept even when the case has no business income. Each statement then asks once whether they are costs of your business. Answer business and each kind of cost is asked about, even with no business income yet. Answer not and that statement's costs are never asked about.
+
+Once business income is given or proposed, the costs kept from earlier statements are asked about too.
 
 ## Label bank credits with a model file of your own
 
@@ -251,13 +267,20 @@ Leave out of `income` any state benefit paid to a child or a bedridden relative 
 
 `lending` holds peer to peer lending as `interest` and `bad_debts`. 80% of the interest is exempt. The bad debts come off the rest. Bad debts above the whole interest are carried forward.
 
-Sixteen keys are set aside before the computation and none of them reaches it: `version`, `year`, `sources`, `confirmed`, `documents`, `texts`, `paths`, `asked`, `labels`, `paid`, `read`, `checks`, `outside`, `currencies`, `answers`, `pending`.
+Sixteen keys are set aside before the computation, and none of them reaches it:
+
+```
+version year sources confirmed documents texts paths asked
+labels paid read checks outside currencies answers pending
+```
 
 `checks` names each payment into the account whose balance did not agree or was not checked. A payment whose balance did not agree gives no figure until you give it a kind, by answering or with `change`. A figure notes how many of its payments were not checked. A case that has read a document but has no `version`, or that has `proposed`, is refused.
 
 `it01 rebuild` reads such a case's documents again from their paths. It keeps the facts you gave and their sources, and proposes again any that differ from a reading. It replays the answers that still fit, and lists the rest and any document it skipped. Nothing changes if a document has no recorded path or is no longer there.
 
-`year` holds the income year the case covers, as its first and last month. It starts in July and runs twelve months. `it01 year` sets it. Once the case has a year and has read a document, the year cannot change. The months of money paid in follow it. A bank statement line dated outside the year gives no figure and no question. It is kept in `outside`, marked paid in or paid out. A line whose month cannot be read stays in.
+`year` holds the income year the case covers, as its first and last month. It starts in July and runs twelve months. `it01 year` sets it. Once the case has a year and has read a document, the year cannot change.
+
+The months of money paid in follow the year. A bank statement line dated outside the year gives no figure and no question. It is kept in `outside`, marked paid in or paid out. A line whose month cannot be read stays in.
 
 `read` holds each figure a form was read as, under the document and the fact, with the line it came from.
 
