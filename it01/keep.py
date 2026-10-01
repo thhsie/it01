@@ -112,7 +112,7 @@ def shown(value:Any) -> str:
 def stated(name:str, value:Any, deep:int) -> list[str]:
   pad = "  " * deep
   if isinstance(value, list):
-    return [f"{pad}{name}"] + [line for n, item in enumerate(value, 1) for line in [f"{pad}  {n}"] + states(item, deep + 2)]
+    return [f"{pad}{name}"] + [line for n, item in enumerate(value, 1) for line in stated(str(n), item, deep + 1)]
   if isinstance(value, dict): return [f"{pad}{name}"] + states(value, deep + 1)
   return [f"{pad}{name:<{max(14, 46 - len(pad))}}{shown(value):>14}"]
 
