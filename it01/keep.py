@@ -336,6 +336,14 @@ def costed(text:str) -> tuple[str, Noted]:
   how = placed(held, ask)
   return as_file(given, held), how
 
+def labelled_as(text:str, key:str, kind:str) -> str:
+  held, table = apart(loaded(text))[1], spoken("labelling")
+  if key not in held["labels"] or not (part := owned(key, listed(held))): raise ValueError(f"the case holds no payment in {key}")
+  if kind not in picked(table): raise ValueError(f"label {key} with one of: {', '.join(picked(table))}")
+  text, line = relabelled(text, [key], kind, vouched=True), re.sub(r" \(\d+\)$", "", part[1])
+  fits = line in held["pending"] and (not (allowed := closed(line, held["pending"][line])) or kind in allowed)
+  return answer(text, line, kind) if fits and labelled(text, line) == [key] else text
+
 def doubted(text:str, keys:list[str]) -> str:
   given, held, _ = apart(loaded(text))
   held["checks"] |= dict.fromkeys(keys, DIFFERS)

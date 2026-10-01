@@ -126,6 +126,8 @@ When the change moves a figure you confirmed, that figure is proposed again. An 
 
 A payment left out because its balance did not agree can also be counted as an income kind. Answer the kind instead of noted.
 
+`relabel` labels a payment in with another kind. Name the payment by its document and line. This works even when the labeller was sure of the label, and the payment counts whatever its balance check said. An open question about that one payment is answered with the kind.
+
 ## Read with a model file of your own
 
 ```sh
@@ -286,6 +288,7 @@ it01 set FACTS.json FACT VALUE          enter a fact yourself, or clear it with 
 it01 rebuild FACTS.json                 read an older case's documents again
 it01 remove FACTS.json DOCUMENT         take a document out of the case
 it01 unconfirm FACTS.json FACT          take back a confirmed figure
+it01 relabel FACTS.json PAYMENT KIND    label a payment in with another kind
 it01 read DOCUMENT.txt                  propose facts through your endpoint
 it01 local DOCUMENT.txt                 propose facts with your model file
 it01 rows STATEMENT.txt                 read transactions
