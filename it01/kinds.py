@@ -4,8 +4,6 @@ from it01.helpers import data
 from it01.law import DOCS, Source
 from it01.tax import PLACES
 
-ADRIFT = "the balance after this does not agree, so it is left out"
-
 @dataclass(frozen=True)
 class Prompt:
   name: str
