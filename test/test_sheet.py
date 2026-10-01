@@ -34,6 +34,16 @@ class TestSheet(unittest.TestCase):
     self.assertNotIn("B_D_PREMIUM2", got)
     self.assertEqual(got["B_A_BALTAX"], str(next(x.amt for x in assess(FULL) if x.rule == "balance of tax")))
 
+  def test_an_amount_with_cents_is_given_whole_as_the_return_keeps_it(self):
+    held = Facts(True, salary=Decimal("1106870.50"), medical_insurance=(Decimal("20000.99"),), business=Business(gross_income=Decimal("250000.75")))
+    got = dict(sheet(held))
+    self.assertEqual((got["B_D_ENEXINC1"], got["B_D_PREMIUM1"], got["B_A_GROSINC"]), ("1106870", "20000", "250000"))
+
+  def test_the_totals_follow_the_whole_amounts_typed(self):
+    got = dict(sheet(Facts(True, salary=Decimal("1106870.50"), tax_deducted_at_source=Decimal("10000.60"))))
+    typed = dict(sheet(Facts(True, salary=Decimal(1106870), tax_deducted_at_source=Decimal(10000))))
+    self.assertEqual((got["B_A_CHGINC"], got["B_A_BALTAX"]), (typed["B_A_CHGINC"], typed["B_A_BALTAX"]))
+
   def test_checks_stay_even_at_nothing(self):
     got = dict(sheet(Facts(True)))
     self.assertEqual((got["B_A_CHGINC"], got["B_A_RESIDENT"]), ("0", "Yes"))
