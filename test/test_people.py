@@ -29,6 +29,7 @@ class PersonCtx:
   approved: bool = True
   share: Decimal = Decimal(1)
   certificates: dict[str, str] = field(default_factory=dict)
+  kept: dict[str, list[Row]] = field(default_factory=dict)
 
   def amt(self, lo:int, hi:int) -> Decimal: return Decimal(self.r.randint(lo, hi)) + Decimal(self.r.choice(("0.00", "0.50", "0.25")))
 
@@ -93,16 +94,25 @@ def person(r:random.Random) -> PersonCtx:
   for _ in range(r.randint(0, 2)): p.row("in", p.amt(2000, 50000), "CLIENT 9", "business", month=r.choice(("2025-05", "2026-08")))
   return p
 
+def statement(held:Case, name:str, rows:list[Row]) -> Case:
+  paid = [Payment(name, one.way, one.amount, f"15/{one.month[5:]}/{one.month[:4]}", one.description, one.label, "ok", one.month) for one in rows]
+  return noted(held, name, Document(T.into.prompt.name, name, name), [(worded(x), x) for x in paid], [], [])
+
+def quarter(month:str) -> int: return YEAR.index(month) // 3 if month in YEAR else 0 if month < YEAR[0] else 3
+
 def case_of(p:PersonCtx) -> Case:
   held = with_year(opened({"resident": True}), YEAR[0])
   rows = p.rows[:]
   p.r.shuffle(rows)
-  half = len(rows) // 2
-  parts = [rows[:half], rows[max(0, half - 3):]] if p.chance(0.5) and len(rows) > 6 else [rows]
+  layout = p.r.choice(("one", "halves", "quarters"))
+  if layout == "quarters":
+    parts = [[one for one in rows if quarter(one.month) == n] for n in range(4)]
+    if p.chance(0.4):
+      lost = p.r.randrange(4)
+      p.kept[f"bank{lost}.txt"] = parts[lost]
+  else: parts = [rows[:(half := len(rows) // 2)], rows[max(0, half - 3):]] if layout == "halves" and len(rows) > 6 else [rows]
   for n, part in enumerate(parts):
-    name = f"bank{n}.txt"
-    paid = [Payment(name, one.way, one.amount, f"15/{one.month[5:]}/{one.month[:4]}", one.description, one.label, "ok", one.month) for one in part]
-    held = noted(held, name, Document(T.into.prompt.name, name, name), [(worded(x), x) for x in paid], [], [])
+    if f"bank{n}.txt" not in p.kept: held = statement(held, f"bank{n}.txt", part)
   return held
 
 def truth_of(p:PersonCtx, held:Case, key:str) -> str:
@@ -119,6 +129,11 @@ def replied(p:PersonCtx, held:Case, q:Asked) -> Case:
     read = [Reading("form.txt", "salary", salary, "Net emoluments"), Reading("form.txt", "paye_withheld", withheld, "Tax withheld")]
     return noted(held, "form.txt", Document("statement of emoluments", "form.txt", "form.txt", ends=YEAR[-1]), [], read, [])
   if q.closes: return set_fact(held, T, q.closes, p.certificates[q.closes])
+  if "none" in choices:
+    missing = q.about.removeprefix("no statement covers ").split(", ")
+    if found := next((name for name, rows in p.kept.items() if any(one.month in missing for one in rows)), None):
+      return statement(held, found, p.kept.pop(found))
+    return answered(held, T, q.subject, "none")
   if "business" in choices: return answered(held, T, q.subject, "business" if "business" in p.facts else "not")
   kind = held.payments[q.paid[0]].label
   def picked(truth:str) -> str:

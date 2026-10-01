@@ -1,9 +1,10 @@
 import json, unittest
 from dataclasses import replace
 from decimal import Decimal
-from it01.asks import OUT, SAME, balance, based, derived, months_of, priced, projected, proposals, questions, tables, year_of, yearly
+from it01.asks import OUT, SAME, Asked, balance, based, derived, months_of, priced, projected, proposals, questions, tables, year_of, yearly
 from it01.held import VERSION, Case, Document, Line, Payment, Reading, dumped, loaded, opened, written
 from it01.keep import ENTERED, answered, case, confirm, figures, forgot, keep, noted, received, removed, set_fact, shown, unconfirmed, with_year
+from it01.keep import said_to
 
 T = tables()
 BANK = Document("bank statement", "in/bank.txt", "a")
@@ -144,6 +145,16 @@ class TestKeep(unittest.TestCase):
     held = made(paid("900.00", "business"), paid("40.00", "refund"))
     self.assertIn(subject, [q.subject for q in questions(held, T, proposed(held))])
     self.assertEqual(proposed(answered(held, T, subject, "yes"))["business.other_income"], Decimal("40.00"))
+
+  def test_months_no_statement_covers_are_asked_about_once_the_year_is_set(self):
+    def gaps(held:Case) -> list[Asked]: return [q for q in questions(held, T, proposed(held)) if q.subject.startswith("months no statement")]
+    first = (paid("5.00", "business", month="2025-07"), paid("5.00", "business", month="2025-09"))
+    later = [(f"x{n}", paid("5.00", "business", month=m, doc="two.txt")) for n, m in enumerate(("2025-12", "2026-06"))]
+    held = noted(made(*first, year=yearly("2025-07")), "two.txt", Document("bank statement", "q", "z"), later, [], [])
+    self.assertEqual([q.about for q in gaps(held)], ["no statement covers 2025-10, 2025-11"])
+    self.assertEqual(gaps(made(*first)), [])
+    q = gaps(held)[0]
+    self.assertEqual(said_to(answered(held, T, q.subject, "none"), q), "none")
 
   def test_bank_interest_is_proposed_as_exempt_interest(self):
     self.assertEqual(proposed(made(paid("12.50", "interest"), paid("7.50", "interest"))), {"exempt_interest": Decimal("20.00")})
@@ -363,7 +374,8 @@ class TestKeep(unittest.TestCase):
       two = [("x", paid("500.00", "business", doc="two.txt"))]
       held = noted(made(first, year=yearly("2025-07")), "two.txt", Document("bank statement", "p", "z"), two, [], [])
       with self.subTest(first.check, month=first.month):
-        self.assertEqual((proposed(held), [q.headline for q in questions(held, T, proposed(held))]),
+        asked = [q.headline for q in questions(held, T, proposed(held)) if not q.subject.startswith("months no statement")]
+        self.assertEqual((proposed(held), asked),
                          ({"business.gross_income": Decimal("500.00")}, ["a payment was left out of the totals"] if first.check != "ok" else []))
 
   def test_a_copy_is_left_out_of_the_money_paid_in(self):
