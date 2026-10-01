@@ -278,6 +278,7 @@ class Facts:
   def emoluments(self) -> Decimal: return self.salary + self.taxable_transport_allowance + self.performance_bonus + self.statutory_bonus
 
 AMOUNTS = amount_names(Facts)
+LISTS = tuple(f.name for f in fields(Facts) if f.type == tuple[Decimal, ...])
 PLACES = (*AMOUNTS, *(f"business.{n}" for n in amount_names(Business)))
 QUARTER_TAKES = ("resident", "dependants", "rent", "losses_brought_forward", "tax_deducted_at_source", "business", "period")
 

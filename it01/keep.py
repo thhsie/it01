@@ -1,4 +1,5 @@
 import hashlib
+from collections.abc import Callable
 from dataclasses import replace
 from decimal import Decimal
 from typing import Any
@@ -7,7 +8,7 @@ from it01.asks import needing, priced, proposals, proposed_from, put, questions,
 from it01.held import Case, Document, Line, Payment, Reading, at
 from it01.kinds import picked
 from it01.law import YEAR_SRC, Source
-from it01.tax import PLACES, Facts, Figure, amount, assess, from_json, summed
+from it01.tax import LISTS, PLACES, Facts, Figure, amount, assess, from_json, summed
 
 ENTERED = "entered by you"
 NIL = Decimal("0.00")
@@ -55,7 +56,10 @@ def whole(name:str, said:str) -> int:
 
 def money_in(name:str, said:str) -> Decimal: return amount(said)
 
-SETTABLE = {"resident": yes_or_no, "spouse_above_interest_bar": yes_or_no, "dependants": whole} | dict.fromkeys(PLACES, money_in)
+def amounts_in(name:str, said:str) -> list[Decimal]: return [amount(one) for one in said.replace(";", " ").split()]
+
+SETTABLE:dict[str, Callable[[str, str], Any]] = {"resident": yes_or_no, "spouse_above_interest_bar": yes_or_no, "dependants": whole}
+SETTABLE |= dict.fromkeys(PLACES, money_in) | dict.fromkeys(LISTS, amounts_in)
 
 def set_fact(held:Case, t:Tables, name:str, said:str) -> Case:
   if (parse := SETTABLE.get(name)) is None: raise ValueError(f"no fact {name} can be entered")
@@ -157,7 +161,7 @@ def asked_data(held:Case, t:Tables, q:Asked, base:Base) -> dict[str, Any]:
   prices = {} if said is not None else priced(held, t, q, base)
   shown = {c: {"amount": str(f.amt), "sources": [cited(s) for s in f.src]} for c, f in prices.items()}
   return {"subject": q.subject, "about": q.about, "asks": q.asks, "choices": [list(c) for c in q.choices], "document": q.document,
-          "headline": q.headline, "amount": str(q.amount), "payments": list(q.paid), "share": q.share, "said": said,
+          "headline": q.headline, "amount": str(q.amount), "payments": list(q.paid), "share": q.share, "said": said, "closes": q.closes,
           "earlier": held.decisions.get(q.subject) if said is None else None, "prices": shown}
 
 def case(held:Case, t:Tables) -> dict[str, Any]:

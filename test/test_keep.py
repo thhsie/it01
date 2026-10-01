@@ -241,6 +241,20 @@ class TestKeep(unittest.TestCase):
     held = replace(made(paid("5.00", "business")), decisions={"bank.txt, 5.00 paid in on 15/07/2025, CLIENT": "windfall"})
     self.assertEqual(proposed(held), {"business.gross_income": Decimal("5.00")})
 
+  def test_a_certificate_question_closes_once_its_figure_is_entered(self):
+    for kind, fact, said in (("housing_loan", "housing_loan_interest", "25,000"), ("medical_insurance", "medical_insurance", "15,000 8000"),
+                             ("school_fees", "school_fees", "40000")):
+      held = made(paid("100.00", kind, way="out"), dependants=2)
+      with self.subTest(kind):
+        self.assertEqual([q["closes"] for q in case(held, T)["questions"]], [fact])
+        self.assertEqual(questions(set_fact(held, T, fact, said), T, proposed(held)), [])
+
+  def test_a_list_of_amounts_is_entered_in_order_and_cleared_when_blank(self):
+    held = set_fact(made(dependants=1), T, "medical_insurance", "15,000; 8000")
+    self.assertEqual((held.given["medical_insurance"], held.sources["medical_insurance"]), ([Decimal("15000"), Decimal("8000")], ENTERED))
+    self.assertNotIn("medical_insurance", set_fact(held, T, "medical_insurance", " ").given)
+    with self.assertRaisesRegex(ValueError, "not an amount lots"): set_fact(held, T, "school_fees", "lots")
+
   def test_forgetting_needs_something_said(self):
     with self.assertRaisesRegex(ValueError, "nothing was said about x"): forgot(made(), "x")
 

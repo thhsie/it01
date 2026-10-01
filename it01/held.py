@@ -124,7 +124,7 @@ def opened(raw:Any) -> Case:
   if stray := sorted(k for k, r in reads.items() if r.fact not in PLACES): raise ValueError(f"these readings name unknown facts {stray}")
   if unknown := sorted(n for n in (*ret.sources, *ret.confirmed) if at(given, n) is None):
     raise ValueError(f"sources and confirmed figures name facts the case does not give {unknown}")
-  if nested := sorted(k for k in ret.sources if isinstance(given.get(k), (dict, list))): raise ValueError(f"sources cannot name {nested}")
+  if nested := sorted(k for k in ret.sources if isinstance(given.get(k), dict)): raise ValueError(f"sources cannot name {nested}")
   if bad := sorted(k for k, v in ret.confirmed.items() if typed(v) is None): raise ValueError(f"confirmed holds a figure that is not an amount {bad}")
   return ret
 
