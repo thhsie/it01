@@ -35,6 +35,7 @@ class Asked:
   share: bool = False
   closes: str|None = None
   trade: bool = False
+  payees: tuple[str, ...] = ()
 
 def year_of(month:str) -> tuple[str, ...]:
   first = int(month[:4]) - (int(month[5:]) < YEAR_STARTS)
@@ -137,22 +138,28 @@ def worded(p:Payment) -> str: return f"{p.amount:,} paid {p.way} on {p.date}, {p
 def outgoing(amt:Decimal, cnt:int, kind:str, doc:str, way:str) -> str:
   return f"{amt:,} paid {way} in {cnt} payment{'s' if cnt > 1 else ''} that look{'' if cnt > 1 else 's'} like {plain(kind)}, in {doc}"
 
+def payee_of(p:Payment, kind:str) -> str: return f"{alike(p)}, as {plain(kind)}"
+
 def claims(t:Tables, rows:Rows) -> list[Asked]:
-  groups:dict[tuple[str, str, str], list[tuple[str, Decimal]]] = {}
+  groups:dict[tuple[str, str, str], list[tuple[str, Payment]]] = {}
   for key, p, kind in rows:
     is_asked = kind in t.into.business if p.way == "in" else kind not in t.out.aside
-    if is_asked: groups.setdefault((p.document, p.way, kind), []).append((key, p.amount))
+    if is_asked: groups.setdefault((p.document, p.way, kind), []).append((key, p))
   ret = []
-  for (doc, way, kind), paid in groups.items():
+  for (doc, way, kind), members in groups.items():
+    paid = [(key, p.amount) for key, p in members]
     trading = t.into.business if way == "in" else t.out.business
     picking = trading | (t.out.picks if way == "out" else {})
     claimable, headlines = picking | (t.out.claims if way == "out" else {}), (t.into if way == "in" else t.out).headlines
     total, claim = sum((amt for _, amt in paid), ZERO), claimable.get(kind)
     asking, closes = (claim[1], None) if claim else t.out.certificates[kind]
-    if claim: choices = (("yes", f"adds {total:,} to {plain(claim[0])}"), ("no", "adds nothing"))
+    payees = tuple(payee_of(p, kind) if claim and payer(p) and not (way == "out" and kind in t.out.picks) else "" for _, p in members)
+    holds = ", and counts for other statements with the same payees" if any(payees) else ""
+    if claim: choices = (("yes", f"adds {total:,} to {plain(claim[0])}{holds}"), ("no", f"adds nothing{holds}"))
     else: choices = (("later", "I'll add it later"), ("not", f"this was not for {plain(kind)}"))
     ret.append(Asked(costs_of(doc, kind, way), outgoing(total, len(paid), kind, doc, way), asking, choices, doc, headlines.get(kind), total,
-                     (("yes", claim[0]),) if claim else (), tuple(k for k, _ in paid), kind in picking, closes, trade=kind in trading))
+                     (("yes", claim[0]),) if claim else (), tuple(k for k, _ in paid), kind in picking, closes, trade=kind in trading,
+                     payees=payees))
   return ret
 
 def form_lines(held:Case, t:Tables) -> list[Asked]:
@@ -166,9 +173,20 @@ def added_by(q:Asked, said:str) -> tuple[str, Decimal]|None:
   if fact := dict(q.adds).get(said): return fact, q.amount
   return (dict(q.adds)["yes"], part) if q.share and said not in dict(q.choices) and (part := typed(said)) is not None else None
 
+def carried(held:Case, q:Asked) -> str|None:
+  if not q.payees or not all(q.payees) or not (said := {held.decisions.get(payee) for payee in q.payees}) <= {"yes", "no"}: return None
+  if len(said) == 1: return said.pop()
+  part = sum((held.payments[key].amount for key, payee in zip(q.paid, q.payees) if held.decisions[payee] == "yes"), ZERO)
+  return str(part) if q.share and part else None
+
+def said_to(held:Case, q:Asked) -> str|None:
+  if (said := held.decisions.get(q.subject)) is not None: return said if fits(q, said) else None
+  return carried(held, q)
+
 def answering(held:Case, q:Asked, parts:dict[str, list[tuple[Decimal, str]]]) -> None:
-  if (answer := held.decisions.get(q.subject)) is not None and fits(q, answer) and (hit := added_by(q, answer)):
-    parts.setdefault(hit[0], []).append((hit[1], f"answered {q.about}"))
+  if (answer := said_to(held, q)) is not None and (hit := added_by(q, answer)):
+    said = f"answered {q.about}" if q.subject in held.decisions else f"carried from {', '.join(dict.fromkeys(q.payees))}"
+    parts.setdefault(hit[0], []).append((hit[1], said))
 
 def earned(held:Case, t:Tables, rows:Rows) -> dict[str, list[tuple[Decimal, str]]]:
   parts:dict[str, list[tuple[Decimal, str]]] = {}
@@ -230,6 +248,18 @@ def is_listed(q:Asked) -> bool: return q.share or is_alike(q)
 
 def decided(q:Asked, said:str) -> dict[str, str]: return dict.fromkeys(q.paid, said) if is_alike(q) and said != EACH else {q.subject: said}
 
+def for_payees(q:Asked, said:str) -> dict[str, str|None]:
+  if said in ("yes", "no"): return {payee: said for payee in q.payees if payee}
+  seen:dict[str, set[bool]] = {}
+  if (chosen := numbers(said)) is not None:
+    for n, payee in enumerate(q.payees, 1):
+      if payee: seen.setdefault(payee, set()).add(n in chosen)
+  return {payee: None for payee in q.payees if payee} | {payee: "yes" if True in flags else "no" for payee, flags in seen.items() if len(flags) == 1}
+
+def with_answer(decisions:dict[str, str], q:Asked, said:str, value:str) -> dict[str, str]:
+  rules = for_payees(q, said)
+  return {k: v for k, v in (decisions | decided(q, value)).items() if k not in rules} | {k: v for k, v in rules.items() if v is not None}
+
 def questions(held:Case, t:Tables, proposed:dict[str, Decimal]) -> list[Asked]:
   months, ret = months_of(held), []
   groups:dict[str, list[tuple[str, Payment, str]]] = {}
@@ -279,10 +309,12 @@ def subject_of(held:Case, t:Tables, subject:str) -> Asked:
     return Asked(subject, f"{r.amount:,} read from {r.quote}", "say whether this figure was misread", misread, r.document)
   raise ValueError(f"the case asks nothing about {subject}")
 
+def numbers(said:str) -> list[int]|None:
+  return [int(n) for n in named["nums"].replace(" ", "").split(",")] if (named := NUMBERED.fullmatch(said.strip())) else None
+
 def fitted(held:Case, q:Asked, said:str) -> str:
   said = said.strip()
-  if q.share and q.paid and (named := NUMBERED.fullmatch(said)):
-    nums = [int(n) for n in named["nums"].replace(" ", "").split(",")]
+  if q.share and q.paid and (nums := numbers(said)) is not None:
     if len(set(nums)) != len(nums) or not all(1 <= n <= len(q.paid) for n in nums):
       raise ValueError(f"answer {q.subject} naming each of payments 1 to {len(q.paid)} at most once, not {said}")
     return str(sum((held.payments[q.paid[n - 1]].amount for n in nums), ZERO))
@@ -335,10 +367,10 @@ def priced(held:Case, t:Tables, q:Asked, base:Base) -> dict[str, Figure]:
   part, elsewhere = scoped(held, q.document), bool(q.document and base.earning - {q.document})
   months, was = months_of(part), amounts(derived(part, t, base.trading))
   for choice in (c for c, _ in q.choices if c not in t.into.needs and c != EACH):
-    said = held.decisions | decided(q, choice)
+    said = with_answer(held.decisions, q, choice, choice)
     chosen = replace(part, decisions=said)
     rows = counted(chosen, t, months)
-    if is_trading(chosen, parts := earned(chosen, t, rows), elsewhere) == base.trading:
+    if not any(q.payees) and is_trading(chosen, parts := earned(chosen, t, rows), elsewhere) == base.trading:
       after = amounts(worked_out(chosen, t, rows, parts, base.trading))
       moved = {f: (base.worked.get(f, (ZERO, ""))[0] + after.get(f, ZERO) - was.get(f, ZERO), "") for f in (*base.worked, *after)}
     else: moved = derived(replace(held, decisions=said), t)

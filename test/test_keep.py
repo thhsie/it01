@@ -200,7 +200,7 @@ class TestKeep(unittest.TestCase):
     one = "bank.txt, 700.00 paid in on 15/07/2025, CLIENT"
     held = remember(answered(made(paid("700.00", "cash")), T, one, "business"), one)
     later = noted(held, "two.txt", Document("bank statement", "q", "z"), [("x", paid("50.00", "cash", doc="two.txt"))], [], [])
-    self.assertIn("two.txt, x", [q.subject for q in questions(forgot(later, "payments paid in worded like CLIENT"), T, proposed(later))])
+    self.assertIn("two.txt, x", [q.subject for q in questions(forgot(later, T, "payments paid in worded like CLIENT"), T, proposed(later))])
 
   def test_only_an_answered_payment_with_wording_is_remembered(self):
     one, digits = "bank.txt, 700.00 paid in on 15/07/2025, CLIENT", replace(paid("5.00", "cash"), description="12345")
@@ -222,6 +222,64 @@ class TestKeep(unittest.TestCase):
   def test_account_numbers_keep_payers_apart(self):
     one, two = (replace(paid("5.00", "cash"), description=f"IB TRANSFER FROM {n} REF A1B2") for n in ("00123456", "00987654"))
     self.assertNotEqual(payer(one), payer(two))
+
+  def two(self, held:Case, *paid_:Payment) -> Case:
+    moved = [(f"x{n}", replace(x, document="two.txt")) for n, x in enumerate(paid_)]
+    return noted(held, "two.txt", Document("bank statement", "q", "z"), moved, [], [])
+
+  def test_a_relief_answer_carries_to_the_same_payee_in_a_later_statement(self):
+    for said, want in (("yes", {"pension_contributions": Decimal("300.00")}), ("no", {})):
+      held = answered(made(paid("100.00", "pension", way="out")), T, "bank.txt, paid out as pension", said)
+      later = self.two(held, paid("200.00", "pension", date="15/08/2025", way="out", month="2025-08"))
+      asked = case(later, T)["questions"]
+      with self.subTest(said):
+        self.assertEqual(proposed(later), want)
+        self.assertEqual([(q["subject"], q["said"], q["carried"]) for q in asked], [("bank.txt, paid out as pension", said, False),
+                                                                                  ("two.txt, paid out as pension", said, True)])
+
+  def test_a_carried_answer_can_be_changed_for_its_own_statement(self):
+    held = answered(made(paid("100.00", "pension", way="out")), T, "bank.txt, paid out as pension", "yes")
+    later = answered(self.two(held, paid("200.00", "pension", way="out")), T, "two.txt, paid out as pension", "no")
+    self.assertEqual(proposed(later), {"pension_contributions": Decimal("100.00")})
+
+  def test_a_new_payee_keeps_the_later_question_open(self):
+    held = answered(made(paid("100.00", "pension", way="out")), T, "bank.txt, paid out as pension", "yes")
+    later = self.two(held, paid("200.00", "pension", way="out"), replace(paid("50.00", "pension", way="out"), description="ANOTHER PLAN"))
+    self.assertEqual([q.subject for q in questions(later, T, proposed(later)) if said_to(later, q) is None], ["two.txt, paid out as pension"])
+
+  def test_a_later_answer_replaces_what_a_payee_carries(self):
+    office = replace(paid("100.00", "business_expense", way="out"), description="OFFICE")
+    held = made(paid("900.00", "business"), office, replace(office, amount=Decimal("40.00"), date="16/07/2025"))
+    for said in ("payments 1", "50.00"):
+      done = answered(answered(held, T, "bank.txt, paid out as business expense", "yes"), T, "bank.txt, paid out as business expense", said)
+      later = self.two(done, replace(office, amount=Decimal("70.00")))
+      with self.subTest(said): self.assertIn("two.txt, paid out as business expense", [q.subject for q in questions(later, T, proposed(later))
+                                                                                       if said_to(later, q) is None])
+
+  def test_forgetting_an_answer_withdraws_what_it_carried(self):
+    held = forgot(answered(made(paid("100.00", "pension", way="out")), T, "bank.txt, paid out as pension", "yes"), T, "bank.txt, paid out as pension")
+    self.assertEqual((proposed(held), [q.subject for q in questions(held, T, proposed(held)) if said_to(held, q) is None]),
+                     ({}, ["bank.txt, paid out as pension"]))
+
+  def test_a_carried_pick_counts_the_payees_said_yes(self):
+    office, shop = (replace(paid(a, "business_expense", way="out"), description=d) for a, d in (("100.00", "OFFICE"), ("40.00", "SHOP")))
+    held = made(paid("900.00", "business"), office, replace(shop, date="16/07/2025"))
+    held = answered(held, T, "bank.txt, paid out as business expense", "payments 1")
+    later = self.two(held, replace(office, amount=Decimal("70.00")), replace(shop, amount=Decimal("30.00")))
+    self.assertEqual(proposed(later)["business.other_expenses"], Decimal("170.00"))
+
+  def test_a_stored_answer_that_no_longer_fits_is_never_replaced_by_a_carried_one(self):
+    office = replace(paid("100.00", "business_expense", way="out"), description="OFFICE")
+    held = answered(made(paid("900.00", "business"), office), T, "bank.txt, paid out as business expense", "yes")
+    later = answered(self.two(held, replace(office, amount=Decimal("70.00"))), T, "two.txt, paid out as business expense", "60.00")
+    shrunk = replace(later, payments={k: replace(p, amount=Decimal("50.00")) if k == "two.txt, x0" else p for k, p in later.payments.items()})
+    q = next(q for q in questions(shrunk, T, proposed(shrunk)) if q.subject == "two.txt, paid out as business expense")
+    self.assertIsNone(said_to(shrunk, q))
+
+  def test_a_carried_figure_names_the_payees_it_came_from(self):
+    held = answered(made(paid("100.00", "pension", way="out")), T, "bank.txt, paid out as pension", "yes")
+    later = self.two(held, paid("200.00", "pension", way="out"))
+    self.assertIn("carried from payments paid out worded like CLIENT, as pension", proposals(later, T)[1]["pension_contributions"])
 
   def test_bank_interest_is_proposed_as_exempt_interest(self):
     self.assertEqual(proposed(made(paid("12.50", "interest"), paid("7.50", "interest"))), {"exempt_interest": Decimal("20.00")})
@@ -359,7 +417,7 @@ class TestKeep(unittest.TestCase):
     with self.assertRaisesRegex(ValueError, "not an amount lots"): set_fact(held, T, "school_fees", "lots")
 
   def test_forgetting_needs_something_said(self):
-    with self.assertRaisesRegex(ValueError, "nothing was said about x"): forgot(made(), "x")
+    with self.assertRaisesRegex(ValueError, "nothing was said about x"): forgot(made(), T, "x")
 
   def test_a_removed_document_takes_its_records_and_leaves_the_others(self):
     key = "bank.txt, 500.00 paid in on 15/07/2025, CLIENT"

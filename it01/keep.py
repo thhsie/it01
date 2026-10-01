@@ -3,9 +3,9 @@ from collections.abc import Callable
 from dataclasses import replace
 from decimal import Decimal
 from typing import Any
-from it01.asks import SAME, WRONG, Asked, Base, Tables, alike, based, copies, costs_of, derived, fits, fitted, is_dropped, is_inside, label_of
-from it01.asks import months_of, payer, rule_of
-from it01.asks import decided, is_listed, needing, priced, proposals, proposed_from, put, questions, read_as, said_of, subject_of, trading_in, yearly
+from it01.asks import SAME, WRONG, Asked, Base, Tables, alike, based, claims, counted, copies, costs_of, derived, fitted, is_dropped, is_inside
+from it01.asks import is_listed, label_of, months_of, needing, payer, priced, proposals, proposed_from, put, questions, read_as, rule_of, said_of
+from it01.asks import for_payees, said_to, subject_of, trading_in, with_answer, yearly
 from it01.held import Case, Document, Line, Payment, Reading, at
 from it01.kinds import picked
 from it01.law import YEAR_SRC, Source
@@ -74,7 +74,7 @@ def set_fact(held:Case, t:Tables, name:str, said:str) -> Case:
 
 def answered(held:Case, t:Tables, subject:str, said:str) -> Case:
   q = subject_of(held, t, subject)
-  return replace(held, decisions=held.decisions | decided(q, fitted(held, q, said)))
+  return replace(held, decisions=with_answer(held.decisions, q, said, fitted(held, q, said)))
 
 def remember(held:Case, key:str) -> Case:
   if (p := held.payments.get(key)) is None: raise ValueError(f"the case holds no payment {key}")
@@ -82,9 +82,10 @@ def remember(held:Case, key:str) -> Case:
   if (said := held.decisions.get(key)) is None or said == SAME: raise ValueError(f"say what {key} was before it is remembered")
   return replace(held, decisions=held.decisions | {alike(p): said})
 
-def forgot(held:Case, subject:str) -> Case:
+def forgot(held:Case, t:Tables, subject:str) -> Case:
   if subject not in held.decisions: raise ValueError(f"nothing was said about {subject}")
-  return replace(held, decisions=without(held.decisions, subject))
+  q = next((q for q in claims(t, counted(held, t, months_of(held))) if q.subject == subject), None)
+  return replace(held, decisions=without(held.decisions, subject, *(for_payees(q, "") if q else {})))
 
 def removed(held:Case, t:Tables, name:str) -> Case:
   if name not in held.documents: raise ValueError(f"the case holds no document {name}")
@@ -162,15 +163,14 @@ def received(held:Case, t:Tables) -> dict[str, Any]:
                      for m in months},
           "outside": [k for k, p, _, _ in paid if not is_inside(p, months)], "undated": [k for k, p, _, _ in paid if p.month is None]}
 
-def said_to(held:Case, q:Asked) -> str|None: return said if (said := held.decisions.get(q.subject)) is not None and fits(q, said) else None
-
 def asked_data(held:Case, t:Tables, q:Asked, base:Base) -> dict[str, Any]:
   said = said_to(held, q)
   prices = {} if said is not None else priced(held, t, q, base)
   shown = {c: {"amount": str(f.amt), "sources": [cited(s) for s in f.src]} for c, f in prices.items()}
   return {"subject": q.subject, "about": q.about, "asks": q.asks, "choices": [list(c) for c in q.choices], "document": q.document,
           "headline": q.headline, "amount": str(q.amount), "payments": list(q.paid), "listed": is_listed(q), "share": q.share, "said": said,
-          "closes": q.closes, "earlier": held.decisions.get(q.subject) if said is None else None, "prices": shown}
+          "carried": said is not None and q.subject not in held.decisions, "closes": q.closes,
+          "earlier": held.decisions.get(q.subject) if said is None else None, "prices": shown}
 
 def case(held:Case, t:Tables) -> dict[str, Any]:
   base, months = based(held, t), months_of(held)

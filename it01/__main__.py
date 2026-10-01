@@ -154,7 +154,7 @@ def remembered_for(here:pathlib.Path, typed:str) -> list[str]:
 
 def forgotten(here:pathlib.Path, typed:str) -> list[str]:
   subject = matched(list(held_in(here).decisions), typed, "answers")
-  return changed_by(here, lambda held, t: forgot(held, subject), f"forgot what was said about {subject}")
+  return changed_by(here, lambda held, t: forgot(held, t, subject), f"forgot what was said about {subject}")
 
 def opened_doc(here:pathlib.Path, name:str) -> list[str]:
   held = held_in(here)
