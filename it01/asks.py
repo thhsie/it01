@@ -34,6 +34,7 @@ class Asked:
   paid: tuple[str, ...] = ()
   share: bool = False
   closes: str|None = None
+  trade: bool = False
 
 def year_of(month:str) -> tuple[str, ...]:
   first = int(month[:4]) - (int(month[5:]) < YEAR_STARTS)
@@ -122,7 +123,7 @@ def claims(t:Tables, rows:Rows) -> list[Asked]:
     if claim: choices = (("yes", f"adds {total:,} to {plain(claim[0])}"), ("no", "adds nothing"))
     else: choices = (("later", "I'll add it later"), ("not", f"this was not for {plain(kind)}"))
     ret.append(Asked(costs_of(doc, kind), outgoing(total, len(paid), kind, doc), asking, choices, doc, t.out.headlines.get(kind), total,
-                     (("yes", claim[0]),) if claim else (), tuple(k for k, _ in paid), kind in t.out.business, closes))
+                     (("yes", claim[0]),) if claim else (), tuple(k for k, _ in paid), kind in t.out.business, closes, trade=kind in t.out.business))
   return ret
 
 def form_lines(held:Case, t:Tables) -> list[Asked]:
@@ -159,7 +160,7 @@ def is_trading(held:Case, parts:dict[str, list[tuple[Decimal, str]]], elsewhere:
           or any(held.decisions.get(trading_in(doc)) == "business" for doc in held.documents))
 
 def is_owed(held:Case, q:Asked, trading:bool) -> bool:
-  return not q.share or (trading and held.decisions.get(trading_in(q.document or "")) != "not")
+  return not q.trade or (trading and held.decisions.get(trading_in(q.document or "")) != "not")
 
 def worked_out(held:Case, t:Tables, rows:Rows, parts:dict[str, list[tuple[Decimal, str]]], trading:bool) -> dict[str, tuple[Decimal, str]]:
   for q in claims(t, rows):
@@ -207,15 +208,15 @@ def questions(held:Case, t:Tables, proposed:dict[str, Decimal]) -> list[Asked]:
       ret.append(Asked(subject, about, asking, choices, None, t.into.headlines.get(kind), closes=fact))
   rows = counted(held, t, months)
   owed, trading = claims(t, rows), is_trading(held, earned(held, t, rows))
-  for doc in dict.fromkeys(q.document for q in owed if q.share and q.document):
-    costs = [q for q in owed if q.share and q.document == doc]
+  for doc in dict.fromkeys(q.document for q in owed if q.trade and q.document):
+    costs = [q for q in owed if q.trade and q.document == doc]
     if not trading or trading_in(doc) in held.decisions:
       cnt = sum(len(q.paid) for q in costs)
       ret.append(Asked(trading_in(doc), f"{cnt} payment{'s' if cnt > 1 else ''} in {doc} look{'' if cnt > 1 else 's'} like costs of a business, "
                        "and the case has no business income", "say whether you run a business, even one with no income yet", costing(), doc,
                        "costs of a business with no income yet?"))
     ret += [q for q in costs if is_owed(held, q, trading)]
-  return ret + [q for q in owed if not q.share and not is_closed(held, q)] + form_lines(held, t)
+  return ret + [q for q in owed if not q.trade and not is_closed(held, q)] + form_lines(held, t)
 
 def is_closed(held:Case, q:Asked) -> bool: return q.closes is not None and at(held.given, q.closes) not in (None, [])
 
