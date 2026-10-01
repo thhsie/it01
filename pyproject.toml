@@ -1,6 +1,6 @@
 [project]
 name = "it01"
-version = "0.23.3"
+version = "0.23.4"
 description = "Local-first income tax preparation for individuals"
 authors = [{ name = "thhsie" }]
 license = "MIT"
