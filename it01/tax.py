@@ -308,7 +308,7 @@ def from_json[T:(Facts, Business, Asset, Student, Dependant, Letting, Farming, T
     else: vals[k] = Decimal(v) if t is Decimal else v
   return cls(**vals)
 
-def rupees(x:Decimal) -> Decimal: return x.quantize(Decimal(1), ROUND_HALF_UP)
+def to_unit(x:Decimal) -> Decimal: return x.quantize(Decimal(1), ROUND_HALF_UP)
 
 def net_rent(f:Facts, part:Decimal) -> Decimal: return f.rent - f.letting.expenses(part)
 
@@ -364,7 +364,7 @@ def relieved(f:Facts) -> tuple[Decimal, list[Source]]:
 def chargeable_income(f:Facts) -> Figure:
   amt, src = relieved(f)
   for name, used, _ in claimed(f, amt): amt, src = amt - used, src + list(INVESTMENTS[name])
-  return Figure("chargeable income", rupees(max(ZERO, amt)), tuple(src))
+  return Figure("chargeable income", to_unit(max(ZERO, amt)), tuple(src))
 
 def income_tax(chargeable:Decimal, period:Period) -> Figure:
   whole = chargeable.is_finite() and chargeable >= 0 and chargeable == chargeable.to_integral_value()
@@ -390,7 +390,8 @@ def assess(f:Facts) -> tuple[Figure, ...]:
     paid = Figure("tax already paid", f.tax_deducted_at_source, QUARTER_CREDIT_SRC)
     ret = (ci, tax, paid, Figure("balance of tax", tax.amt - paid.amt, tax.src + QUARTER_CREDIT_SRC), losses)
     return ret if (b := f.business) == Business() else (*ret, *business_figures(b, ALLOWANCE_RULES[f.period]))
-  share = Figure("fair share contribution", rupees(max(ZERO, ci.amt + f.resident_dividends - FAIR_SHARE_THRESHOLD) * FAIR_SHARE_RATE), FAIR_SHARE_SRC)
+  share = Figure("fair share contribution", to_unit(max(ZERO, ci.amt + f.resident_dividends - FAIR_SHARE_THRESHOLD) * FAIR_SHARE_RATE),
+                 FAIR_SHARE_SRC)
   total = Figure("total tax", tax.amt + share.amt, tax.src + share.src)
   paid = Figure("tax already paid", f.paye_withheld + f.tax_deducted_at_source + f.quarterly_tax_paid, CREDITS_SRC)
   balance = Figure("balance of tax", total.amt - paid.amt, total.src + CREDITS_SRC)
