@@ -39,7 +39,7 @@ def moved(r:random.Random, held:Case, n:int) -> Case:
     case "answer" if subjects := [q.subject for q in waiting(held)] + [*held.payments, *held.readings]:
       q = subject_of(held, T, subject := r.choice(subjects))
       return answered(held, T, subject, r.choice([c for c, _ in q.choices]))
-    case "forget" if held.decisions: return forgot(held, r.choice(list(held.decisions)))
+    case "forget" if held.decisions: return forgot(held, T, r.choice(list(held.decisions)))
     case "confirm" if proposed := proposals(held, T)[0]: return confirm(held, T, r.choice(list(proposed)))
     case "unconfirm" if names := [name for name in held.confirmed if held.sources[name] != ENTERED]: return unconfirmed(held, r.choice(names))
     case "set": return set_fact(held, T, *r.choice(SETS))
