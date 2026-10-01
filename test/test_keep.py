@@ -291,6 +291,35 @@ class TestKeep(unittest.TestCase):
     later = self.two(held, paid("200.00", "pension", way="out"))
     self.assertIn("carried from payments paid out worded like CLIENT, as pension", proposals(later, T)[1]["pension_contributions"])
 
+  def test_the_payments_and_readings_behind_a_figure_add_up_to_it(self):
+    pension, other = paid("90.00", "pension", way="out"), replace(paid("40.00", "pension", way="out"), description="OTHER PLAN")
+    line = Line("form.txt", Decimal("1.00"), "X", "which line", (("net_emoluments", "pay"),))
+    fed = made(paid("500.00", "business"), paid("70.00", "business", check="does not agree"), paid("9.00", "business", month="2023-07"))
+    cases = {"fed": fed,
+             "read": made(read=(SALARY,)),
+             "picked": answered(made(paid("100.00", "tax_paid", way="out"), paid("40.00", "tax_paid", date="16/07/2025", way="out")), T,
+                                "bank.txt, paid out as tax paid", "payments 2"),
+             "carried": self.two(answered(made(pension, other), T, "bank.txt, paid out as pension", "yes"), pension),
+             "form line": answered(noted(made(), "form.txt", Document("statement of emoluments", "p", "c"), [], [], [("1.00 on the line X", line)]),
+                                    T, "form.txt, 1.00 on the line X", "net_emoluments"),
+             "left out": answered(made(paid("500.00", "business"), paid("30.00", "business", date="16/07/2025")), T,
+                                  "bank.txt, 30.00 paid in on 16/07/2025, CLIENT", OUT)}
+    for name, held in cases.items():
+      found = {**{k: p.amount for k, p in held.payments.items()}, **{k: r.amount for k, r in held.readings.items()},
+               **{k: one.amount for k, one in held.lines.items()}}
+      with self.subTest(name):
+        got = {fact: sum((found[k] for k in keys), Decimal("0.00")) for fact, keys in case(held, T)["evidence"].items()}
+        self.assertTrue(got)
+        self.assertEqual(got, {fact: amt for fact, (amt, _) in derived(held, T).items()})
+
+  def test_a_typed_part_names_its_question_as_the_source(self):
+    held = answered(made(paid("900.00", "business"), paid("100.00", "bills", way="out")), T, "bank.txt, paid out as bills", "40.00")
+    self.assertEqual(case(held, T)["evidence"]["business.utilities"], ["bank.txt, paid out as bills"])
+
+  def test_a_figure_entered_by_hand_names_no_payments(self):
+    held = set_fact(made(paid("500.00", "business")), T, "business.gross_income", "800")
+    self.assertNotIn("business.gross_income", case(held, T)["evidence"])
+
   def test_bank_interest_is_proposed_as_exempt_interest(self):
     self.assertEqual(proposed(made(paid("12.50", "interest"), paid("7.50", "interest"))), {"exempt_interest": Decimal("20.00")})
 
