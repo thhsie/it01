@@ -191,41 +191,58 @@ def said_to(held:Case, q:Asked) -> str|None:
   if (said := held.decisions.get(q.subject)) is not None: return said if fits(q, said) else None
   return carried(held, q)
 
-def answering(held:Case, q:Asked, parts:dict[str, list[tuple[Decimal, str]]]) -> None:
+Parts = dict[str, list[tuple[Decimal, str, tuple[str, ...]]]]
+
+def behind(q:Asked, said:str) -> tuple[str, ...]:
+  if (nums := chosen_in(q, said)) is not None: return tuple(q.paid[n - 1] for n in nums)
+  return q.paid if said in dict(q.adds) and q.paid else (q.subject,)
+
+def answering(held:Case, q:Asked, parts:Parts) -> None:
   if (answer := said_to(held, q)) is not None and (hit := added_by(q, answer)):
     said = f"answered {q.about}" if q.subject in held.decisions else f"carried from {', '.join(dict.fromkeys(q.payees))}"
-    parts.setdefault(hit[0], []).append((hit[1], said))
+    parts.setdefault(hit[0], []).append((hit[1], said, behind(q, answer)))
 
-def earned(held:Case, t:Tables, rows:Rows) -> dict[str, list[tuple[Decimal, str]]]:
-  parts:dict[str, list[tuple[Decimal, str]]] = {}
-  by:dict[tuple[str, str], list[Payment]] = {}
-  for _, p, kind in rows:
-    if p.way == "in" and kind in t.into.feeds: by.setdefault((p.document, kind), []).append(p)
+def earned(held:Case, t:Tables, rows:Rows) -> Parts:
+  parts:Parts = {}
+  by:dict[tuple[str, str], list[tuple[str, Payment]]] = {}
+  for key, p, kind in rows:
+    if p.way == "in" and kind in t.into.feeds: by.setdefault((p.document, kind), []).append((key, p))
   for (doc, kind), paid in by.items():
-    unsure = sum(1 for p in paid if p.check == UNCHECKED)
+    unsure = sum(1 for _, p in paid if p.check == UNCHECKED)
     said = f"{doc}, {len(paid)} labelled {kind}" + (f", {unsure} unchecked" if unsure else "")
-    parts.setdefault(t.into.feeds[kind], []).append((sum((p.amount for p in paid), ZERO), said))
+    parts.setdefault(t.into.feeds[kind], []).append((sum((p.amount for _, p in paid), ZERO), said, tuple(key for key, _ in paid)))
   for key, r in held.readings.items():
-    if held.decisions.get(key) != WRONG: parts.setdefault(r.fact, []).append((r.amount, f"{r.document}, {r.quote}"))
+    if held.decisions.get(key) != WRONG: parts.setdefault(r.fact, []).append((r.amount, f"{r.document}, {r.quote}", (key,)))
   for q in form_lines(held, t): answering(held, q, parts)
   return parts
 
-def is_trading(held:Case, parts:dict[str, list[tuple[Decimal, str]]], elsewhere:bool=False) -> bool:
+def is_trading(held:Case, parts:Parts, elsewhere:bool=False) -> bool:
   return (elsewhere or at(held.given, "business.gross_income") is not None or "business.gross_income" in parts
           or any(held.decisions.get(trading_in(doc)) == "business" for doc in held.documents))
 
 def is_owed(held:Case, q:Asked, trading:bool) -> bool:
   return not q.trade or (trading and held.decisions.get(trading_in(q.document or "")) != "not")
 
-def worked_out(held:Case, t:Tables, rows:Rows, parts:dict[str, list[tuple[Decimal, str]]], trading:bool) -> dict[str, tuple[Decimal, str]]:
+def claimed(held:Case, t:Tables, rows:Rows, parts:Parts, trading:bool) -> Parts:
   for q in claims(t, rows):
     if is_owed(held, q, trading): answering(held, q, parts)
-  return {fact: (sum((amt for amt, _ in each), ZERO), ", ".join(src for _, src in each)) for fact, each in parts.items()}
+  return parts
 
-def derived(held:Case, t:Tables, trading:bool|None=None) -> dict[str, tuple[Decimal, str]]:
+def totals(parts:Parts) -> dict[str, tuple[Decimal, str]]:
+  return {fact: (sum((amt for amt, _, _ in each), ZERO), ", ".join(src for _, src, _ in each)) for fact, each in parts.items()}
+
+def worked_out(held:Case, t:Tables, rows:Rows, parts:Parts, trading:bool) -> dict[str, tuple[Decimal, str]]:
+  return totals(claimed(held, t, rows, parts, trading))
+
+def parts_of(held:Case, t:Tables, trading:bool|None=None) -> Parts:
   rows = counted(held, t, months_of(held))
   parts = earned(held, t, rows)
-  return worked_out(held, t, rows, parts, is_trading(held, parts) if trading is None else trading)
+  return claimed(held, t, rows, parts, is_trading(held, parts) if trading is None else trading)
+
+def derived(held:Case, t:Tables, trading:bool|None=None) -> dict[str, tuple[Decimal, str]]: return totals(parts_of(held, t, trading))
+
+def evidence(held:Case, t:Tables) -> dict[str, list[str]]:
+  return {fact: [key for _, _, keys in each for key in keys] for fact, each in parts_of(held, t).items()}
 
 def proposals(held:Case, t:Tables) -> tuple[dict[str, Decimal], dict[str, str]]: return proposed_from(held, derived(held, t))
 

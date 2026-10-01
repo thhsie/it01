@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Any
 from it01.asks import SAME, WRONG, Asked, Base, Tables, alike, based, claims, counted, copies, costs_of, derived, fitted, is_dropped, is_inside
 from it01.asks import is_listed, label_of, months_of, needing, payer, priced, proposals, proposed_from, put, questions, read_as, rule_of, said_of
-from it01.asks import for_payees, said_to, subject_of, trading_in, with_answer, yearly
+from it01.asks import evidence, for_payees, said_to, subject_of, trading_in, with_answer, yearly
 from it01.held import Case, Document, Line, Payment, Reading, at
 from it01.kinds import picked
 from it01.law import YEAR_SRC, Source
@@ -191,6 +191,7 @@ def case(held:Case, t:Tables) -> dict[str, Any]:
           "outside": [k for k, p in held.payments.items() if not is_inside(p, months)],
           "questions": [asked_data(held, t, q, base) for q in asked], "payments": payments, "readings": readings,
           "kinds": {"in": list(picked(t.into)), "out": list(t.out.prompt.kinds)},
+          "evidence": {fact: keys for fact, keys in evidence(held, t).items() if held.sources.get(fact) != ENTERED},
           "figures": [{"rule": f.rule, "amount": str(f.amt), "sources": [cited(s) for s in f.src]} for f in assessed(held.given)], "received": money}
 
 def keep(held:Case, t:Tables) -> list[str]:
