@@ -165,7 +165,7 @@ def asked_data(held:Case, t:Tables, q:Asked, base:Base) -> dict[str, Any]:
           "earlier": held.decisions.get(q.subject) if said is None else None, "prices": shown}
 
 def case(held:Case, t:Tables) -> dict[str, Any]:
-  base = based(held, t)
+  base, months = based(held, t), months_of(held)
   proposed, proposing = proposed_from(held, base.worked)
   asked = questions(held, t, proposed)
   money = texted(received(held, t)) | {"year_sources": [cited(s) for s in YEAR_SRC]}
@@ -178,6 +178,7 @@ def case(held:Case, t:Tables) -> dict[str, Any]:
   sources = held.sources | {n: said for n, said in proposing.items() if at(held.given, n) is None}
   return {"facts": texted(held.given), "proposed": texted(proposed), "changed": changed, "sources": sources, "confirmed": held.confirmed,
           "year": held.year, "documents": {n: d.kind for n, d in held.documents.items()},
+          "outside": [k for k, p in held.payments.items() if not is_inside(p, months)],
           "questions": [asked_data(held, t, q, base) for q in asked], "payments": payments, "readings": readings,
           "kinds": {"in": list(picked(t.into)), "out": list(t.out.prompt.kinds)},
           "figures": [{"rule": f.rule, "amount": str(f.amt), "sources": [cited(s) for s in f.src]} for f in assessed(held.given)], "received": money}

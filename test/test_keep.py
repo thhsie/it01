@@ -359,6 +359,11 @@ class TestKeep(unittest.TestCase):
     q = next(q for q in case(held, T)["questions"] if q["subject"] == "money labelled pay")
     self.assertEqual((q["closes"], q["prices"]), ("salary", {}))
 
+  def test_the_case_data_lists_every_payment_dated_outside_the_year(self):
+    held = made(paid("5.00", "business", month="2024-03"), paid("6.00", "pension", way="out", month="2024-04"),
+                paid("7.00", "business", month="2025-08"), year=yearly("2025-07"))
+    self.assertEqual(case(held, T)["outside"], ["bank.txt, 5.00 paid in on 15/07/2025, CLIENT", "bank.txt, 6.00 paid out on 15/07/2025, CLIENT"])
+
   def test_a_value_reads_the_way_a_person_says_it(self):
     self.assertEqual([shown(v) for v in (True, False, "x", Decimal("1200.5"))], ["yes", "no", "x", "1,200.5"])
 
