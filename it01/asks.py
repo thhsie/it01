@@ -204,7 +204,7 @@ def questions(held:Case, t:Tables, proposed:dict[str, Decimal]) -> list[Asked]:
     if (subject := needing(kind)) in held.decisions or (came and not is_given(held, proposed, fact)):
       choices = tuple((instead, f"label it {instead} instead") for instead in picked(t.into) if instead != kind)
       about = f"money labelled {kind} came in and the case gives no {plain(fact)}"
-      ret.append(Asked(subject, about, asking, choices, None, t.into.headlines.get(kind)))
+      ret.append(Asked(subject, about, asking, choices, None, t.into.headlines.get(kind), closes=fact))
   rows = counted(held, t, months)
   owed, trading = claims(t, rows), is_trading(held, earned(held, t, rows))
   for doc in dict.fromkeys(q.document for q in owed if q.share and q.document):
@@ -283,7 +283,7 @@ def based(held:Case, t:Tables) -> Base:
 
 def priced(held:Case, t:Tables, q:Asked, base:Base) -> dict[str, Figure]:
   ret:dict[str, Figure] = {}
-  if base.before is None: return ret
+  if base.before is None or q.closes: return ret
   part, elsewhere = scoped(held, q.document), bool(q.document and base.earning - {q.document})
   months, was = months_of(part), amounts(derived(part, t, base.trading))
   for choice in (c for c, _ in q.choices if c not in t.into.needs):

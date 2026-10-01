@@ -104,7 +104,7 @@ The answer is kept under `decisions`, keyed by its subject. An answer the subjec
 
 A payment takes `out`, or any kind of its statement, even one the labeller was sure of. A payment left out for its balance counts once given a kind. A form figure takes `wrong` when the reader took the wrong line.
 
-`it01 keep` prints what each answer would change in the tax to pay. The change is worked out from the figures the case would hold with every proposal confirmed. A question whose answers all leave the tax as it is shows no change.
+`it01 keep` prints what each answer would change in the tax to pay. The change is worked out from the figures the case would hold with every proposal confirmed. A question whose answers all leave the tax as it is shows no change. A question that waits for a figure, such as a missing salary, shows no change either.
 
 An answer that no longer fits its question counts for nothing, and the question opens again. `data` shows that answer under `earlier`.
 
