@@ -139,8 +139,9 @@ def texted(value:Any) -> Any:
 
 def received(held:Case, t:Tables) -> dict[str, Any]:
   table = t.into
-  where = {kind: group for group, kinds in (("income", (*table.feeds, *table.needs)), ("exempt", table.exempt), ("unsorted", table.asking),
-                                             ("other", table.not_income)) for kind in kinds}
+  earning = tuple(kind for kind in (*table.feeds, *table.needs) if kind not in table.exempt)
+  where = {kind: group for group, kinds in (("income", earning), ("exempt", table.exempt), ("unsorted", table.asking), ("other", table.not_income))
+           for kind in kinds}
   months = months_of(held)
   copied = copies(held, t, months)
   paid = [(key, p, where.get(label_of(held, t, key, p), "unsorted"), label_of(held, t, key, p)) for key, p in held.payments.items()

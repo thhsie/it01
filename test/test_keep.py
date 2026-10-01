@@ -123,6 +123,9 @@ class TestKeep(unittest.TestCase):
     self.assertEqual(held.given["business"], {"gross_income": Decimal("500.00")})
     self.assertEqual(held.sources["business.gross_income"], "bank.txt, 1 labelled business")
 
+  def test_bank_interest_is_proposed_as_exempt_interest(self):
+    self.assertEqual(proposed(made(paid("12.50", "interest"), paid("7.50", "interest"))), {"exempt_interest": Decimal("20.00")})
+
   def test_a_payment_whose_balance_does_not_agree_is_not_counted_until_vouched_for(self):
     held = made(paid("500.00", "business", check="does not agree"), paid("300.00", "business", date="16/07/2025"))
     self.assertEqual(proposed(held), {"business.gross_income": Decimal("300.00")})
