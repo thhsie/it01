@@ -4,7 +4,7 @@ from dataclasses import replace
 from decimal import Decimal
 from typing import Any
 from it01.asks import WRONG, Asked, Base, Tables, based, copies, costs_of, derived, fits, fitted, is_dropped, is_inside, label_of, months_of
-from it01.asks import decided, is_alike, needing, priced, proposals, proposed_from, put, questions, read_as, said_of, subject_of, trading_in, yearly
+from it01.asks import decided, is_listed, needing, priced, proposals, proposed_from, put, questions, read_as, said_of, subject_of, trading_in, yearly
 from it01.held import Case, Document, Line, Payment, Reading, at
 from it01.kinds import picked
 from it01.law import YEAR_SRC, Source
@@ -162,8 +162,8 @@ def asked_data(held:Case, t:Tables, q:Asked, base:Base) -> dict[str, Any]:
   prices = {} if said is not None else priced(held, t, q, base)
   shown = {c: {"amount": str(f.amt), "sources": [cited(s) for s in f.src]} for c, f in prices.items()}
   return {"subject": q.subject, "about": q.about, "asks": q.asks, "choices": [list(c) for c in q.choices], "document": q.document,
-          "headline": q.headline, "amount": str(q.amount), "payments": list(q.paid), "share": q.share, "said": said, "closes": q.closes,
-          "earlier": held.decisions.get(q.subject) if said is None else None, "prices": shown}
+          "headline": q.headline, "amount": str(q.amount), "payments": list(q.paid), "listed": is_listed(q), "share": q.share, "said": said,
+          "closes": q.closes, "earlier": held.decisions.get(q.subject) if said is None else None, "prices": shown}
 
 def case(held:Case, t:Tables) -> dict[str, Any]:
   base, months = based(held, t), months_of(held)
@@ -217,7 +217,7 @@ def keep(held:Case, t:Tables) -> list[str]:
     for q in waiting:
       ret += [f"  {q.subject}"] + ([f"      {q.headline}"] if q.headline else []) + ([f"      {q.about}"] if q.about != q.subject else [])
       ret += [f"      {q.asks}: " + "; ".join(f"{n} ({d})" for n, d in q.choices)]
-      listed = enumerate((held.payments[k] for k in q.paid), 1) if q.share or is_alike(q) else ()
+      listed = enumerate((held.payments[k] for k in q.paid), 1) if is_listed(q) else ()
       ret += [f"      {n}. {p.date} {p.amount:,} {p.description}" for n, p in listed]
       for choice, fig in priced(held, t, q, base).items(): ret += [f"      {choice:<30}{fig.amt:>+14,}"]
   if done := [(q, said) for q in asked if (said := said_to(held, q)) is not None]:
