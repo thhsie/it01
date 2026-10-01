@@ -62,7 +62,7 @@ A relief or business cost you answered yes to, and a form line you chose, add to
 
 `unconfirm` takes a confirmed figure out of the facts, and it is proposed again. A figure you entered is cleared with `set`.
 
-`data` prints the same case as JSON, with every number as text. Each question comes with its subject, wording, answers, headline and price, and what you said. Each payment comes with its label, the label it was read with, and what you said.
+`data` prints the same case as JSON, with every number as text. Each question comes with its subject, wording, answers, headline and price, what you said, and the fact that closes it, if any. Each payment comes with its label, the label it was read with, and what you said.
 
 `keep` also adds up the money paid in by the kind it was labelled, and names the group of each kind. It also sums it by group: income, exempt, still to sort, or not income. `data` carries the same totals and the group of each kind.
 
@@ -88,7 +88,7 @@ it01 set facts.json quarterly_tax_paid 12500
 it01 set facts.json losses_brought_forward ""
 ```
 
-`set` writes one fact into the case, with the source `entered by you`. It takes any amount the computation reads, a whole number of `dependants`, and yes or no for `resident` and `spouse_above_interest_bar`. A figure entered this way replaces its proposal.
+`set` writes one fact into the case, with the source `entered by you`. It takes any amount the computation reads, a whole number of `dependants`, and yes or no for `resident` and `spouse_above_interest_bar`. `medical_insurance` and `school_fees` take one amount per person, separated by spaces or semicolons. A figure entered this way replaces its proposal.
 
 An empty value clears the fact, except `resident`. A value the computation would refuse is not kept.
 
@@ -182,7 +182,7 @@ A statement names its currency when a three-letter code follows the word currenc
 
 `debits` labels every payment out the same way, with the kinds in `it01/paying.json`, and prints the total of each kind. Most kinds match a relief in the law, such as a pension contribution or school fees. A label proposes no fact.
 
-`it01 add` asks one question for each kind of payment out in a statement. `claims` names the kinds a yes adds to a fact, with the condition the law sets. `certificates` names the kinds whose figure comes from a certificate, and asks for it.
+`it01 add` asks one question for each kind of payment out in a statement. `claims` names the kinds a yes adds to a fact, with the condition the law sets. `certificates` names the kinds whose figure comes from a certificate, the question that asks for it, and the fact it is entered as. The question closes once that fact is given.
 
 `business` names the kinds asked about only when the case has business income. A yes adds the total to the accounts line it names, and a typed amount adds only that part. `aside` names the kinds that count for nothing. A payment whose balance does not agree is left out of the totals.
 

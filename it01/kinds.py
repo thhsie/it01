@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Any
 from it01.helpers import data
 from it01.law import DOCS, Source
-from it01.tax import PLACES
+from it01.tax import LISTS, PLACES
 
 @dataclass(frozen=True)
 class Prompt:
@@ -92,7 +92,7 @@ def picked(table:Table) -> tuple[str, ...]: return tuple(kind for kind in table.
 class Paying:
   prompt: Prompt
   claims: dict[str, tuple[str, str]]
-  certificates: dict[str, str]
+  certificates: dict[str, tuple[str, str|None]]
   business: dict[str, tuple[str, str]]
   aside: tuple[str, ...]
   headlines: dict[str, str]
@@ -112,10 +112,21 @@ def facts(name:str, held:dict[str, Any], part:str) -> dict[str, tuple[str, str]]
   if unknown := sorted({fact for fact, _ in ret.values()} - set(PLACES)): raise ValueError(f"{name}.json {part} unknown facts {unknown}")
   return ret
 
+def figured(held:dict[str, Any]) -> dict[str, tuple[str, str|None]]:
+  if not isinstance(given := held.get("certificates", {}), dict): raise ValueError("paying.json must hold certificates as an object")
+  ret = {}
+  for kind, said in given.items():
+    if not isinstance(said, dict) or not isinstance(said.get("asking"), str) or not said["asking"].strip() or set(said) - {"asking", "fact"}:
+      raise ValueError(f"paying.json must give a question, and at most a fact, for the certificate of {kind}")
+    if (fact := said.get("fact")) is not None and fact not in (*PLACES, *LISTS):
+      raise ValueError(f"paying.json certificates name an unknown fact {fact}")
+    ret[str(kind)] = (said["asking"], fact)
+  return ret
+
 def paying() -> Paying:
   held = data("paying")
   prompt = prompted("paying", held)
-  claims, business, certificates = facts("paying", held, "claims"), facts("paying", held, "business"), questions("paying", held, "certificates")
+  claims, business, certificates = facts("paying", held, "claims"), facts("paying", held, "business"), figured(held)
   if not isinstance(aside := held.get("aside", []), list) or not all(isinstance(k, str) for k in aside):
     raise ValueError("paying.json must hold aside as a list of kinds")
   headlines = questions("paying", held, "headlines")

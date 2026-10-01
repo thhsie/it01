@@ -35,10 +35,21 @@
     }
   },
   "certificates": {
-    "medical_insurance": "add the insurer's certificate, which gives the premium for each person insured",
-    "school_fees": "add the school's receipt, which gives the fees for each child",
-    "housing_loan": "add the lender's certificate, which gives the interest paid in the year",
-    "green_equipment": "add the invoice, which says whether it is solar, rainwater harvesting or a fast charger"
+    "medical_insurance": {
+      "asking": "the insurer's certificate gives the premium for each person insured. Enter one amount per person, you first, as medical insurance",
+      "fact": "medical_insurance"
+    },
+    "school_fees": {
+      "asking": "the school's receipt gives the fees for each child. Enter one amount per child as school fees",
+      "fact": "school_fees"
+    },
+    "housing_loan": {
+      "asking": "the lender's certificate gives the interest paid in the year. Enter it as housing loan interest",
+      "fact": "housing_loan_interest"
+    },
+    "green_equipment": {
+      "asking": "add the invoice, which says whether it is solar, rainwater harvesting or a fast charger"
+    }
   },
   "business": {
     "business_expense": {

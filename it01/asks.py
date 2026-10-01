@@ -33,6 +33,7 @@ class Asked:
   adds: tuple[tuple[str, str], ...] = ()
   paid: tuple[str, ...] = ()
   share: bool = False
+  closes: str|None = None
 
 def year_of(month:str) -> tuple[str, ...]:
   first = int(month[:4]) - (int(month[5:]) < YEAR_STARTS)
@@ -117,10 +118,11 @@ def claims(t:Tables, rows:Rows) -> list[Asked]:
   ret = []
   for (doc, kind), paid in groups.items():
     total, claim = sum((amt for _, amt in paid), ZERO), (t.out.claims | t.out.business).get(kind)
+    asking, closes = (claim[1], None) if claim else t.out.certificates[kind]
     if claim: choices = (("yes", f"adds {total:,} to {plain(claim[0])}"), ("no", "adds nothing"))
     else: choices = (("later", "I'll add it later"), ("not", f"this was not for {plain(kind)}"))
-    ret.append(Asked(costs_of(doc, kind), outgoing(total, len(paid), kind, doc), claim[1] if claim else t.out.certificates[kind], choices, doc,
-                     t.out.headlines.get(kind), total, (("yes", claim[0]),) if claim else (), tuple(k for k, _ in paid), kind in t.out.business))
+    ret.append(Asked(costs_of(doc, kind), outgoing(total, len(paid), kind, doc), asking, choices, doc, t.out.headlines.get(kind), total,
+                     (("yes", claim[0]),) if claim else (), tuple(k for k, _ in paid), kind in t.out.business, closes))
   return ret
 
 def form_lines(held:Case, t:Tables) -> list[Asked]:
@@ -213,7 +215,9 @@ def questions(held:Case, t:Tables, proposed:dict[str, Decimal]) -> list[Asked]:
                        "and the case has no business income", "say whether you run a business, even one with no income yet", costing(), doc,
                        "costs of a business with no income yet?"))
     ret += [q for q in costs if is_owed(held, q, trading)]
-  return ret + [q for q in owed if not q.share] + form_lines(held, t)
+  return ret + [q for q in owed if not q.share and not is_closed(held, q)] + form_lines(held, t)
+
+def is_closed(held:Case, q:Asked) -> bool: return q.closes is not None and at(held.given, q.closes) not in (None, [])
 
 def payment_asked(held:Case, t:Tables, key:str) -> Asked:
   p = held.payments[key]
@@ -239,7 +243,7 @@ def fitted(held:Case, q:Asked, said:str) -> str:
   share = f"{numbered}, or the part that was, from 0.01 to {q.amount:,}" if q.share else ""
   raise ValueError(f"answer {q.subject} with one of: {', '.join(n for n, _ in q.choices)}{share}")
 
-def put(given:dict[str, Any], name:str, amt:Decimal|int|bool) -> dict[str, Any]:
+def put(given:dict[str, Any], name:str, amt:Decimal|int|bool|list[Decimal]) -> dict[str, Any]:
   part, _, rest = name.partition(".")
   return given | {part: (given.get(part) or {}) | {rest: amt} if rest else amt}
 

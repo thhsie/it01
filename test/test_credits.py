@@ -4,8 +4,9 @@ from unittest import mock
 from it01.rows import Check
 from it01.credits import label, received
 from it01.labels import listed, named, totals
-from it01.kinds import picked, spoken
+from it01.kinds import paying, picked, spoken
 from it01.tax import PLACES
+from test.helpers import ROOT
 
 PAID_IN = """\
 Date        Description                    Debit       Credit      Balance
@@ -32,6 +33,13 @@ class TestCredits(unittest.TestCase):
     schema = said.call_args.args[2]
     self.assertEqual((schema["required"], schema["additionalProperties"]), (["1", "2", "3"], False))
     self.assertEqual(schema["properties"]["2"], {"type": "string", "enum": list(KINDS)})
+
+  def test_a_certificate_must_give_its_question_and_a_known_fact(self):
+    held = json.loads((ROOT/"it01"/"paying.json").read_text())
+    for given, says in (("add it", "a question, and at most a fact"), ({"asking": "add it", "fact": "luck"}, "unknown fact luck"),
+                        ({"asking": "add it", "colour": "red"}, "a question, and at most a fact")):
+      with self.subTest(says), mock.patch("it01.kinds.data", return_value=held | {"certificates": {"housing_loan": given}}):
+        with self.assertRaisesRegex(ValueError, says): paying()
 
   def test_a_feeds_table_that_does_not_hold_up_is_refused(self):
     base = MODEL | {"name": "a statement", "kinds": {"one": "a", "two": "b", "three": "c"}, "asking": {"three": "what is this"}}
