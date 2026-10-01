@@ -1,4 +1,5 @@
 import re
+from collections import Counter
 from dataclasses import dataclass, replace
 from decimal import Decimal
 from typing import Any
@@ -8,7 +9,7 @@ from it01.kinds import Paying, Table, paying, picked, spoken
 from it01.law import YEAR_STARTS
 from it01.tax import ZERO, Facts, Figure, amount, assess, from_json, plain
 
-OUT, WRONG, GONE = "out", "wrong", "no longer read from any document"
+OUT, SAME, WRONG, GONE = "out", "same", "wrong", "no longer read from any document"
 ADRIFT = "the balance after this does not agree, so it is left out"
 NUMBERED = re.compile(r"payments? (?P<nums>\d+(?:, ?\d+)*)")
 
@@ -64,27 +65,54 @@ def read_as(held:Case, t:Tables, p:Payment) -> str:
   return p.label
 
 def said_of(held:Case, t:Tables, key:str, p:Payment) -> str|None:
-  return said if (said := held.decisions.get(key)) is not None and (said == OUT or said in kinds_of(t, p.way)) else None
+  return said if (said := held.decisions.get(key)) is not None and (said in (OUT, SAME) or said in kinds_of(t, p.way)) else None
 
 def label_of(held:Case, t:Tables, key:str, p:Payment) -> str:
   said = said_of(held, t, key, p)
-  return said if said is not None and said != OUT else read_as(held, t, p)
+  return said if said is not None and said not in (OUT, SAME) else read_as(held, t, p)
+
+def is_counting(p:Payment, said:str|None, months:tuple[str, ...]) -> bool:
+  return said != OUT and is_inside(p, months) and (said not in (None, SAME) or p.check != DIFFERS)
+
+Signed = tuple[str, Decimal, str, str]
+
+def signed(p:Payment) -> Signed: return p.way, p.amount, p.date, " ".join(p.description.split()).lower()
+
+def copies(held:Case, t:Tables, months:tuple[str, ...]) -> dict[str, str]:
+  first:dict[Signed, str] = {}
+  kept, seen = Counter[tuple[Signed, str]](), Counter[tuple[Signed, str]]()
+  ret = {}
+  for key, p in held.payments.items():
+    sig = signed(p)
+    seen[sig, p.document] += 1
+    if (doc := first.get(sig)) and doc != p.document and seen[sig, p.document] <= kept[sig, doc]: ret[key] = doc
+    elif is_counting(p, said_of(held, t, key, p), months):
+      first.setdefault(sig, p.document)
+      kept[sig, p.document] += 1
+  return ret
+
+def is_dropped(said:str|None, key:str, copied:dict[str, str]) -> bool: return said == OUT or (key in copied and said in (None, SAME))
 
 def counted(held:Case, t:Tables, months:tuple[str, ...]) -> list[tuple[str, Payment, str]]:
-  ret = []
+  ret, copied = [], copies(held, t, months)
   for key, p in held.payments.items():
     said = said_of(held, t, key, p)
-    if said != OUT and is_inside(p, months) and (said is not None or p.check != DIFFERS): ret.append((key, p, label_of(held, t, key, p)))
+    if not is_dropped(said, key, copied) and is_counting(p, said, months): ret.append((key, p, label_of(held, t, key, p)))
   return ret
+
+Rows = list[tuple[str, Payment, str]]
+
+def twice(t:Tables, way:str, doc:str) -> tuple[tuple[str, str], ...]:
+  return ((SAME, f"it is the same payment as in {doc}"), *relabelling(t, way))
 
 def worded(p:Payment) -> str: return f"{p.amount:,} paid {p.way} on {p.date}, {p.description}"
 
 def outgoing(amt:Decimal, cnt:int, kind:str, doc:str) -> str:
   return f"{amt:,} paid out in {cnt} payment{'s' if cnt > 1 else ''} that look{'' if cnt > 1 else 's'} like {plain(kind)}, in {doc}"
 
-def claims(held:Case, t:Tables, months:tuple[str, ...]) -> list[Asked]:
+def claims(t:Tables, rows:Rows) -> list[Asked]:
   groups:dict[tuple[str, str], list[tuple[str, Decimal]]] = {}
-  for key, p, kind in counted(held, t, months):
+  for key, p, kind in rows:
     if p.way == "out" and kind not in t.out.aside: groups.setdefault((p.document, kind), []).append((key, p.amount))
   ret = []
   for (doc, kind), paid in groups.items():
@@ -110,10 +138,10 @@ def answering(held:Case, q:Asked, parts:dict[str, list[tuple[Decimal, str]]]) ->
   if (answer := held.decisions.get(q.subject)) is not None and fits(q, answer) and (hit := added_by(q, answer)):
     parts.setdefault(hit[0], []).append((hit[1], f"answered {q.about}"))
 
-def earned(held:Case, t:Tables, months:tuple[str, ...]) -> dict[str, list[tuple[Decimal, str]]]:
+def earned(held:Case, t:Tables, rows:Rows) -> dict[str, list[tuple[Decimal, str]]]:
   parts:dict[str, list[tuple[Decimal, str]]] = {}
   by:dict[tuple[str, str], list[Payment]] = {}
-  for _, p, kind in counted(held, t, months):
+  for _, p, kind in rows:
     if p.way == "in" and kind in t.into.feeds: by.setdefault((p.document, kind), []).append(p)
   for (doc, kind), paid in by.items():
     unsure = sum(1 for p in paid if p.check == UNCHECKED)
@@ -131,13 +159,15 @@ def is_trading(held:Case, parts:dict[str, list[tuple[Decimal, str]]], elsewhere:
 def is_owed(held:Case, q:Asked, trading:bool) -> bool:
   return not q.share or (trading and held.decisions.get(trading_in(q.document or "")) != "not")
 
-def derived(held:Case, t:Tables, trading:bool|None=None) -> dict[str, tuple[Decimal, str]]:
-  months = months_of(held)
-  parts = earned(held, t, months)
-  trading = is_trading(held, parts) if trading is None else trading
-  for q in claims(held, t, months):
+def worked_out(held:Case, t:Tables, rows:Rows, parts:dict[str, list[tuple[Decimal, str]]], trading:bool) -> dict[str, tuple[Decimal, str]]:
+  for q in claims(t, rows):
     if is_owed(held, q, trading): answering(held, q, parts)
   return {fact: (sum((amt for amt, _ in each), ZERO), ", ".join(src for _, src in each)) for fact, each in parts.items()}
+
+def derived(held:Case, t:Tables, trading:bool|None=None) -> dict[str, tuple[Decimal, str]]:
+  rows = counted(held, t, months_of(held))
+  parts = earned(held, t, rows)
+  return worked_out(held, t, rows, parts, is_trading(held, parts) if trading is None else trading)
 
 def proposals(held:Case, t:Tables) -> tuple[dict[str, Decimal], dict[str, str]]: return proposed_from(held, derived(held, t))
 
@@ -155,8 +185,14 @@ def costing() -> tuple[tuple[str, str], ...]: return (("business", "they are cos
 
 def questions(held:Case, t:Tables, proposed:dict[str, Decimal]) -> list[Asked]:
   months, ret = months_of(held), []
+  copied = copies(held, t, months)
   for key, p in held.payments.items():
-    if p.way != "in" or not is_inside(p, months): continue
+    if not is_inside(p, months): continue
+    if doc := copied.get(key):
+      asks = f"the same date, amount and wording are in {doc}, so it is counted once"
+      ret.append(Asked(key, worded(p), asks, twice(t, p.way, doc), p.document, "a payment read in two statements", p.amount))
+      continue
+    if p.way != "in": continue
     if (kind := read_as(held, t, p)) in t.into.asking:
       ret.append(Asked(key, worded(p), t.into.asking[kind], relabelling(t, "in"), p.document, amount=p.amount))
     elif kind in t.into.feeds and p.check == DIFFERS:
@@ -167,7 +203,8 @@ def questions(held:Case, t:Tables, proposed:dict[str, Decimal]) -> list[Asked]:
       choices = tuple((instead, f"label it {instead} instead") for instead in picked(t.into) if instead != kind)
       about = f"money labelled {kind} came in and the case gives no {plain(fact)}"
       ret.append(Asked(subject, about, asking, choices, None, t.into.headlines.get(kind)))
-  owed, trading = claims(held, t, months), is_trading(held, earned(held, t, months))
+  rows = counted(held, t, months)
+  owed, trading = claims(t, rows), is_trading(held, earned(held, t, rows))
   for doc in dict.fromkeys(q.document for q in owed if q.share and q.document):
     costs = [q for q in owed if q.share and q.document == doc]
     if not trading or trading_in(doc) in held.decisions:
@@ -213,11 +250,13 @@ def projected(held:Case, worked:dict[str, tuple[Decimal, str]]) -> dict[str, Any
 
 def balance(given:dict[str, Any]) -> Figure: return next(fig for fig in assess(from_json(Facts, given)) if fig.rule == "balance of tax")
 
-def scoped(held:Case, doc:str|None) -> Case:
+def scoped(held:Case, doc:str|None, alone:bool=False) -> Case:
   if doc is None: return held
   def own[T:(Payment, Reading, Line)](part:dict[str, T]) -> dict[str, T]: return {k: v for k, v in part.items() if v.document == doc}
   year = yearly(months[0]) if (months := months_of(held)) else held.year
-  return replace(held, year=year, payments=own(held.payments), readings=own(held.readings), lines=own(held.lines))
+  sigs = set() if alone else {signed(p) for p in own(held.payments).values()}
+  payments = {k: p for k, p in held.payments.items() if p.document == doc or signed(p) in sigs}
+  return replace(held, year=year, payments=payments, readings=own(held.readings), lines=own(held.lines))
 
 def amounts(worked:dict[str, tuple[Decimal, str]]) -> dict[str, Decimal]: return {fact: amt for fact, (amt, _) in worked.items()}
 
@@ -232,8 +271,11 @@ def based(held:Case, t:Tables) -> Base:
   months, worked = months_of(held), derived(held, t)
   try: before = balance(projected(held, worked))
   except ValueError: before = None
-  earning = frozenset(doc for doc in held.documents if "business.gross_income" in earned(scoped(held, doc), t, months))
-  return Base(worked, before, is_trading(held, earned(held, t, months)), earning)
+  def is_earning(doc:str) -> bool:
+    part = scoped(held, doc, alone=True)
+    return "business.gross_income" in earned(part, t, counted(part, t, months))
+  earning = frozenset(doc for doc in held.documents if is_earning(doc))
+  return Base(worked, before, is_trading(held, earned(held, t, counted(held, t, months))), earning)
 
 def priced(held:Case, t:Tables, q:Asked, base:Base) -> dict[str, Figure]:
   ret:dict[str, Figure] = {}
@@ -243,8 +285,9 @@ def priced(held:Case, t:Tables, q:Asked, base:Base) -> dict[str, Figure]:
   for choice in (c for c, _ in q.choices if c not in t.into.needs):
     said = held.decisions | {q.subject: choice}
     chosen = replace(part, decisions=said)
-    if is_trading(chosen, earned(chosen, t, months), elsewhere) == base.trading:
-      after = amounts(derived(chosen, t, base.trading))
+    rows = counted(chosen, t, months)
+    if is_trading(chosen, parts := earned(chosen, t, rows), elsewhere) == base.trading:
+      after = amounts(worked_out(chosen, t, rows, parts, base.trading))
       moved = {f: (base.worked.get(f, (ZERO, ""))[0] + after.get(f, ZERO) - was.get(f, ZERO), "") for f in (*base.worked, *after)}
     else: moved = derived(replace(held, decisions=said), t)
     try: now = balance(projected(held, moved))

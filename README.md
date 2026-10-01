@@ -108,6 +108,8 @@ A payment takes `out`, or any kind of its statement, even one the labeller was s
 
 An answer that no longer fits its question counts for nothing, and the question opens again. `data` shows that answer under `earlier`.
 
+A payment with the same direction, date, amount and wording as one in an earlier statement is counted once. It is asked about, because two statements can overlap. `same` keeps it counted once, and a kind counts it as another payment. A payment counts again once the statement it repeats is removed.
+
 ## Fill in the return
 
 ```sh

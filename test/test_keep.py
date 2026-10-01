@@ -1,7 +1,7 @@
 import json, unittest
 from dataclasses import replace
 from decimal import Decimal
-from it01.asks import OUT, balance, based, derived, months_of, priced, projected, proposals, questions, tables, year_of, yearly
+from it01.asks import OUT, SAME, balance, based, derived, months_of, priced, projected, proposals, questions, tables, year_of, yearly
 from it01.held import VERSION, Case, Document, Line, Payment, Reading, dumped, loaded, opened, written
 from it01.keep import ENTERED, case, confirm, figures, forgot, keep, noted, received, removed, set_fact, shown, unconfirmed, with_year
 
@@ -287,6 +287,53 @@ class TestKeep(unittest.TestCase):
   def test_a_question_whose_answers_change_nothing_carries_no_price(self):
     held = made(paid("100.00", "medical_insurance", way="out"), salary=1200000)
     self.assertEqual(case(held, T)["questions"][0]["prices"], {})
+
+  def statements(self, *two:Payment) -> Case:
+    held = made(paid("500.00", "business"), paid("90.00", "pension", way="out"))
+    return noted(held, "two.txt", Document("bank statement", "p", "z"), [(f"x{n}", p) for n, p in enumerate(two)], [], [])
+
+  def test_a_payment_read_in_two_statements_is_counted_once_and_asked_about(self):
+    held = self.statements(paid("500.00", "business", doc="two.txt"))
+    q = next(q for q in questions(held, T, proposed(held)) if q.document == "two.txt")
+    self.assertEqual(proposed(held), {"business.gross_income": Decimal("500.00")})
+    self.assertEqual((q.headline, q.choices[0][0]), ("a payment read in two statements", SAME))
+    for said, amt in (("business", "1000.00"), (SAME, "500.00"), (OUT, "500.00")):
+      with self.subTest(said):
+        self.assertEqual(proposed(replace(held, decisions={"two.txt, x0": said}))["business.gross_income"], Decimal(amt))
+
+  def test_a_payment_the_first_statement_holds_once_counts_again_the_second_time(self):
+    held = self.statements(paid("500.00", "business", doc="two.txt"), paid("500.00", "business", doc="two.txt"))
+    self.assertEqual(proposed(held), {"business.gross_income": Decimal("1000.00")})
+
+  def test_leaving_out_the_first_copy_counts_the_second(self):
+    held = replace(self.statements(paid("500.00", "business", doc="two.txt")), decisions={"bank.txt, 500.00 paid in on 15/07/2025, CLIENT": OUT})
+    self.assertEqual((proposed(held), [q.subject for q in questions(held, T, proposed(held)) if q.headline == "a payment read in two statements"]),
+                     ({"business.gross_income": Decimal("500.00")}, []))
+
+  def test_a_payment_said_to_be_the_same_counts_again_once_the_first_statement_goes(self):
+    held = removed(replace(self.statements(paid("500.00", "business", doc="two.txt")), decisions={"two.txt, x0": SAME}), T, "bank.txt")
+    self.assertEqual(proposed(held), {"business.gross_income": Decimal("500.00")})
+
+  def test_a_first_copy_that_counts_nothing_leaves_the_second_counted(self):
+    for first in (paid("500.00", "business", check="does not agree"), paid("500.00", "business", month="2023-07")):
+      two = [("x", paid("500.00", "business", doc="two.txt"))]
+      held = noted(made(first, year=yearly("2025-07")), "two.txt", Document("bank statement", "p", "z"), two, [], [])
+      with self.subTest(first.check, month=first.month):
+        self.assertEqual((proposed(held), [q.headline for q in questions(held, T, proposed(held))]),
+                         ({"business.gross_income": Decimal("500.00")}, ["a payment was left out of the totals"] if first.check != "ok" else []))
+
+  def test_a_copy_is_left_out_of_the_money_paid_in(self):
+    self.assertEqual(received(self.statements(paid("500.00", "business", doc="two.txt")), T)["kinds"], {"business": Decimal("500.00")})
+
+  def test_every_price_matches_the_whole_case_when_statements_overlap(self):
+    held = self.statements(paid("500.00", "business", doc="two.txt"), paid("90.00", "pension", way="out", doc="two.txt"),
+                           paid("700000.00", "business", doc="two.txt", date="18/07/2025"))
+    held = replace(held, decisions={"two.txt, paid out as pension": "yes", "bank.txt, paid out as pension": "yes"})
+    before = balance(projected(held, derived(held, T)))
+    for q in questions(held, T, proposed(held)):
+      for choice, fig in priced(held, T, q, based(held, T)).items():
+        chosen = replace(held, decisions=held.decisions | {q.subject: choice})
+        with self.subTest(q.subject, choice=choice): self.assertEqual(fig.amt, balance(projected(held, derived(chosen, T))).amt - before.amt)
 
   def test_a_value_reads_the_way_a_person_says_it(self):
     self.assertEqual([shown(v) for v in (True, False, "x", Decimal("1200.5"))], ["yes", "no", "x", "1,200.5"])
