@@ -1,7 +1,7 @@
 import json, unittest
 from decimal import Decimal
 from it01.keep import (TITLES, VERSION, WORDING, Document, adrift, answer, apart, case, confirm, derived, dumped, figures, fingerprint, keep, loaded,
-                       needing, newly, noted, priced, reopened, received, relabelled, removed, set_fact, shown, unconfirmed, with_year)
+                       labelled_as, needing, newly, noted, priced, reopened, received, relabelled, removed, set_fact, shown, unconfirmed, with_year)
 from it01.kinds import spoken
 from it01.law import Source
 
@@ -505,6 +505,40 @@ class TestSet(unittest.TestCase):
 
   def test_a_fact_the_computation_refuses_is_not_kept(self):
     with self.assertRaisesRegex(ValueError, "school_fees"): set_fact(written(school_fees=[1000, 1000]), "dependants", "1")
+
+class TestLabelledAs(unittest.TestCase):
+  LINE = "9,000.00 paid in on 20/07/2025, OWN ACCOUNT"
+  CASE = {"resident": True, "version": VERSION, "documents": {"a.pdf": "bank statement"}, "labels": {f"a.pdf, {LINE}": "business"}}
+
+  def test_a_payment_labelled_with_confidence_can_be_labelled_again(self):
+    text = labelled_as(dumped(self.CASE), f"a.pdf, {self.LINE}", "other")
+    self.assertEqual((apart(loaded(dumped(self.CASE)))[2], apart(loaded(text))[2]), ({"business.gross_income": Decimal(9000)}, {}))
+
+  def test_a_payment_that_did_not_agree_counts_once_labelled(self):
+    raw = self.CASE | {"checks": {f"a.pdf, {self.LINE}": "does not agree"}}
+    self.assertEqual(apart(loaded(labelled_as(dumped(raw), f"a.pdf, {self.LINE}", "rent")))[2], {"rent": Decimal(9000)})
+
+  def test_an_open_question_about_the_payment_is_answered_by_the_label(self):
+    raw = self.CASE | {"labels": {f"a.pdf, {self.LINE}": "cash"}, "pending": {self.LINE: "where did this cash come from"}}
+    held = loaded(labelled_as(dumped(raw), f"a.pdf, {self.LINE}", "business"))
+    self.assertEqual((held["answers"], held["asked"], "pending" in held),
+                     ({self.LINE: "business"}, {self.LINE: "where did this cash come from"}, False))
+
+  def test_a_question_about_a_line_read_twice_in_one_document_stays_open(self):
+    raw = self.CASE | {"labels": {f"a.pdf, {self.LINE}": "cash", f"a.pdf, {self.LINE} (2)": "cash"},
+                       "pending": {self.LINE: "where did this cash come from"}}
+    held = loaded(labelled_as(dumped(raw), f"a.pdf, {self.LINE}", "business"))
+    self.assertEqual((list(held["pending"]), held["labels"][f"a.pdf, {self.LINE} (2)"]), ([self.LINE], "cash"))
+
+  def test_a_left_out_question_is_answered_only_with_a_kind_it_takes(self):
+    raw = self.CASE | {"checks": {f"a.pdf, {self.LINE}": "does not agree"}, "pending": {self.LINE: adrift()}}
+    for kind, answered in (("interest", False), ("rent", True)):
+      held = loaded(labelled_as(dumped(raw), f"a.pdf, {self.LINE}", kind))
+      with self.subTest(kind): self.assertEqual("answers" in held, answered)
+
+  def test_an_unknown_payment_or_kind_is_refused(self):
+    for key, kind, why in ((f"a.pdf, {self.LINE}", "cash", "with one of: pay, business"), ("a.pdf, nothing", "rent", "holds no payment")):
+      with self.subTest(why), self.assertRaisesRegex(ValueError, why): labelled_as(dumped(self.CASE), key, kind)
 
 class TestUnconfirmed(unittest.TestCase):
   def test_a_confirmed_figure_goes_back_to_waiting(self):

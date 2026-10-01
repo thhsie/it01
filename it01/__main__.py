@@ -12,7 +12,7 @@ from it01.kinds import ADRIFT, Paying, paying, picked, spoken
 from it01.keep import Document, answer, apart, case, confirm, dumped, figures, fingerprint, is_given, keep, labelled, loaded, noted, relabelled
 from it01.keep import DIFFERS, LACKING, UNCHECKED, ON_LINE, PAID_IN, TITLES, adrift, asking_for, closed, lacking, needing, newly, paid_as
 from it01.keep import behind, costed, lines_of, Noted, offering, outgoing, reopened, spent_as, taken, with_year, worded
-from it01.keep import WORDING, answers_to, at, doubted, listed, owned, removed, set_fact, unconfirmed, wording, year_of
+from it01.keep import WORDING, answers_to, at, doubted, labelled_as, listed, owned, removed, set_fact, unconfirmed, wording, year_of
 from it01.read import read
 from it01.rows import Check, currency_of, dropped, entries, is_statement, months
 from it01.sheet import sheet, untyped
@@ -27,6 +27,7 @@ USAGE = ("usage: it01 FACTS.json\n       it01 read DOCUMENT\n"
          "       it01 show FACTS.json DOCUMENT\n       it01 year FACTS.json YYYY-MM\n"
          "       it01 set FACTS.json FACT VALUE\n       it01 rebuild FACTS.json\n"
          "       it01 remove FACTS.json DOCUMENT\n       it01 unconfirm FACTS.json FACT\n"
+         "       it01 relabel FACTS.json PAYMENT KIND\n"
          "       it01 answer FACTS.json QUESTION ANSWER\n       it01 change FACTS.json QUESTION ANSWER\n"
          "       it01 data FACTS.json\n       it01 sheet FACTS.json")
 
@@ -114,6 +115,13 @@ def written_in(here:pathlib.Path, name:str, said:str) -> list[str]:
   rewritten(here, set_fact(here.read_text(encoding="utf-8"), name, said))
   return [f"{name} is now a fact in {here.name}" if said.strip() else f"{name} is cleared from {here.name}"]
 
+def put_as(here:pathlib.Path, typed:str, kind:str) -> list[str]:
+  text = here.read_text(encoding="utf-8")
+  key, kind = matched(apart(loaded(text))[1]["labels"], typed.strip(), "labelled payments"), kind.strip()
+  after, how = costed(labelled_as(text, key, kind))
+  rewritten(here, after)
+  return [f"labelled {key}", f"  {kind}"] + told(how, text, after)
+
 def taken_back(here:pathlib.Path, name:str) -> list[str]:
   rewritten(here, unconfirmed(here.read_text(encoding="utf-8"), name))
   return [f"{name} is proposed again in {here.name}"]
@@ -155,7 +163,7 @@ def yeared(here:pathlib.Path, first:str) -> list[str]:
 
 def matched(held:dict[str, str], asked:str, what:str) -> str:
   hit = [asked] if asked in held else [q for q in held if q.lower().startswith(asked.lower())]
-  if len(hit) != 1: raise ValueError(f"{len(hit)} {what} questions match {asked}")
+  if len(hit) != 1: raise ValueError(f"{len(hit)} {what} match {asked}")
   return hit[0]
 
 def kinded(text:str, question:str, keys:list[str], kind:str) -> tuple[str, list[str]]:
@@ -171,7 +179,7 @@ def told(how:Noted, before:str, after:str) -> list[str]:
 def responded(here:pathlib.Path, asked:str, said:str) -> list[str]:
   if not (asked := asked.strip()): raise ValueError("the question to answer is blank")
   text = here.read_text(encoding="utf-8")
-  question = matched(apart(loaded(text))[1]["pending"], asked, "open")
+  question = matched(apart(loaded(text))[1]["pending"], asked, "open questions")
   text, lines = answering(text, question, said)
   rewritten(here, text)
   return [f"answered {question}", f"  {said}"] + lines
@@ -200,7 +208,7 @@ def answering(text:str, question:str, said:str) -> tuple[str, list[str]]:
 def changed(here:pathlib.Path, typed:str, said:str) -> list[str]:
   if not (typed := typed.strip()): raise ValueError("the question to change is blank")
   text = here.read_text(encoding="utf-8")
-  question = matched(apart(loaded(text))[1]["answers"], typed, "answered")
+  question = matched(apart(loaded(text))[1]["answers"], typed, "answered questions")
   if LACKING.fullmatch(question): raise ValueError(f"an answer about a missing statement cannot be changed, {question}")
   table, back = spoken("labelling"), reopened(text, question)
   asks, keys = apart(loaded(back))[1]["pending"][question], labelled(back, question)
@@ -306,6 +314,7 @@ VERBS = {"read": to_proposals, "rows": to_transactions, "credits": to_credits, "
 ON_CASE:dict[str, tuple[Callable[..., list[str]], int]] = {"confirm": (accepted, 2), "add": (added, 2), "answer": (responded, 3),
                                                            "change": (changed, 3), "show": (opened, 2), "year": (yeared, 2),
                                                            "rebuild": (rebuilt, 1), "remove": (dropped_doc, 2), "unconfirm": (taken_back, 2),
+                                                           "relabel": (put_as, 3),
                                                            "set": (written_in, 3)}
 
 def main() -> int:

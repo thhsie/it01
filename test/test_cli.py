@@ -368,6 +368,14 @@ class TestCli(unittest.TestCase):
     self.addCleanup(os.unlink, here)
     with self.assertRaisesRegex(ValueError, "before its wording was kept"): changed(pathlib.Path(here), self.PAYMENT, "a loan")
 
+  def test_a_payment_named_by_the_start_of_its_line_is_relabelled(self):
+    key = f"bank.pdf, {self.PAYMENT}"
+    here = on_disk(json.dumps({"resident": True, "version": VERSION, "documents": {"bank.pdf": "bank statement"}, "labels": {key: "business"}}))
+    self.addCleanup(os.unlink, here)
+    ret = run("relabel", here, key[:20], "other")
+    proposed = apart(loaded(pathlib.Path(here).read_text()))[2]
+    self.assertEqual((ret.returncode, ret.stdout.split("\n")[:2], proposed), (0, [f"labelled {key}", "  other"], {}))
+
   def test_a_relief_answer_can_change_from_yes_to_no(self):
     here, held = self.paid_out(self.PENSION)
     question = next(iter(held["pending"]))
