@@ -284,6 +284,10 @@ class TestKeep(unittest.TestCase):
     q = next(q for q in questions(held, T, proposed(held)) if q.subject == "bank.txt, paid out as business expense")
     self.assertLess(priced(held, T, q, based(held, T))["yes"].amt, 0)
 
+  def test_a_question_whose_answers_change_nothing_carries_no_price(self):
+    held = made(paid("100.00", "medical_insurance", way="out"), salary=1200000)
+    self.assertEqual(case(held, T)["questions"][0]["prices"], {})
+
   def test_a_value_reads_the_way_a_person_says_it(self):
     self.assertEqual([shown(v) for v in (True, False, "x", Decimal("1200.5"))], ["yes", "no", "x", "1,200.5"])
 

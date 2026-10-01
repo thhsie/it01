@@ -250,4 +250,4 @@ def priced(held:Case, t:Tables, q:Asked, base:Base) -> dict[str, Figure]:
     try: now = balance(projected(held, moved))
     except ValueError: continue
     ret[choice] = Figure(choice, now.amt - base.before.amt, now.src)
-  return ret
+  return ret if any(fig.amt for fig in ret.values()) else {}
