@@ -5,7 +5,7 @@ from it01.asks import EACH, OUT, SAME, Asked, balance, based, derived, months_of
 from it01.asks import decided, payer
 from it01.held import VERSION, Case, Document, Line, Payment, Reading, dumped, loaded, opened, written
 from it01.keep import ENTERED, answered, case, confirm, figures, forgot, keep, noted, received, removed, set_fact, shown, unconfirmed, with_year
-from it01.keep import said_to
+from it01.keep import remember, said_to
 
 T = tables()
 BANK = Document("bank statement", "in/bank.txt", "a")
@@ -181,6 +181,39 @@ class TestKeep(unittest.TestCase):
   def test_an_alike_question_lists_its_payments_in_the_case_data(self):
     asked = case(self.alike(), T)["questions"]
     self.assertEqual([(q["listed"], q["share"], len(q["payments"])) for q in asked], [(True, False, 2)])
+
+  def test_a_remembered_answer_labels_a_later_payment_worded_alike(self):
+    one = "bank.txt, 700.00 paid in on 15/07/2025, CLIENT"
+    held = remember(answered(made(paid("700.00", "cash")), T, one, "business"), one)
+    later = noted(held, "two.txt", Document("bank statement", "q", "z"), [("x", paid("50.00", "cash", doc="two.txt"))], [], [])
+    waiting = [q for q in questions(later, T, proposed(later)) if said_to(later, q) is None]
+    self.assertEqual((proposed(later), waiting), ({"business.gross_income": Decimal("750.00")}, []))
+    self.assertEqual(case(later, T)["payments"]["two.txt, x"]["rule"], "payments paid in worded like CLIENT")
+
+  def test_a_payment_with_its_own_answer_is_not_moved_by_a_remembered_one(self):
+    one = "bank.txt, 700.00 paid in on 15/07/2025, CLIENT"
+    held = remember(answered(self.alike(), T, one, "business"), one)
+    held = answered(held, T, "bank.txt, 300.00 paid in on 20/07/2025, CLIENT", "other")
+    self.assertEqual(proposed(held), {"business.gross_income": Decimal("700.00")})
+
+  def test_forgetting_a_remembered_answer_asks_again(self):
+    one = "bank.txt, 700.00 paid in on 15/07/2025, CLIENT"
+    held = remember(answered(made(paid("700.00", "cash")), T, one, "business"), one)
+    later = noted(held, "two.txt", Document("bank statement", "q", "z"), [("x", paid("50.00", "cash", doc="two.txt"))], [], [])
+    self.assertIn("two.txt, x", [q.subject for q in questions(forgot(later, "payments paid in worded like CLIENT"), T, proposed(later))])
+
+  def test_only_an_answered_payment_with_wording_is_remembered(self):
+    one, digits = "bank.txt, 700.00 paid in on 15/07/2025, CLIENT", replace(paid("5.00", "cash"), description="12345")
+    for held, key, says in ((made(paid("700.00", "cash")), one, "say what"),
+                            (replace(made(paid("700.00", "cash")), decisions={one: SAME}), one, "say what"),
+                            (replace(made(digits), decisions={"k": "other"}, payments={"k": digits}), "k", "no wording")):
+      with self.subTest(says=says), self.assertRaisesRegex(ValueError, says): remember(held, key)
+
+  def test_a_remembered_label_says_why_in_the_record(self):
+    one = "bank.txt, 700.00 paid in on 15/07/2025, CLIENT"
+    held = remember(answered(made(paid("700.00", "cash")), T, one, "business"), one)
+    later = noted(held, "two.txt", Document("bank statement", "q", "z"), [("x", paid("50.00", "cash", doc="two.txt"))], [], [])
+    self.assertIn("      business, as you said for payments paid in worded like CLIENT", keep(later, T))
 
   def test_alike_credits_can_be_asked_about_one_by_one(self):
     held = answered(self.alike(), T, "payments paid in worded like CLIENT", EACH)

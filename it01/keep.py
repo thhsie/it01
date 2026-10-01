@@ -3,7 +3,8 @@ from collections.abc import Callable
 from dataclasses import replace
 from decimal import Decimal
 from typing import Any
-from it01.asks import WRONG, Asked, Base, Tables, based, copies, costs_of, derived, fits, fitted, is_dropped, is_inside, label_of, months_of
+from it01.asks import SAME, WRONG, Asked, Base, Tables, alike, based, copies, costs_of, derived, fits, fitted, is_dropped, is_inside, label_of
+from it01.asks import months_of, payer, rule_of
 from it01.asks import decided, is_listed, needing, priced, proposals, proposed_from, put, questions, read_as, said_of, subject_of, trading_in, yearly
 from it01.held import Case, Document, Line, Payment, Reading, at
 from it01.kinds import picked
@@ -74,6 +75,12 @@ def set_fact(held:Case, t:Tables, name:str, said:str) -> Case:
 def answered(held:Case, t:Tables, subject:str, said:str) -> Case:
   q = subject_of(held, t, subject)
   return replace(held, decisions=held.decisions | decided(q, fitted(held, q, said)))
+
+def remember(held:Case, key:str) -> Case:
+  if (p := held.payments.get(key)) is None: raise ValueError(f"the case holds no payment {key}")
+  if not payer(p): raise ValueError(f"{key} has no wording to remember it by")
+  if (said := held.decisions.get(key)) is None or said == SAME: raise ValueError(f"say what {key} was before it is remembered")
+  return replace(held, decisions=held.decisions | {alike(p): said})
 
 def forgot(held:Case, subject:str) -> Case:
   if subject not in held.decisions: raise ValueError(f"nothing was said about {subject}")
@@ -172,7 +179,8 @@ def case(held:Case, t:Tables) -> dict[str, Any]:
   money = texted(received(held, t)) | {"year_sources": [cited(s) for s in YEAR_SRC]}
   payments = {key: {"document": p.document, "way": p.way, "amount": str(p.amount), "date": p.date, "description": p.description,
                     "label": label_of(held, t, key, p), "read": read_as(held, t, p), "check": p.check, "month": p.month,
-                    "said": held.decisions.get(key)} for key, p in held.payments.items()}
+                    "said": held.decisions.get(key), "rule": rule_of(held, t, key, p)}
+                for key, p in held.payments.items()}
   readings = {key: {"document": r.document, "fact": r.fact, "amount": str(r.amount), "quote": r.quote, "wrong": held.decisions.get(key) == WRONG}
               for key, r in held.readings.items()}
   changed = {fact: {"was": texted(at(held.given, fact)), "source": proposing[fact]} for fact in proposed if at(held.given, fact) is not None}
@@ -205,8 +213,8 @@ def keep(held:Case, t:Tables) -> list[str]:
   if held.payments:
     ret += ["", "how each payment was labelled"]
     for key, p in held.payments.items():
-      said = held.decisions.get(key)
-      ret += [f"  {key}", f"      {label_of(held, t, key, p)}" + (", as you said" if said else f", {p.check}" if p.check != "ok" else "")]
+      note = ", as you said" if key in held.decisions else f", as you said for {rule}" if (rule := rule_of(held, t, key, p)) else ""
+      ret += [f"  {key}", f"      {label_of(held, t, key, p)}" + (note or (f", {p.check}" if p.check != "ok" else ""))]
   if held.readings:
     ret += ["", "what each form was read as"]
     for key, r in held.readings.items():
