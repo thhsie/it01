@@ -128,6 +128,8 @@ A payment left out because its balance did not agree can also be counted as an i
 
 `relabel` labels a payment in with another kind. Name the payment by its document and line. This works even when the labeller was sure of the label, and the payment counts whatever its balance check said. An open question about that one payment is answered with the kind.
 
+`drop` takes out one figure a form was read as, named by its document and fact. Use it when the reader took the wrong line. A figure you confirmed from it is proposed again without it. `rebuild` reads every document again, so it brings back dropped readings and payments you relabelled.
+
 ## Read with a model file of your own
 
 ```sh
@@ -289,6 +291,7 @@ it01 rebuild FACTS.json                 read an older case's documents again
 it01 remove FACTS.json DOCUMENT         take a document out of the case
 it01 unconfirm FACTS.json FACT          take back a confirmed figure
 it01 relabel FACTS.json PAYMENT KIND    label a payment in with another kind
+it01 drop FACTS.json READING            drop a figure a form was misread as
 it01 read DOCUMENT.txt                  propose facts through your endpoint
 it01 local DOCUMENT.txt                 propose facts with your model file
 it01 rows STATEMENT.txt                 read transactions

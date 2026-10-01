@@ -344,6 +344,12 @@ def labelled_as(text:str, key:str, kind:str) -> str:
   fits = line in held["pending"] and (not (allowed := closed(line, held["pending"][line])) or kind in allowed)
   return answer(text, line, kind) if fits and labelled(text, line) == [key] else text
 
+def unread(text:str, key:str) -> str:
+  given, held, _ = apart(loaded(text))
+  if key not in held["read"]: raise ValueError(f"no form was read as {key}")
+  del held["read"][key]
+  return as_file(given, held)
+
 def doubted(text:str, keys:list[str]) -> str:
   given, held, _ = apart(loaded(text))
   held["checks"] |= dict.fromkeys(keys, DIFFERS)

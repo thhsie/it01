@@ -376,6 +376,14 @@ class TestCli(unittest.TestCase):
     proposed = apart(loaded(pathlib.Path(here).read_text()))[2]
     self.assertEqual((ret.returncode, ret.stdout.split("\n")[:2], proposed), (0, [f"labelled {key}", "  other"], {}))
 
+  def test_a_form_figure_named_by_the_start_of_its_reading_is_dropped(self):
+    here = on_disk(json.dumps({"resident": True, "version": VERSION, "documents": {"pay.txt": "statement_of_emoluments"},
+                               "read": {"pay.txt, salary": "90,552.00 read from Net Pay 90 552,00"}}))
+    self.addCleanup(os.unlink, here)
+    ret = run("drop", here, "pay.txt, sal")
+    kept = loaded(pathlib.Path(here).read_text())
+    self.assertEqual((ret.returncode, ret.stdout.split("\n")[0], "read" in kept), (0, "dropped pay.txt, salary", False))
+
   def test_a_relief_answer_can_change_from_yes_to_no(self):
     here, held = self.paid_out(self.PENSION)
     question = next(iter(held["pending"]))
