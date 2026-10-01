@@ -219,6 +219,8 @@ def together(held:Case, t:Tables, subject:str, members:list[tuple[str, Payment, 
 
 def is_alike(q:Asked) -> bool: return EACH in dict(q.choices)
 
+def is_listed(q:Asked) -> bool: return q.share or is_alike(q)
+
 def decided(q:Asked, said:str) -> dict[str, str]: return dict.fromkeys(q.paid, said) if is_alike(q) and said != EACH else {q.subject: said}
 
 def questions(held:Case, t:Tables, proposed:dict[str, Decimal]) -> list[Asked]:

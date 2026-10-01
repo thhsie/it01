@@ -178,6 +178,10 @@ class TestKeep(unittest.TestCase):
     self.assertGreater(moved, 0)
     self.assertEqual(priced(held, T, q, based(held, T))["business"].amt, moved)
 
+  def test_an_alike_question_lists_its_payments_in_the_case_data(self):
+    asked = case(self.alike(), T)["questions"]
+    self.assertEqual([(q["listed"], q["share"], len(q["payments"])) for q in asked], [(True, False, 2)])
+
   def test_alike_credits_can_be_asked_about_one_by_one(self):
     held = answered(self.alike(), T, "payments paid in worded like CLIENT", EACH)
     self.assertEqual(len([q for q in questions(held, T, proposed(held)) if q.subject in held.payments]), 2)
