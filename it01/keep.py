@@ -179,7 +179,8 @@ def case(held:Case, t:Tables) -> dict[str, Any]:
   money = texted(received(held, t)) | {"year_sources": [cited(s) for s in YEAR_SRC]}
   payments = {key: {"document": p.document, "way": p.way, "amount": str(p.amount), "date": p.date, "description": p.description,
                     "label": label_of(held, t, key, p), "read": read_as(held, t, p), "check": p.check, "month": p.month,
-                    "said": held.decisions.get(key), "rule": rule_of(held, t, key, p)}
+                    "said": held.decisions.get(key), "rule": rule_of(held, t, key, p),
+                    "alike": alike(p) if payer(p) else None}
                 for key, p in held.payments.items()}
   readings = {key: {"document": r.document, "fact": r.fact, "amount": str(r.amount), "quote": r.quote, "wrong": held.decisions.get(key) == WRONG}
               for key, r in held.readings.items()}
