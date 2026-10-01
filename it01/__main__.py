@@ -12,7 +12,7 @@ from it01.kinds import ADRIFT, Paying, paying, picked, spoken
 from it01.keep import Document, answer, apart, case, confirm, dumped, figures, fingerprint, is_given, keep, labelled, loaded, noted, relabelled
 from it01.keep import DIFFERS, LACKING, UNCHECKED, ON_LINE, PAID_IN, TITLES, adrift, asking_for, closed, lacking, needing, newly, paid_as
 from it01.keep import behind, costed, lines_of, Noted, offering, outgoing, reopened, spent_as, taken, with_year, worded
-from it01.keep import WORDING, answers_to, at, doubted, labelled_as, listed, owned, removed, set_fact, unconfirmed, wording, year_of
+from it01.keep import WORDING, answers_to, at, doubted, labelled_as, listed, owned, removed, set_fact, unconfirmed, unread, wording, year_of
 from it01.read import read
 from it01.rows import Check, currency_of, dropped, entries, is_statement, months
 from it01.sheet import sheet, untyped
@@ -27,7 +27,7 @@ USAGE = ("usage: it01 FACTS.json\n       it01 read DOCUMENT\n"
          "       it01 show FACTS.json DOCUMENT\n       it01 year FACTS.json YYYY-MM\n"
          "       it01 set FACTS.json FACT VALUE\n       it01 rebuild FACTS.json\n"
          "       it01 remove FACTS.json DOCUMENT\n       it01 unconfirm FACTS.json FACT\n"
-         "       it01 relabel FACTS.json PAYMENT KIND\n"
+         "       it01 relabel FACTS.json PAYMENT KIND\n       it01 drop FACTS.json READING\n"
          "       it01 answer FACTS.json QUESTION ANSWER\n       it01 change FACTS.json QUESTION ANSWER\n"
          "       it01 data FACTS.json\n       it01 sheet FACTS.json")
 
@@ -121,6 +121,12 @@ def put_as(here:pathlib.Path, typed:str, kind:str) -> list[str]:
   after, how = costed(labelled_as(text, key, kind))
   rewritten(here, after)
   return [f"labelled {key}", f"  {kind}"] + told(how, text, after)
+
+def dropped_reading(here:pathlib.Path, typed:str) -> list[str]:
+  text = here.read_text(encoding="utf-8")
+  key = matched(apart(loaded(text))[1]["read"], typed.strip(), "form figures")
+  rewritten(here, after := unread(text, key))
+  return [f"dropped {key}"] + [f"  proposed {name}" for name in newly(text, after)]
 
 def taken_back(here:pathlib.Path, name:str) -> list[str]:
   rewritten(here, unconfirmed(here.read_text(encoding="utf-8"), name))
@@ -314,7 +320,7 @@ VERBS = {"read": to_proposals, "rows": to_transactions, "credits": to_credits, "
 ON_CASE:dict[str, tuple[Callable[..., list[str]], int]] = {"confirm": (accepted, 2), "add": (added, 2), "answer": (responded, 3),
                                                            "change": (changed, 3), "show": (opened, 2), "year": (yeared, 2),
                                                            "rebuild": (rebuilt, 1), "remove": (dropped_doc, 2), "unconfirm": (taken_back, 2),
-                                                           "relabel": (put_as, 3),
+                                                           "relabel": (put_as, 3), "drop": (dropped_reading, 2),
                                                            "set": (written_in, 3)}
 
 def main() -> int:

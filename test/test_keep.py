@@ -1,7 +1,8 @@
 import json, unittest
 from decimal import Decimal
 from it01.keep import (TITLES, VERSION, WORDING, Document, adrift, answer, apart, case, confirm, derived, dumped, figures, fingerprint, keep, loaded,
-                       labelled_as, needing, newly, noted, priced, reopened, received, relabelled, removed, set_fact, shown, unconfirmed, with_year)
+                       labelled_as, needing, newly, noted, priced, reopened, received, relabelled, removed, set_fact, shown, unconfirmed,
+                       unread, with_year)
 from it01.kinds import spoken
 from it01.law import Source
 
@@ -539,6 +540,17 @@ class TestLabelledAs(unittest.TestCase):
   def test_an_unknown_payment_or_kind_is_refused(self):
     for key, kind, why in ((f"a.pdf, {self.LINE}", "cash", "with one of: pay, business"), ("a.pdf, nothing", "rent", "holds no payment")):
       with self.subTest(why), self.assertRaisesRegex(ValueError, why): labelled_as(dumped(self.CASE), key, kind)
+
+class TestUnread(unittest.TestCase):
+  def test_a_figure_a_form_was_misread_as_is_no_longer_proposed(self):
+    self.assertEqual(apart(loaded(unread(written(), "statement.txt, other_income")))[2], {})
+
+  def test_a_confirmed_figure_whose_reading_is_dropped_is_proposed_at_zero(self):
+    text = unread(confirm(written(), "other_income"), "statement.txt, other_income")
+    self.assertEqual(apart(loaded(text))[2], {"other_income": Decimal(0)})
+
+  def test_a_reading_the_case_does_not_hold_is_refused(self):
+    with self.assertRaisesRegex(ValueError, "no form was read as statement.txt, rent"): unread(written(), "statement.txt, rent")
 
 class TestUnconfirmed(unittest.TestCase):
   def test_a_confirmed_figure_goes_back_to_waiting(self):
