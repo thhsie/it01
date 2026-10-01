@@ -11,7 +11,7 @@ from it01.labels import Labelled, totals
 from it01.form import Form, ending, is_titled, wanted
 from it01.helpers import data
 from it01.held import AGREES, DIFFERS, RECORDS, UNCHECKED, VERSION, Case, Document, Line, Payment, Reading, dumped, loaded, opened, texts, written
-from it01.keep import answered, case, confirm, figures, fingerprint, forgot, keep, noted, removed, set_fact, unconfirmed, with_year
+from it01.keep import answered, case, confirm, figures, fingerprint, forgot, keep, noted, remember, removed, set_fact, unconfirmed, with_year
 from it01.read import read
 from it01.rows import Check, currency_of, dropped, entries, is_statement, months
 from it01.sheet import sheet, untyped
@@ -28,7 +28,7 @@ USAGE = ("usage: it01 FACTS.json\n       it01 read DOCUMENT\n"
          "       it01 set FACTS.json FACT VALUE\n       it01 rebuild FACTS.json\n"
          "       it01 remove FACTS.json DOCUMENT\n       it01 unconfirm FACTS.json FACT\n"
          "       it01 relabel FACTS.json PAYMENT KIND\n       it01 drop FACTS.json READING\n"
-         "       it01 answer FACTS.json QUESTION ANSWER\n       it01 change FACTS.json QUESTION ANSWER\n"
+         "       it01 remember FACTS.json PAYMENT\n       it01 answer FACTS.json QUESTION ANSWER\n       it01 change FACTS.json QUESTION ANSWER\n"
          "       it01 data FACTS.json\n       it01 sheet FACTS.json")
 
 def money(amt:Decimal|None) -> str: return f"{amt:,}" if amt is not None else ""
@@ -148,6 +148,10 @@ def responded(here:pathlib.Path, typed:str, said:str) -> list[str]:
   subject = matched(subjects(held_in(here), tables()), typed, "questions, payments or readings")
   return changed_by(here, lambda held, t: answered(held, t, subject, said), f"answered {subject}", f"  {said.strip()}")
 
+def remembered_for(here:pathlib.Path, typed:str) -> list[str]:
+  key = matched(list(held_in(here).payments), typed, "payments")
+  return changed_by(here, lambda held, t: remember(held, key), f"remembered {key} for every payment worded like it")
+
 def forgotten(here:pathlib.Path, typed:str) -> list[str]:
   subject = matched(list(held_in(here).decisions), typed, "answers")
   return changed_by(here, lambda held, t: forgot(held, subject), f"forgot what was said about {subject}")
@@ -244,7 +248,7 @@ VERBS = {"read": to_proposals, "rows": to_transactions, "credits": to_credits, "
 ON_CASE:dict[str, tuple[Callable[..., list[str]], int]] = {"confirm": (accepted, 2), "add": (added, 2), "answer": (responded, 3),
                                                            "forget": (forgotten, 2), "show": (opened_doc, 2), "year": (yeared, 2),
                                                            "rebuild": (rebuilt, 1), "remove": (dropped_doc, 2), "unconfirm": (taken_back, 2),
-                                                           "set": (written_in, 3)}
+                                                           "set": (written_in, 3), "remember": (remembered_for, 2)}
 
 def main() -> int:
   args = sys.argv[1:]

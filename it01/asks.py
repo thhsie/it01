@@ -84,8 +84,15 @@ def payer(p:Payment) -> str: return " ".join(w for w in p.description.upper().sp
 
 def alike(p:Payment) -> str: return f"payments paid {p.way} worded like {payer(p)}"
 
+def remembered(held:Case, t:Tables, p:Payment) -> str|None:
+  return said if payer(p) and (said := held.decisions.get(alike(p))) is not None and (said == OUT or said in kinds_of(t, p.way)) else None
+
+def rule_of(held:Case, t:Tables, key:str, p:Payment) -> str|None:
+  return alike(p) if key not in held.decisions and remembered(held, t, p) is not None else None
+
 def said_of(held:Case, t:Tables, key:str, p:Payment) -> str|None:
-  return said if (said := held.decisions.get(key)) is not None and (said in (OUT, SAME) or said in kinds_of(t, p.way)) else None
+  if (said := held.decisions.get(key)) is not None and (said in (OUT, SAME) or said in kinds_of(t, p.way)): return said
+  return remembered(held, t, p)
 
 def label_of(held:Case, t:Tables, key:str, p:Payment) -> str:
   said = said_of(held, t, key, p)
@@ -234,6 +241,7 @@ def questions(held:Case, t:Tables, proposed:dict[str, Decimal]) -> list[Asked]:
       ret.append(Asked(key, worded(p), asks, twice(t, p.way, doc), p.document, "a payment read in two statements", p.amount))
       continue
     if p.way != "in": continue
+    if rule_of(held, t, key, p): continue
     if (kind := read_as(held, t, p)) in t.into.asking:
       groups.setdefault(key if key in held.decisions or not payer(p) else alike(p), []).append((key, p, kind))
     elif kind in t.into.feeds and p.check == DIFFERS:
