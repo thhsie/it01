@@ -276,9 +276,14 @@ class TestCli(unittest.TestCase):
     held = self.answered_with("noted", asking="the balance after this does not agree, so it is left out")
     self.assertEqual((list(held["labels"].values()), apart(held)[2]), (["unclear"], {}))
 
-  def test_a_payment_left_out_for_its_balance_takes_only_noted(self):
+  def test_a_payment_left_out_for_its_balance_takes_noted_or_an_income_kind(self):
     for asking in (ADRIFT, adrift()):
-      with self.subTest(asking), self.assertRaisesRegex(ValueError, "with one of: noted"): self.answered_with("business", asking=asking)
+      with self.subTest(asking), self.assertRaisesRegex(ValueError, "with one of: noted, business, dividend, rent"):
+        self.answered_with("interest", asking=asking)
+
+  def test_a_payment_left_out_for_its_balance_counts_when_given_a_kind(self):
+    held = self.answered_with("business", asking=adrift(), checks={f"bank.pdf, {self.PAYMENT}": "does not agree"})
+    self.assertEqual((apart(held)[2], "checks" in held), ({"business.gross_income": 20000}, False))
 
   def test_a_case_without_labels_keeps_the_answer_as_a_note(self):
     held = self.answered_with("business", keys=())
@@ -325,15 +330,50 @@ class TestCli(unittest.TestCase):
   def test_a_line_left_out_for_its_balance_counts_once_its_kind_is_changed(self):
     key = f"bank.pdf, {self.PAYMENT}"
     here = on_disk(json.dumps({"resident": True, "version": VERSION, "documents": {"bank.pdf": "bank statement"}, "labels": {key: "business"},
-                               "checks": {key: "does not agree"}, "answers": {self.PAYMENT: "noted"}}))
+                               "checks": {key: "does not agree"}, "pending": {self.PAYMENT: adrift()}}))
     self.addCleanup(os.unlink, here)
+    responded(pathlib.Path(here), self.PAYMENT, "noted")
     before = apart(loaded(pathlib.Path(here).read_text()))[2]
     changed(pathlib.Path(here), self.PAYMENT, "business")
     after = loaded(pathlib.Path(here).read_text())
     self.assertEqual((before, apart(after)[2], "checks" in after), ({}, {"business.gross_income": 20000}, False))
 
-  def test_only_a_kind_can_replace_an_answer(self):
-    with self.assertRaisesRegex(ValueError, "only a payment's kind can be changed"): self.changed_to("business", "a gift")
+  def test_a_kind_changed_to_a_note_counts_the_payment_no_more(self):
+    held = self.changed_to("business", "a gift")
+    self.assertEqual((held["answers"][self.PAYMENT], list(held["labels"].values()), apart(held)[2]), ("a gift", ["unclear"], {}))
+
+  def test_an_answer_that_does_not_fit_leaves_the_case_as_it_was(self):
+    here = on_disk(json.dumps({"resident": True, "version": VERSION, "documents": {"bank.pdf": "bank statement"},
+                               "labels": {f"bank.pdf, {self.PAYMENT}": "rent"}, "checks": {f"bank.pdf, {self.PAYMENT}": "does not agree"},
+                               "pending": {self.PAYMENT: adrift()}}))
+    self.addCleanup(os.unlink, here)
+    responded(pathlib.Path(here), self.PAYMENT, "noted")
+    was = pathlib.Path(here).read_text()
+    with self.assertRaisesRegex(ValueError, "with one of: noted, business"): changed(pathlib.Path(here), self.PAYMENT, "interest")
+    self.assertEqual(pathlib.Path(here).read_text(), was)
+
+  def test_a_left_out_payment_counted_then_left_out_again_counts_no_more(self):
+    key = f"bank.pdf, {self.PAYMENT}"
+    here = on_disk(json.dumps({"resident": True, "version": VERSION, "documents": {"bank.pdf": "bank statement"}, "labels": {key: "business"},
+                               "checks": {key: "does not agree"}, "pending": {self.PAYMENT: adrift()}}))
+    self.addCleanup(os.unlink, here)
+    responded(pathlib.Path(here), self.PAYMENT, "business")
+    changed(pathlib.Path(here), self.PAYMENT, "noted")
+    held = loaded(pathlib.Path(here).read_text())
+    self.assertEqual((apart(held)[2], held["checks"]), ({}, {key: "does not agree"}))
+
+  def test_an_old_answer_without_its_wording_cannot_be_changed(self):
+    here = on_disk(json.dumps({"resident": True, "version": VERSION, "documents": {"bank.pdf": "bank statement"},
+                               "labels": {f"bank.pdf, {self.PAYMENT}": "unclear"}, "answers": {self.PAYMENT: "a gift"}}))
+    self.addCleanup(os.unlink, here)
+    with self.assertRaisesRegex(ValueError, "before its wording was kept"): changed(pathlib.Path(here), self.PAYMENT, "a loan")
+
+  def test_a_relief_answer_can_change_from_yes_to_no(self):
+    here, held = self.paid_out(self.PENSION)
+    question = next(iter(held["pending"]))
+    responded(pathlib.Path(here), question, "yes")
+    changed(pathlib.Path(here), question, "no")
+    self.assertNotIn("pension_contributions", apart(loaded(pathlib.Path(here).read_text()))[2])
 
   def test_a_question_not_yet_answered_cannot_be_changed(self):
     here = on_disk(json.dumps({"resident": True, "pending": {self.PAYMENT: "what was this payment for"}}))
@@ -372,7 +412,8 @@ class TestCli(unittest.TestCase):
            "10.00 paid in on 02/07/2025, IN rent": ADRIFT}
     shown = case(json.dumps({"resident": True, "pending": old}))["pending"]
     instead = ["business", "interest", "dividend", "rent", "other"]
-    self.assertEqual([lines_of(asks) for asks in shown.values()], [["later", "not"], ["yes", "no"], instead, ["noted"]])
+    left = ["noted", "business", "dividend", "rent"]
+    self.assertEqual([lines_of(asks) for asks in shown.values()], [["later", "not"], ["yes", "no"], instead, left])
 
   def test_a_business_payment_takes_a_typed_share_up_to_its_total(self):
     spent = (Labelled("04/07/2025", Decimal("500.00"), "PHONE", "bills", Check.AGREES),)
@@ -669,7 +710,7 @@ class TestCli(unittest.TestCase):
     name = pathlib.Path(paper).name
     line = "300.00 paid in on 23/07/2025, CLIENT"
     old = {"resident": True, "documents": {name: "bank statement"}, "paths": {name: paper}, "proposed": {},
-           "answers": {"no such question": "rent", line: "business"}}
+           "answers": {"no such question": "rent", line: "interest"}}
     here = pathlib.Path(on_disk(json.dumps(old)))
     self.addCleanup(os.unlink, here)
     found = (Labelled("23/07/2025", Decimal("300.00"), "CLIENT", "business", Check.DIFFERS),)

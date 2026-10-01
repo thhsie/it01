@@ -11,8 +11,8 @@ from it01.helpers import data
 from it01.kinds import ADRIFT, Paying, paying, picked, spoken
 from it01.keep import Document, answer, apart, case, confirm, dumped, figures, fingerprint, is_given, keep, labelled, loaded, noted, relabelled
 from it01.keep import DIFFERS, LACKING, UNCHECKED, ON_LINE, PAID_IN, TITLES, adrift, asking_for, closed, lacking, needing, newly, paid_as
-from it01.keep import behind, costed, lines_of, Noted, offering, outgoing, reanswered, spent_as, taken, with_year, worded
-from it01.keep import WORDING, at, listed, owned, removed, set_fact, unconfirmed, wording, year_of
+from it01.keep import behind, costed, lines_of, Noted, offering, outgoing, reopened, spent_as, taken, with_year, worded
+from it01.keep import WORDING, answers_to, at, doubted, listed, owned, removed, set_fact, unconfirmed, wording, year_of
 from it01.read import read
 from it01.rows import Check, currency_of, dropped, entries, is_statement, months
 from it01.sheet import sheet, untyped
@@ -27,7 +27,7 @@ USAGE = ("usage: it01 FACTS.json\n       it01 read DOCUMENT\n"
          "       it01 show FACTS.json DOCUMENT\n       it01 year FACTS.json YYYY-MM\n"
          "       it01 set FACTS.json FACT VALUE\n       it01 rebuild FACTS.json\n"
          "       it01 remove FACTS.json DOCUMENT\n       it01 unconfirm FACTS.json FACT\n"
-         "       it01 answer FACTS.json QUESTION ANSWER\n       it01 change FACTS.json QUESTION KIND\n"
+         "       it01 answer FACTS.json QUESTION ANSWER\n       it01 change FACTS.json QUESTION ANSWER\n"
          "       it01 data FACTS.json\n       it01 sheet FACTS.json")
 
 def money(amt:Decimal|None) -> str: return f"{amt:,}" if amt is not None else ""
@@ -179,7 +179,8 @@ def responded(here:pathlib.Path, asked:str, said:str) -> list[str]:
 def answering(text:str, question:str, said:str) -> tuple[str, list[str]]:
   pending = apart(loaded(text))[1]["pending"]
   table, ret, before = spoken("labelling"), [], text
-  keys = labelled(text, question) if pending[question] in table.asking.values() and (kind := said.strip()) in picked(table) else []
+  takes_kind = pending[question] in table.asking.values() or answers_to(question, pending[question]) == adrift()
+  keys = labelled(text, question) if takes_kind and (kind := said.strip()) in picked(table) else []
   taken(question, said, behind(apart(loaded(text))[1], question))
   if (allowed := closed(question, pending[question])) and said.strip() not in allowed:
     raise ValueError(f"answer {question} with one of: {', '.join(allowed)}")
@@ -196,18 +197,18 @@ def answering(text:str, question:str, said:str) -> tuple[str, list[str]]:
   text, how = costed(text)
   return text, ret + told(how, before, text)
 
-def changed(here:pathlib.Path, asked:str, said:str) -> list[str]:
-  if not (asked := asked.strip()): raise ValueError("the question to change is blank")
+def changed(here:pathlib.Path, typed:str, said:str) -> list[str]:
+  if not (typed := typed.strip()): raise ValueError("the question to change is blank")
   text = here.read_text(encoding="utf-8")
-  answers = apart(loaded(text))[1]["answers"]
-  question = matched(answers, asked, "answered")
-  table, keys, before = spoken("labelling"), labelled(text, question), text
-  if not keys or not PAID_IN.match(question) or (kind := said.strip()) not in picked(table):
-    raise ValueError(f"only a payment's kind can be changed, to one of: {', '.join(picked(table))}")
-  text, lines = kinded(reanswered(text, question, kind), question, keys, kind)
-  text, how = costed(text)
+  question = matched(apart(loaded(text))[1]["answers"], typed, "answered")
+  if LACKING.fullmatch(question): raise ValueError(f"an answer about a missing statement cannot be changed, {question}")
+  table, back = spoken("labelling"), reopened(text, question)
+  asks, keys = apart(loaded(back))[1]["pending"][question], labelled(back, question)
+  if asked_as := {wording: kind for kind, wording in table.asking.items()}.get(asks): back = relabelled(back, keys, asked_as)
+  elif answers_to(question, asks) == adrift(): back = doubted(back, keys)
+  text, lines = answering(back, question, said)
   rewritten(here, text)
-  return [f"changed {question}"] + lines + told(how, before, text)
+  return [f"changed {question}", f"  {said}"] + lines
 
 def opened(here:pathlib.Path, name:str) -> list[str]:
   held = apart(loaded(here.read_text(encoding="utf-8")))[1]

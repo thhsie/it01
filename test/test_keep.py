@@ -1,7 +1,7 @@
 import json, unittest
 from decimal import Decimal
-from it01.keep import (TITLES, VERSION, WORDING, Document, answer, apart, case, confirm, derived, dumped, figures, fingerprint, keep, loaded,
-                       needing, newly, noted, priced, reanswered, received, relabelled, removed, set_fact, shown, unconfirmed, with_year)
+from it01.keep import (TITLES, VERSION, WORDING, Document, adrift, answer, apart, case, confirm, derived, dumped, figures, fingerprint, keep, loaded,
+                       needing, newly, noted, priced, reopened, received, relabelled, removed, set_fact, shown, unconfirmed, with_year)
 from it01.kinds import spoken
 from it01.law import Source
 
@@ -238,7 +238,7 @@ class TestKeep(unittest.TestCase):
     self.assertEqual(shown["headlines"], {salary: "add your salary statement", left: "a payment was left out of the totals",
                                           pension: "were these paid into your own approved pension?", loan: "add your housing loan certificate"})
     self.assertTrue(shown["pending"][salary].endswith("; other (label it other instead)"))
-    self.assertEqual(shown["pending"][left], "the balance after this does not agree, so it is left out: noted (leave it out)")
+    self.assertEqual(shown["pending"][left], adrift())
     self.assertTrue(shown["pending"][loan].endswith("; not (this was not for housing loan)"))
 
   def test_a_business_payment_question_carries_a_plain_headline(self):
@@ -573,6 +573,11 @@ class TestRemoved(unittest.TestCase):
     raw = self.CASE | {"labels": self.CASE["labels"] | {f"b.pdf, {line}": "other"}, "answers": {line: "gift"}}
     self.assertEqual(apart(loaded(removed(dumped(raw), "a.pdf")))[1]["answers"], {line: "gift"})
 
+  def test_the_wording_of_questions_about_a_removed_document_goes(self):
+    question = "40.00 paid out in 1 payment that looks like business expense, in a.pdf"
+    raw = self.CASE | {"pending": {}, "answers": {question: "no"}, "asked": {question: "which were costs"}}
+    self.assertNotIn("asked", loaded(removed(dumped(raw), "a.pdf")))
+
   def test_a_document_the_case_does_not_hold_is_refused(self):
     with self.assertRaisesRegex(ValueError, "holds no document c.pdf"): removed(dumped(self.CASE), "c.pdf")
 
@@ -597,10 +602,15 @@ class TestReanswered(unittest.TestCase):
   LINE = "10,000.00 on the line TOTAL 10,000.00"
   PAID = "100.00 paid in on 01/02/2026, TRANSFER"
 
-  def test_a_changed_answer_moves_the_figure_worked_out_from_it(self):
-    text = dumped({"resident": True, "answers": {self.LINE: "net_emoluments"}})
-    held = loaded(reanswered(text, self.LINE, "total"))
-    self.assertEqual((apart(loaded(text))[2], held["answers"][self.LINE], apart(held)[2]), ({"salary": Decimal(10000)}, "total", {}))
+  def test_a_reopened_answer_goes_back_to_its_question_and_its_figure_goes(self):
+    text = dumped({"resident": True, "answers": {self.LINE: "net_emoluments"}, "asked": {self.LINE: "which line: total (the total)"}})
+    held = loaded(reopened(text, self.LINE))
+    self.assertEqual((apart(loaded(text))[2], held["pending"], "answers" in held, apart(held)[2]),
+                     ({"salary": Decimal(10000)}, {self.LINE: "which line: total (the total)"}, False, {}))
+
+  def test_an_answer_kept_without_its_wording_cannot_be_reopened(self):
+    text = dumped({"resident": True, "answers": {self.LINE: "x"}})
+    with self.assertRaisesRegex(ValueError, "before its wording was kept, so it cannot be changed"): reopened(text, self.LINE)
 
   def test_a_relabelled_payment_moves_its_amount_to_the_new_fact(self):
     text = dumped({"resident": True, "version": VERSION, "documents": {"bank.txt": "bank statement"}, "labels": {f"bank.txt, {self.PAID}": "rent"}})
@@ -608,7 +618,7 @@ class TestReanswered(unittest.TestCase):
     self.assertEqual((apart(loaded(text))[2], apart(loaded(after))[2]), ({"rent": Decimal(100)}, {"business.gross_income": Decimal(100)}))
 
   def test_a_question_never_answered_cannot_be_changed(self):
-    with self.assertRaisesRegex(ValueError, "was never answered"): reanswered(dumped({"resident": True}), self.LINE, "total")
+    with self.assertRaisesRegex(ValueError, "was never answered"): reopened(dumped({"resident": True}), self.LINE)
 
 class TestPriced(unittest.TestCase):
   CASE = {"resident": True, "salary": 1000000, "business": {"gross_income": 100000}}
