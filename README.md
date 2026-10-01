@@ -62,7 +62,7 @@ A relief or business cost you answered yes to, and a form line you chose, add to
 
 `unconfirm` takes a confirmed figure out of the facts, and it is proposed again. A figure you entered is cleared with `set`.
 
-`data` prints the same case as JSON, with every number as text. Each question comes with its subject, wording, answers, headline and price, what you said, and the fact that closes it, if any. Each payment comes with its label, the label it was read with, and what you said.
+`data` prints the same case as JSON, with every number as text. Each question comes with its subject, wording, answers, headline and price, what you said, and the fact that closes it, if any. Each payment comes with its label, the label it was read with, and what you said. `outside` lists every payment in or out dated outside the income year, whatever was said about it.
 
 `keep` also adds up the money paid in by the kind it was labelled, and names the group of each kind. It also sums it by group: income, exempt, still to sort, or not income. `data` carries the same totals and the group of each kind.
 
