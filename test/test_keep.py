@@ -281,6 +281,11 @@ class TestKeep(unittest.TestCase):
     q = next(q for q in questions(shrunk, T, proposed(shrunk)) if q.subject == "two.txt, paid out as business expense")
     self.assertIsNone(said_to(shrunk, q))
 
+  def test_a_pick_is_kept_as_the_payments_it_names(self):
+    held = made(paid("900.00", "business"), paid("100.00", "tax_paid", way="out"), paid("40.00", "tax_paid", date="16/07/2025", way="out"))
+    held = answered(held, T, "bank.txt, paid out as tax paid", "payments 2, 1")
+    self.assertEqual((held.decisions["bank.txt, paid out as tax paid"], proposed(held)["quarterly_tax_paid"]), ("payments 1, 2", Decimal("140.00")))
+
   def test_a_carried_figure_names_the_payees_it_came_from(self):
     held = answered(made(paid("100.00", "pension", way="out")), T, "bank.txt, paid out as pension", "yes")
     later = self.two(held, paid("200.00", "pension", way="out"))

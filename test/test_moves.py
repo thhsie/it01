@@ -69,7 +69,7 @@ class TestMoves(unittest.TestCase):
           with self.subTest(at, subject=q.subject, choice=choice):
             after = answered(held, T, q.subject, choice)
             asked = [x for x in questions(after, T, proposals(after, T)[0]) if x.subject == q.subject]
-            stored = str(held.payments[q.paid[0]].amount) if choice == "payments 1" else choice
+            stored = choice
             self.assertTrue(all(said_to(after, x) == stored for x in asked))
             self.assertEqual(replace(after, decisions=held.decisions), held)
 
