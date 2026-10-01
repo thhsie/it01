@@ -1,264 +1,49 @@
-import hashlib, json, re
-from dataclasses import dataclass
+import hashlib
+from dataclasses import replace
 from decimal import Decimal
 from typing import Any
-from it01.form import wanted
-from it01.kinds import ADRIFT, Paying, Table, paying, picked, spoken
-from it01.law import YEAR_SRC, YEAR_STARTS, Source
-from it01.rows import months
-from it01.tax import PLACES, ZERO, Facts, Figure, amount, assess, from_json, plain, summed
+from it01.asks import OUT, WRONG, Asked, Base, Tables, based, costs_of, derived, fits, fitted, is_inside, label_of, months_of, needing, priced
+from it01.asks import proposals, proposed_from, put, questions, read_as, subject_of, trading_in, yearly
+from it01.held import Case, Document, Line, Payment, Reading, at
+from it01.kinds import picked
+from it01.law import YEAR_SRC, Source
+from it01.tax import PLACES, Facts, Figure, amount, assess, from_json, summed
 
-TITLES = {"documents": "documents you read", "labels": "how money paid in was labelled", "paid": "how money paid out was labelled",
-          "outside": "left out, dated outside the income year", "currencies": "the currency each statement names",
-          "read": "what each form was read as", "checks": "money paid in whose balance did not agree or was not checked",
-          "answers": "questions you answered", "pending": "questions still open"}
-WORDING = ("version", "year", "sources", "confirmed", "texts", "paths", "asked", *TITLES)
-VERSION = {"case": "2"}
-DIFFERS, UNCHECKED = "does not agree", "not checked"
-GONE = "no longer read from any document"
+ENTERED = "entered by you"
 NIL = Decimal("0.00")
 GROUPS = {"income": "counts as income", "exempt": "exempt", "unsorted": "still to sort", "other": "not income"}
-PAID_IN = re.compile(r"(?P<amt>\S+) paid in on (?P<date>[^,]*), ")
-ON_LINE = re.compile(r"(?P<amt>\S+) on the line (?P<quote>.+)")
-LACKING = re.compile(r"money labelled (?P<kind>\S+) came in and the case gives no (?P<fact>.+)")
-PAID_OUT = re.compile(r"(?P<amt>\S+) paid out in \d+ payments? that looks? like (?P<kind>[^,]+), in (?P<doc>.+)")
-LINES = re.compile(r"([^\s;(]+) \([^)]*\)")
-NUMBERED = re.compile(r"payments? (?P<nums>\d+(?:, ?\d+)*)")
-PAID_OUT_ON = re.compile(r"(?P<amt>\S+) paid out on ")
-READ = re.compile(r"(?P<amt>\S+) read from (?P<quote>.+)")
-NO_INCOME = re.compile(r"\d+ payments? in (?P<doc>.+) looks? like costs of a business, and the case has no business income")
-MONTH = re.compile(r"\d{4}-\d{2}")
-
-def once(pairs:list[tuple[str, Any]]) -> dict[str, Any]:
-  ret:dict[str, Any] = {}
-  for key, value in pairs:
-    if key in ret: raise ValueError(f"the same key is written twice {key}")
-    ret[key] = value
-  return ret
-
-def loaded(text:str) -> Any: return json.loads(text, parse_float=Decimal, object_pairs_hook=once)
-
-def worded(amt:Decimal, date:str, description:str) -> str: return f"{amt:,} paid in on {date}, {description}"
-def spent_as(amt:Decimal, date:str, description:str) -> str: return f"{amt:,} paid out on {date}, {description}"
-def spent_on(question:str) -> tuple[str, Decimal]|None:
-  return (spent["kind"].replace(" ", "_"), amount(spent["amt"])) if (spent := PAID_OUT.fullmatch(question)) else None
-
-def fact_for(table:Paying, kind:str) -> str|None: return claim[0] if (claim := (table.claims | table.business).get(kind)) else None
-
-def choices_for(table:Paying, kind:str, amt:Decimal) -> tuple[tuple[str, str], ...]:
-  if fact := fact_for(table, kind): return (("yes", f"adds {amt:,} to {plain(fact)}"), ("no", "adds nothing"))
-  return (("later", "I'll add it later"), ("not", f"this was not for {plain(kind)}"))
-
-def asking_for(table:Paying, kind:str, amt:Decimal) -> str:
-  said = claim[1] if (claim := (table.claims | table.business).get(kind)) else table.certificates[kind]
-  return offering(said, choices_for(table, kind, amt))
-
-def headline(question:str, asks:str) -> str|None:
-  if need := LACKING.fullmatch(question): return spoken("labelling").headlines.get(need["kind"])
-  if asks.startswith(ADRIFT): return "a payment was left out of the totals"
-  if NO_INCOME.fullmatch(question): return "costs of a business with no income yet?"
-  return paying().headlines.get(spent[0]) if (spent := spent_on(question)) else None
-
-def costing() -> str:
-  return offering("say whether you run a business, even one with no income yet", (("business", "they are costs of my business"),
-                                                                                    ("not", "they are not business costs")))
-
-def lacking(kind:str, fact:str) -> str: return f"money labelled {kind} came in and the case gives no {plain(fact)}"
-def needing(table:Table, kind:str) -> str:
-  return offering(table.needs[kind][1], tuple((instead, f"label it {instead} instead") for instead in picked(table) if instead != kind))
-
-def paid_as(text:str, kind:str) -> list[str]: return [key for key, was in apart(loaded(text))[1]["labels"].items() if was == kind]
-def adrift() -> str:
-  kinds = tuple((kind, f"count it as {kind}") for kind in spoken("labelling").feeds)
-  return offering(ADRIFT, (("noted", "leave it out"), *kinds))
-
-def answers_to(question:str, asks:str) -> str:
-  out, table = paying(), spoken("labelling")
-  if (spent := spent_on(question)) and spent[0] in out.prompt.kinds and spent[0] not in out.aside: return asking_for(out, *spent)
-  if (need := LACKING.fullmatch(question)) and need["kind"] in table.needs: return needing(table, need["kind"])
-  if NO_INCOME.fullmatch(question): return costing()
-  return adrift() if asks.startswith(ADRIFT) else asks
-
-def closed(question:str, asks:str) -> list[str]:
-  shown = answers_to(question, asks)
-  return lines_of(shown) if LACKING.fullmatch(question) or NO_INCOME.fullmatch(question) or shown == adrift() else []
-
-def typed(said:str) -> Decimal|None:
-  try: return amount(said)
-  except ValueError: return None
-
-def spent_in(held:dict[str, dict[str, str]], doc:str, kind:str) -> list[tuple[str, Decimal]]:
-  lines = [key[len(doc) + 2:] for key, was in held["paid"].items() if key.startswith(f"{doc}, ") and was == kind]
-  return [(line, amt) for line in lines if (on := PAID_OUT_ON.match(line)) and (amt := typed(on["amt"])) is not None]
-
-def behind(held:dict[str, dict[str, str]], question:str) -> list[tuple[str, Decimal]]:
-  if not (spent := PAID_OUT.fullmatch(question)) or (kind := spent["kind"].replace(" ", "_")) not in paying().business: return []
-  return spent_in(held, spent["doc"], kind)
-
-def summed_up(question:str, said:str, paid:list[tuple[str, Decimal]]) -> Decimal|None:
-  if not paid or not (named := NUMBERED.fullmatch(said)): return None
-  nums = [int(n) for n in named["nums"].replace(" ", "").split(",")]
-  if len(set(nums)) != len(nums) or not all(1 <= n <= len(paid) for n in nums):
-    raise ValueError(f"answer {question} naming each of payments 1 to {len(paid)} at most once, not {said}")
-  return sum((paid[n - 1][1] for n in nums), ZERO)
-
-def taken(question:str, said:str, paid:list[tuple[str, Decimal]]) -> tuple[str, Decimal]|None:
-  if not (spent := spent_on(question)): return None
-  table, (kind, amt), said = paying(), spent, said.strip()
-  if kind not in table.prompt.kinds: raise ValueError(f"{question} names no kind of payment out")
-  choices, fact = [name for name, _ in choices_for(table, kind, amt)], fact_for(table, kind)
-  if said in choices: return (fact, amt) if fact and said == "yes" else None
-  part = (summed_up(question, said, paid) or typed(said)) if kind in table.business else None
-  if fact and part is not None and ZERO < part <= amt: return fact, part
-  numbered = ", payments by number such as payments 1, 3" if paid else ""
-  share = f"{numbered}, or the part that was, from 0.01 to {amt:,}" if kind in table.business else ""
-  raise ValueError(f"answer {question} with one of: {', '.join(choices)}{share}")
-
-def outgoing(amt:Decimal, cnt:int, kind:str, doc:str) -> str:
-  return f"{amt:,} paid out in {cnt} payment{'s' if cnt > 1 else ''} that look{'' if cnt > 1 else 's'} like {plain(kind)}, in {doc}"
 
 def fingerprint(raw:bytes) -> str: return hashlib.sha256(raw).hexdigest()[:32]
 
-def wording(raw:dict[str, Any], name:str) -> dict[str, str]:
-  if name not in raw: return {}
-  held = raw[name]
-  if not isinstance(held, dict) or not all(isinstance(k, str) and k.strip() and isinstance(v, str) and v.strip() for k, v in held.items()):
-    raise ValueError(f"{name} must be a JSON object of text, with nothing left blank")
-  return held
+def keyed(into:dict[str, Any], doc:str, said:str, one:Any) -> None:
+  key, cnt = f"{doc}, {said}", 1
+  while key in into: key, cnt = f"{doc}, {said} ({cnt + 1})", cnt + 1
+  into[key] = one
 
-def at(given:dict[str, Any], name:str) -> Any:
-  part, _, field = name.partition(".")
-  if not field: return given.get(part)
-  if not isinstance(block := given.get(part, {}), dict): raise ValueError(f"{part} must be a JSON object")
-  return block.get(field)
+def noted(held:Case, name:str, doc:Document, paid:list[tuple[str, Payment]], read:list[Reading], lines:list[tuple[str, Line]]) -> Case:
+  if name in held.documents: raise ValueError(f"the case already holds a document {name}")
+  payments, readings, asked = dict(held.payments), dict(held.readings), dict(held.lines)
+  for said, p in paid: keyed(payments, name, said, p)
+  for r in read: keyed(readings, name, r.fact, r)
+  for said, one in lines: keyed(asked, name, said, one)
+  return replace(held, documents=held.documents | {name: doc}, payments=payments, readings=readings, lines=asked)
 
-def is_given(given:dict[str, Any], proposed:dict[str, Decimal], name:str) -> bool: return at(given, name) is not None or name in proposed
-
-def apart(raw:Any) -> tuple[dict[str, Any], dict[str, dict[str, str]], dict[str, Decimal]]:
-  if not isinstance(raw, dict): raise ValueError("facts must be a JSON object")
-  held = {name: wording(raw, name) for name in WORDING}
-  if held["year"] and held["year"] != yearly(held["year"].get("from", "")): raise ValueError(f"year must be one income year, not {held['year']}")
-  if "proposed" in raw: raise ValueError("a case that keeps proposed figures was kept by an earlier version and cannot be read")
-  if (held["version"] or held["documents"]) and held["version"] != VERSION:
-    raise ValueError(f"a case of version {held['version'].get('case', 'none')} cannot be read")
-  given = {k: v for k, v in raw.items() if k not in WORDING}
-  if unknown := sorted(n for n in (*held["sources"], *held["confirmed"]) if at(given, n) is None):
-    raise ValueError(f"sources and confirmed figures name facts the case does not give {unknown}")
-  if nested := sorted(k for k in held["sources"] if isinstance(given.get(k), (dict, list))): raise ValueError(f"sources cannot name {nested}")
-  docs = listed(held)
-  if stray := sorted(k for k in held["read"] if not (part := owned(k, docs)) or part[1] not in PLACES):
-    raise ValueError(f"read names a document or a fact the case does not know {stray}")
-  if bad := sorted(k for k, v in held["read"].items() if not (hit := READ.fullmatch(v)) or typed(hit["amt"]) is None):
-    raise ValueError(f"read holds a figure that is not an amount {bad}")
-  if marks := sorted(k for k, v in held["checks"].items() if v not in (DIFFERS, UNCHECKED) or not owned(k, docs)):
-    raise ValueError(f"checks holds unknown marks or documents {marks}")
-  if bad := sorted(k for k, v in held["confirmed"].items() if typed(v) is None):
-    raise ValueError(f"confirmed holds a figure that is not an amount {bad}")
-  proposed, sources = proposals(given, held)
-  shown = held["sources"] | {n: said for n, said in sources.items() if at(given, n) is None}
-  return given, held | {"sources": shown, "proposing": sources}, proposed
-
-def listed(held:dict[str, dict[str, str]]) -> list[str]: return sorted(held["documents"], key=len, reverse=True)
-
-def owned(key:str, docs:list[str]) -> tuple[str, str]|None:
-  return next(((d, key[len(d) + 2:]) for d in docs if key.startswith(f"{d}, ")), None)
-
-def proposals(given:dict[str, Any], held:dict[str, dict[str, str]]) -> tuple[dict[str, Decimal], dict[str, str]]:
-  ret, sources, worked = {}, {}, derived(held)
-  worked |= {fact: (ZERO, GONE) for fact in held["confirmed"] if fact not in worked}
-  for fact, (amt, said) in worked.items():
-    if (was := at(given, fact)) is not None and typed(held["confirmed"].get(fact, str(was))) == amt: continue
-    ret[fact], sources[fact] = amt, said
-  return ret, sources
-
-def dumped(value:Any, deep:int=0) -> str:
-  pad = "  " * deep
-  if isinstance(value, bool): return "true" if value else "false"
-  if isinstance(value, (int, Decimal)): return str(value)
-  if isinstance(value, str): return json.dumps(value)
-  if isinstance(value, list) and not value: return "[]"
-  if isinstance(value, dict) and not value: return "{}"
-  if isinstance(value, list): return "[\n" + ",\n".join(f"{pad}  " + dumped(item, deep + 1) for item in value) + f"\n{pad}]"
-  if isinstance(value, dict):
-    return "{\n" + ",\n".join(f"{pad}  {json.dumps(k)}: " + dumped(v, deep + 1) for k, v in value.items()) + f"\n{pad}}}"
-  raise ValueError(f"a case file cannot hold {value}")
-
-@dataclass(frozen=True)
-class Document:
-  name: str
-  path: str
-  mark: str
-  kind: str
-
-@dataclass(frozen=True)
-class Noted:
-  asked: tuple[str, ...]
-  answered: tuple[str, ...]
-
-def still_open(given:dict[str, Any], held:dict[str, dict[str, str]], proposed:dict[str, Decimal]) -> dict[str, str]:
-  needs = spoken("labelling").needs
-  def is_met(question:str) -> bool:
-    if NO_INCOME.fullmatch(question): return is_trading(given, held, proposed)
-    return bool((need := LACKING.fullmatch(question)) and need["kind"] in needs and is_given(given, proposed, needs[need["kind"]][0]))
-  return {question: asks for question, asks in held["pending"].items() if not is_met(question)}
-
-def as_file(given:dict[str, Any], held:dict[str, dict[str, str]]) -> str:
-  kept = held | {"version": VERSION, "sources": {n: said for n, said in held["sources"].items() if at(given, n) is not None},
-                 "pending": still_open(given, held, proposals(given, held)[0])}
-  return dumped(given | {k: kept[k] for k in WORDING if kept[k]}) + "\n"
-
-def newly(before:str, after:str) -> dict[str, Decimal]:
-  was, now = apart(loaded(before))[2], apart(loaded(after))[2]
-  return {name: amt for name, amt in now.items() if was.get(name) != amt}
-
-def placed(held:dict[str, dict[str, str]], asking:list[tuple[str, str]]) -> Noted:
-  before = tuple(q for q, _ in asking if q in held["answers"])
-  fresh = [(q, asks) for q, asks in asking if q not in before]
-  for question, asks in fresh:
-    if answers_to(question, held["pending"].get(question, asks)) != answers_to(question, asks):
-      raise ValueError(f"the same question is already open with different wording {question}")
-    held["pending"][question] = asks
-  return Noted(tuple(q for q, _ in fresh), before)
-
-def filed(into:dict[str, str], doc:str, pairs:tuple[tuple[str, str], ...]) -> None:
-  repeats:dict[str, int] = {}
-  for said, kind in pairs:
-    repeats[said] = cnt = repeats.get(said, 0) + 1
-    into[f"{doc}, {said}" + (f" ({cnt})" if cnt > 1 else "")] = kind
-
-def noted(text:str, doc:Document, asking:list[tuple[str, str]],
-          labels:tuple[tuple[str, str], ...]=(), paid:tuple[tuple[str, str], ...]=(), left:tuple[tuple[str, str], ...]=(),
-          currency:str|None=None, read:tuple[tuple[str, str], ...]=(), checks:tuple[tuple[str, str], ...]=()) -> tuple[str, Noted]:
-  given, held, _ = apart(loaded(text))
-  how = placed(held, asking)
-  filed(held["labels"], doc.name, labels)
-  filed(held["paid"], doc.name, paid)
-  filed(held["outside"], doc.name, left)
-  filed(held["read"], doc.name, read)
-  filed(held["checks"], doc.name, checks)
-  if currency is not None: held["currencies"][doc.name] = currency
-  held["documents"][doc.name] = doc.kind
-  held["texts"][doc.mark] = doc.name
-  held["paths"][doc.name] = doc.path
-  return as_file(given, held), how
-
-def put(given:dict[str, Any], name:str, amt:Decimal|int|bool) -> dict[str, Any]:
-  part, _, field = name.partition(".")
-  return given | {part: (given.get(part) or {}) | {field: amt} if field else amt}
-
-def confirm(text:str, name:str) -> str:
-  given, held, proposed = apart(loaded(text))
+def confirm(held:Case, t:Tables, name:str) -> Case:
+  proposed, sources = proposals(held, t)
   if name not in proposed: raise ValueError(f"nothing is proposed for {name}")
-  held["confirmed"][name], held["sources"][name] = str(proposed[name]), held["proposing"][name]
-  return as_file(put(given, name, proposed[name]), held)
+  return replace(held, given=put(held.given, name, proposed[name]), confirmed=held.confirmed | {name: str(proposed[name])},
+                 sources=held.sources | {name: sources[name]})
 
-def unconfirmed(text:str, name:str) -> str:
-  given, held, _ = apart(loaded(text))
-  if name not in held["confirmed"] or held["sources"].get(name) == ENTERED: raise ValueError(f"{name} was not confirmed from a proposal")
-  del held["confirmed"][name], held["sources"][name]
-  return as_file(cleared(given, name), held)
+def cleared(given:dict[str, Any], name:str) -> dict[str, Any]:
+  part, _, field = name.partition(".")
+  if not field: return {k: v for k, v in given.items() if k != part}
+  return given | {part: {k: v for k, v in (given.get(part) or {}).items() if k != field}}
 
-ENTERED = "entered by you"
+def unconfirmed(held:Case, name:str) -> Case:
+  if name not in held.confirmed or held.sources.get(name) == ENTERED: raise ValueError(f"{name} was not confirmed from a proposal")
+  return replace(held, given=cleared(held.given, name), confirmed=without(held.confirmed, name), sources=without(held.sources, name))
+
+def without(held:dict[str, str], *names:str) -> dict[str, str]: return {k: v for k, v in held.items() if k not in names}
 
 def yes_or_no(name:str, said:str) -> bool:
   if said not in ("yes", "no"): raise ValueError(f"{name} takes yes or no, not {said}")
@@ -272,125 +57,57 @@ def money_in(name:str, said:str) -> Decimal: return amount(said)
 
 SETTABLE = {"resident": yes_or_no, "spouse_above_interest_bar": yes_or_no, "dependants": whole} | dict.fromkeys(PLACES, money_in)
 
-def cleared(given:dict[str, Any], name:str) -> dict[str, Any]:
-  part, _, field = name.partition(".")
-  if not field: return {k: v for k, v in given.items() if k != part}
-  return given | {part: {k: v for k, v in (given.get(part) or {}).items() if k != field}}
-
-def set_fact(text:str, name:str, said:str) -> str:
-  given, held, _ = apart(loaded(text))
+def set_fact(held:Case, t:Tables, name:str, said:str) -> Case:
   if (parse := SETTABLE.get(name)) is None: raise ValueError(f"no fact {name} can be entered")
-  held["confirmed"].pop(name, None)
+  confirmed, sources = without(held.confirmed, name), without(held.sources, name)
   if said := said.strip().lower():
-    given = put(given, name, parse(name, said))
-    held["sources"][name] = ENTERED
-    if name in (worked := derived(held)): held["confirmed"][name] = str(worked[name][0])
-  else:
-    given = cleared(given, name)
-    held["sources"].pop(name, None)
+    given, sources = put(held.given, name, parse(name, said)), sources | {name: ENTERED}
+    if name in (worked := derived(held, t)): confirmed |= {name: str(worked[name][0])}
+  else: given = cleared(held.given, name)
   from_json(Facts, given)
-  return as_file(given, held)
+  return replace(held, given=given, confirmed=confirmed, sources=sources)
 
-def answer(text:str, question:str, said:str) -> str:
-  given, held, _ = apart(loaded(text))
-  if question not in held["pending"]: raise ValueError(f"no open question {question}")
-  if question in held["answers"]: raise ValueError(f"already answered {question}")
-  if not said.strip(): raise ValueError(f"the answer to {question} is blank")
-  held["answers"][question], held["asked"][question] = said, held["pending"].pop(question)
-  return as_file(given, held)
+def answered(held:Case, t:Tables, subject:str, said:str) -> Case:
+  q = subject_of(held, t, subject)
+  return replace(held, decisions=held.decisions | {subject: fitted(held, q, said)})
 
-def reopened(text:str, question:str) -> str:
-  given, held, _ = apart(loaded(text))
-  if question not in held["answers"]: raise ValueError(f"{question} was never answered")
-  if not (asks := held["asked"].pop(question, None) or answers_to(question, "")):
-    raise ValueError(f"{question} was answered before its wording was kept, so it cannot be changed")
-  del held["answers"][question]
-  held["pending"][question] = asks
-  return as_file(given, held)
+def forgot(held:Case, subject:str) -> Case:
+  if subject not in held.decisions: raise ValueError(f"nothing was said about {subject}")
+  return replace(held, decisions=without(held.decisions, subject))
 
-def labelled(text:str, credit:str) -> list[str]:
-  mark = re.compile(re.escape(f", {credit}") + r"( \(\d+\))?$")
-  return [k for k in apart(loaded(text))[1]["labels"] if mark.search(k)]
+def removed(held:Case, t:Tables, name:str) -> Case:
+  if name not in held.documents: raise ValueError(f"the case holds no document {name}")
+  def kept[T:(Payment, Reading, Line)](part:dict[str, T]) -> dict[str, T]: return {k: v for k, v in part.items() if v.document != name}
+  payments = kept(held.payments)
+  gone = {*held.payments, *held.readings, *held.lines} - {*payments, *kept(held.readings), *kept(held.lines)}
+  gone |= {trading_in(name), *(costs_of(name, kind) for kind in t.out.prompt.kinds)}
+  needs, labels = {needing(kind): kind for kind in t.into.needs}, {p.label for p in payments.values() if p.way == "in"}
+  def is_kept(subject:str) -> bool: return subject not in gone and (subject not in needs or needs[subject] in labels)
+  return replace(held, documents={k: v for k, v in held.documents.items() if k != name}, payments=payments, readings=kept(held.readings),
+                 lines=kept(held.lines), decisions={k: v for k, v in held.decisions.items() if is_kept(k)})
 
-def offering(asking:str, lines:tuple[tuple[str, str], ...]) -> str: return f"{asking}: " + "; ".join(f"{n} ({d})" for n, d in lines)
-def lines_of(asks:str) -> list[str]: return LINES.findall(asks.partition(": ")[2])
+def with_year(held:Case, first:str) -> Case:
+  year = yearly(first)
+  if clash := sorted(n for n, d in held.documents.items() if d.ends and d.ends != year["to"]):
+    raise ValueError(f"{', '.join(clash)} covers another income year, so the case year cannot start in {first}")
+  return replace(held, year=year)
 
-def is_trading(given:dict[str, Any], held:dict[str, dict[str, str]], proposed:dict[str, Decimal]) -> bool:
-  said = (a.strip() for q, a in held["answers"].items() if NO_INCOME.fullmatch(q))
-  return is_given(given, proposed, "business.gross_income") or "business" in said
+def spoke(src:Source) -> str: return f"{src.doc} {src.section} page {src.page}"
 
-def costed(text:str) -> tuple[str, Noted]:
-  given, held, proposed = apart(loaded(text))
-  table, asked = paying(), [*held["pending"], *held["answers"]]
-  spent = {(s["kind"].replace(" ", "_"), s["doc"]) for q in asked if (s := PAID_OUT.fullmatch(q))}
-  wondered = {m["doc"] for q in asked if (m := NO_INCOME.fullmatch(q))}
-  refused = {m["doc"] for q, a in held["answers"].items() if (m := NO_INCOME.fullmatch(q)) and a.strip() == "not"}
-  costs = {doc: {kind: [amt for _, amt in paid] for kind in table.business if (paid := spent_in(held, doc, kind))} for doc in held["documents"]}
-  if not is_trading(given, held, proposed):
-    ask = [(f"{cnt} payment{'s' if cnt > 1 else ''} in {doc} look{'' if cnt > 1 else 's'} like costs of a business, "
-            "and the case has no business income", costing()) for doc, kinds in costs.items()
-           if kinds and doc not in wondered and (cnt := sum(len(a) for a in kinds.values()))]
-  else:
-    ask = [(outgoing(sum(amts, ZERO), len(amts), kind, doc), asking_for(table, kind, sum(amts, ZERO)))
-           for doc, kinds in costs.items() if doc not in refused for kind, amts in kinds.items() if (kind, doc) not in spent]
-  how = placed(held, ask)
-  return as_file(given, held), how
-
-def labelled_as(text:str, key:str, kind:str) -> str:
-  held, table = apart(loaded(text))[1], spoken("labelling")
-  if key not in held["labels"] or not (part := owned(key, listed(held))): raise ValueError(f"the case holds no payment in {key}")
-  if kind not in picked(table): raise ValueError(f"label {key} with one of: {', '.join(picked(table))}")
-  text, line = relabelled(text, [key], kind, vouched=True), re.sub(r" \(\d+\)$", "", part[1])
-  fits = line in held["pending"] and (not (allowed := closed(line, held["pending"][line])) or kind in allowed)
-  return answer(text, line, kind) if fits and labelled(text, line) == [key] else text
-
-def unread(text:str, key:str) -> str:
-  given, held, _ = apart(loaded(text))
-  if key not in held["read"]: raise ValueError(f"no form was read as {key}")
-  del held["read"][key]
-  return as_file(given, held)
-
-def doubted(text:str, keys:list[str]) -> str:
-  given, held, _ = apart(loaded(text))
-  held["checks"] |= dict.fromkeys(keys, DIFFERS)
-  return as_file(given, held)
-
-def relabelled(text:str, keys:list[str], kind:str, vouched:bool=False) -> str:
-  given, held, _ = apart(loaded(text))
-  for key in keys: held["labels"][key] = kind
-  if vouched: held["checks"] = {key: mark for key, mark in held["checks"].items() if key not in keys or mark != DIFFERS}
-  return as_file(given, held)
-
-def shown(value:Any) -> str:
-  if isinstance(value, bool): return "yes" if value else "no"
-  if isinstance(value, str): return value
-  return f"{value:,}"
+def cited(src:Source) -> dict[str, Any]: return {"doc": src.doc, "section": src.section, "page": src.page, "url": src.url}
 
 def assessed(given:dict[str, Any]) -> tuple[Figure, ...]: return assess(from_json(Facts, given))
-
-def balance(given:dict[str, Any]) -> Figure: return next(fig for fig in assessed(given) if fig.rule == "balance of tax")
-
-def priced(text:str) -> dict[str, dict[str, Figure]]:
-  given, held, _ = apart(loaded(text))
-  table, out, before, ret = spoken("labelling"), paying(), balance(given), {}
-  def worth(choice:str, name:str|None, amt:Decimal) -> Figure:
-    after = balance(put(given, name, (ZERO if (was := at(given, name)) is None else amount(was)) + amt)) if name else before
-    return Figure(choice, after.amt - before.amt, after.src)
-  for question, asks in held["pending"].items():
-    if (paid := PAID_IN.match(question)) and asks in table.asking.values():
-      ret[question] = {kind: worth(kind, table.feeds.get(kind), amount(paid["amt"])) for kind in picked(table) if kind not in table.needs}
-    elif (spent := spent_on(question)) and (fact := fact_for(out, spent[0])):
-      ret[question] = {"yes": worth("yes", fact, spent[1]), "no": worth("no", None, ZERO)}
-    elif (read := ON_LINE.fullmatch(question)) and (lines := lines_of(asks)):
-      feeds = dict(wanted().feeds)
-      ret[question] = {line: worth(line, feeds.get(line), amount(read["amt"])) for line in lines}
-  return ret
 
 def figures(given:dict[str, Any]) -> list[str]:
   ret = []
   for fig in assessed(given):
     ret += [f"{fig.rule:<46}{fig.amt:>14,}"] + [f"  {s.section:<42}{s.url}" for s in fig.src]
   return ret
+
+def shown(value:Any) -> str:
+  if isinstance(value, bool): return "yes" if value else "no"
+  if isinstance(value, str): return value
+  return f"{value:,}"
 
 def stated(name:str, value:Any, deep:int) -> list[str]:
   pad = "  " * deep
@@ -399,8 +116,7 @@ def stated(name:str, value:Any, deep:int) -> list[str]:
   if isinstance(value, dict): return [f"{pad}{name}"] + states(value, deep + 1)
   return [f"{pad}{name:<{max(14, 46 - len(pad))}}{shown(value):>14}"]
 
-def states(given:dict[str, Any], deep:int) -> list[str]:
-  return [line for name, value in given.items() for line in stated(name, value, deep)]
+def states(given:dict[str, Any], deep:int) -> list[str]: return [line for name, value in given.items() for line in stated(name, value, deep)]
 
 def with_wording(given:dict[str, Any], sources:dict[str, str], deep:int=1, prefix:str="") -> list[str]:
   ret = []
@@ -417,157 +133,85 @@ def texted(value:Any) -> Any:
   if isinstance(value, dict): return {name: texted(one) for name, one in value.items()}
   raise ValueError(f"a case holds no {type(value).__name__} {value}")
 
-def case(text:str) -> dict[str, Any]:
-  given, held, proposed = apart(loaded(text))
-  worked = [{"rule": fig.rule, "amount": str(fig.amt), "sources": [cited(s) for s in fig.src]} for fig in assessed(given)]
-  money = texted(received(held, spoken("labelling"))) | {"year_sources": [cited(s) for s in YEAR_SRC]}
-  priced_out = {question: {choice: {"amount": str(fig.amt), "sources": [cited(s) for s in fig.src]} for choice, fig in each.items()}
-                for question, each in priced(text).items()}
-  held = held | {"pending": still_open(given, held, proposed)}
-  pending = {question: answers_to(question, asks) for question, asks in held["pending"].items()}
-  headlines = {question: said for question, asks in held["pending"].items() if (said := headline(question, asks))}
-  payments = {question: [line for line, _ in paid] for question in held["pending"] if (paid := behind(held, question))}
-  worked_out = {"pending": pending, "headlines": headlines, "payments": payments, "figures": worked, "received": money, "prices": priced_out}
-  changed = {fact: {"was": texted(at(given, fact)), "source": held["proposing"][fact]} for fact in proposed if at(given, fact) is not None}
-  return {"facts": texted(given), "proposed": texted(proposed), "changed": changed} | {k: held[k] for k in WORDING} | worked_out
-
-@dataclass(frozen=True)
-class Paid:
-  key: str
-  doc: str
-  amt: Decimal
-  date: str
-  kind: str
-
-def credited(key:str, kind:str, docs:list[str], table:Table) -> Paid|None:
-  if not (part := owned(key, docs)) or kind not in table.prompt.kinds or not (m := PAID_IN.match(part[1])): return None
-  try: return Paid(key, part[0], amount(m["amt"]), m["date"], kind)
-  except ValueError: return None
-
-def derived(held:dict[str, dict[str, str]]) -> dict[str, tuple[Decimal, str]]:
-  table, feeds, docs = spoken("labelling"), dict(wanted().feeds), listed(held)
-  parts:dict[str, list[tuple[Decimal, str]]] = {}
-  counted:dict[tuple[str, str], list[Paid]] = {}
-  _, dated, year = placed_in_year(held, table)
-  for paid, month in dated:
-    if (month is None or month in year) and paid.kind in table.feeds and held["checks"].get(paid.key) != DIFFERS:
-      counted.setdefault((paid.doc, paid.kind), []).append(paid)
-  for (doc, kind), lines in counted.items():
-    unsure = sum(1 for p in lines if held["checks"].get(p.key) == UNCHECKED)
-    said = f"{doc}, {len(lines)} labelled {kind}" + (f", {unsure} unchecked" if unsure else "")
-    parts.setdefault(table.feeds[kind], []).append((sum((p.amt for p in lines), ZERO), said))
-  for key, said in held["read"].items():
-    part, read = owned(key, docs), READ.fullmatch(said)
-    assert part and read
-    parts.setdefault(part[1], []).append((amount(read["amt"]), f"{part[0]}, {read['quote']}"))
-  for question, said in held["answers"].items():
-    if relief := taken(question, said, behind(held, question)):
-      parts.setdefault(relief[0], []).append((relief[1], f"answered {question}"))
-    elif (line := ON_LINE.fullmatch(question)) and (fact := feeds.get(said.strip())):
-      parts.setdefault(fact, []).append((amount(line["amt"]), f"answered {question}"))
-  return {fact: (sum((amt for amt, _ in each), ZERO), ", ".join(src for _, src in each)) for fact, each in parts.items()}
-
-def year_of(month:str) -> tuple[str, ...]:
-  first = int(month[:4]) - (int(month[5:]) < YEAR_STARTS)
-  return tuple(f"{first + (YEAR_STARTS - 1 + n) // 12}-{(YEAR_STARTS - 1 + n) % 12 + 1:02d}" for n in range(12))
-
-def yearly(first:str) -> dict[str, str]:
-  if not MONTH.fullmatch(first) or int(first[5:]) != YEAR_STARTS: raise ValueError(f"an income year starts in month {YEAR_STARTS}, not {first!r}")
-  return {"from": first, "to": year_of(first)[-1]}
-
-def removed(text:str, name:str) -> str:
-  given, held, _ = apart(loaded(text))
-  if name not in held["documents"]: raise ValueError(f"the case holds no document {name}")
-  form = wanted().name
-  if (held["documents"][name] == form and list(held["documents"].values()).count(form) > 1
-      and any(ON_LINE.fullmatch(q) for q in (*held["pending"], *held["answers"]))):
-    raise ValueError(f"{name} shares form line answers with another form, so it cannot be removed")
-  docs = listed(held)
-  def is_its(key:str) -> bool: return (part := owned(key, docs)) is not None and part[0] == name
-  own = {v for k, v in held["labels"].items() if is_its(k)}
-  for record in ("labels", "paid", "read", "checks", "outside"): held[record] = {k: v for k, v in held[record].items() if not is_its(k)}
-  for record in ("documents", "paths", "currencies"): held[record].pop(name, None)
-  held["texts"] = {mark: doc for mark, doc in held["texts"].items() if doc != name}
-  lines = {line for key in held["labels"] if (part := owned(key, docs)) for line in (part[1], re.sub(r" \(\d+\)$", "", part[1]))}
-  kinds, forms = set(held["labels"].values()), form in held["documents"].values()
-  def is_left(question:str, said:str|None) -> bool:
-    if (spent := PAID_OUT.fullmatch(question)) or (spent := NO_INCOME.fullmatch(question)): return spent["doc"] != name
-    if ON_LINE.fullmatch(question): return forms
-    if need := LACKING.fullmatch(question): return need["kind"] in kinds if said is None else not {need["kind"], said.strip()} & own
-    return not PAID_IN.match(question) or question in lines
-  held["pending"] = {q: asks for q, asks in held["pending"].items() if is_left(q, None)}
-  held["answers"] = {q: said for q, said in held["answers"].items() if is_left(q, said)}
-  held["asked"] = {q: asks for q, asks in held["asked"].items() if q in held["answers"]}
-  return as_file(given, held)
-
-def with_year(text:str, first:str) -> str:
-  given, held, _ = apart(loaded(text))
-  year = yearly(first)
-  if held["year"] and held["year"] != year and held["documents"]:
-    raise ValueError(f"the case already reads documents for the year from {held['year']['from']}, so its year cannot change")
-  held["year"] = year
-  return as_file(given, held)
-
-def spoke(src:Source) -> str: return f"{src.doc} {src.section} page {src.page}"
-
-def cited(src:Source) -> dict[str, Any]: return {"doc": src.doc, "section": src.section, "page": src.page, "url": src.url}
-
-def placed_in_year(held:dict[str, dict[str, str]], table:Table) -> tuple[dict[str, Paid|None], list[tuple[Paid, str|None]], tuple[str, ...]]:
-  docs = listed(held)
-  read = {key: credited(key, kind, docs, table) for key, kind in held["labels"].items()}
-  found = [p for p in read.values() if p is not None]
-  ways = {doc: months(tuple(p.date for p in found if p.doc == doc)) for doc in {p.doc for p in found}}
-  dated = [(p, ways[p.doc][p.date]) for p in found]
-  last = max((at for _, at in dated if at), default="")
-  return read, dated, year_of(first) if (first := held["year"].get("from") or last) else ()
-
-def received(held:dict[str, dict[str, str]], table:Table) -> dict[str, Any]:
+def received(held:Case, t:Tables) -> dict[str, Any]:
+  table = t.into
   where = {kind: group for group, kinds in (("income", (*table.feeds, *table.needs)), ("exempt", table.exempt), ("unsorted", table.asking),
                                              ("other", table.not_income)) for kind in kinds}
-  read, dated, year = placed_in_year(held, table)
-  counted = [p for p, at in dated if at is None or at in year]
-  kinds = summed([(p.kind, p.amt) for p in counted])
-  groups = summed([(where[p.kind], p.amt) for p in counted])
-  by_month = {m: [p for p, at in dated if at == m] for m in year}
-  return {"groups": {group: groups.get(group, NIL) for group in GROUPS}, "kinds": dict(sorted(kinds.items(), key=lambda one: -one[1])),
-          "group_of": where,
-          "months": {m: {"total": sum((p.amt for p in paid), NIL), "groups": summed([(where[p.kind], p.amt) for p in paid]),
-                         "payments": {g: [p.key for p in paid if where[p.kind] == g] for g in dict.fromkeys(where[p.kind] for p in paid)}}
-                     for m, paid in by_month.items()},
-          "outside": [p.key for p, at in dated if at and at not in year],
-          "undated": [p.key for p, at in dated if at is None], "unread": [key for key, p in read.items() if p is None]}
+  months = months_of(held)
+  paid = [(key, p, where.get(label_of(held, t, key, p), "unsorted"), label_of(held, t, key, p)) for key, p in held.payments.items()
+          if p.way == "in" and held.decisions.get(key) != OUT]
+  inside = [one for one in paid if is_inside(one[1], months)]
+  def by_month(m:str) -> list[tuple[str, Payment, str, str]]: return [one for one in inside if one[1].month == m]
+  return {"groups": {g: summed([(group, p.amount) for _, p, group, _ in inside]).get(g, NIL) for g in GROUPS},
+          "kinds": dict(sorted(summed([(kind, p.amount) for _, p, _, kind in inside]).items(), key=lambda one: -one[1])), "group_of": where,
+          "months": {m: {"total": sum((p.amount for _, p, _, _ in by_month(m)), NIL), "groups": summed([(g, p.amount) for _, p, g, _ in by_month(m)]),
+                         "payments": {g: [k for k, _, gg, _ in by_month(m) if gg == g] for g in dict.fromkeys(g for _, _, g, _ in by_month(m))}}
+                     for m in months},
+          "outside": [k for k, p, _, _ in paid if not is_inside(p, months)], "undated": [k for k, p, _, _ in paid if p.month is None]}
 
-def keep(text:str) -> list[str]:
-  given, held, proposed = apart(loaded(text))
-  worked = figures(given)
-  ret = ["facts you confirmed"] + with_wording(given, held["sources"]) + ["", "figures"] + ["  " + line for line in worked]
-  if proposed: ret += ["", "figures proposed, not confirmed"] + with_wording(proposed, held["sources"])
-  table = spoken("labelling")
-  money = received(held, table)
+def said_to(held:Case, q:Asked) -> str|None: return said if (said := held.decisions.get(q.subject)) is not None and fits(q, said) else None
+
+def asked_data(held:Case, t:Tables, q:Asked, base:Base) -> dict[str, Any]:
+  said = said_to(held, q)
+  prices = {} if said is not None else priced(held, t, q, base)
+  shown = {c: {"amount": str(f.amt), "sources": [cited(s) for s in f.src]} for c, f in prices.items()}
+  return {"subject": q.subject, "about": q.about, "asks": q.asks, "choices": [list(c) for c in q.choices], "document": q.document,
+          "headline": q.headline, "amount": str(q.amount), "payments": list(q.paid), "share": q.share, "said": said,
+          "earlier": held.decisions.get(q.subject) if said is None else None, "prices": shown}
+
+def case(held:Case, t:Tables) -> dict[str, Any]:
+  base = based(held, t)
+  proposed, proposing = proposed_from(held, base.worked)
+  asked = questions(held, t, proposed)
+  money = texted(received(held, t)) | {"year_sources": [cited(s) for s in YEAR_SRC]}
+  payments = {key: {"document": p.document, "way": p.way, "amount": str(p.amount), "date": p.date, "description": p.description,
+                    "label": label_of(held, t, key, p), "read": read_as(held, t, p), "check": p.check, "month": p.month,
+                    "said": held.decisions.get(key)} for key, p in held.payments.items()}
+  readings = {key: {"document": r.document, "fact": r.fact, "amount": str(r.amount), "quote": r.quote, "wrong": held.decisions.get(key) == WRONG}
+              for key, r in held.readings.items()}
+  changed = {fact: {"was": texted(at(held.given, fact)), "source": proposing[fact]} for fact in proposed if at(held.given, fact) is not None}
+  sources = held.sources | {n: said for n, said in proposing.items() if at(held.given, n) is None}
+  return {"facts": texted(held.given), "proposed": texted(proposed), "changed": changed, "sources": sources, "confirmed": held.confirmed,
+          "year": held.year, "documents": {n: d.kind for n, d in held.documents.items()},
+          "questions": [asked_data(held, t, q, base) for q in asked], "payments": payments, "readings": readings,
+          "kinds": {"in": list(picked(t.into)), "out": list(t.out.prompt.kinds)},
+          "figures": [{"rule": f.rule, "amount": str(f.amt), "sources": [cited(s) for s in f.src]} for f in assessed(held.given)], "received": money}
+
+def keep(held:Case, t:Tables) -> list[str]:
+  base = based(held, t)
+  proposed, proposing = proposed_from(held, base.worked)
+  ret = ["facts you confirmed"] + with_wording(held.given, held.sources) + ["", "figures"] + ["  " + line for line in figures(held.given)]
+  if proposed: ret += ["", "figures proposed, not confirmed"] + with_wording(proposed, proposing)
+  money = received(held, t)
   if money["kinds"]:
-    freed = [f"    {spoke(s)}" for s in table.exempt.values()]
+    freed = [f"    {spoke(s)}" for s in t.into.exempt.values()]
     ret += ["", "money paid in, by what it counts as, as labelled"]
     ret += [line for group, amt in money["groups"].items() for line in [f"  {GROUPS[group]:<44}{amt:>14,}"] + (freed if group == "exempt" else [])]
     ret += ["", "money paid in, by the kind it was labelled"]
-    ret += [f"  {kind:<27}{GROUPS[money['group_of'][kind]]:<17}{amt:>14,}" for kind, amt in money["kinds"].items()]
+    ret += [f"  {kind:<27}{GROUPS[money['group_of'].get(kind, 'unsorted')]:<17}{amt:>14,}" for kind, amt in money["kinds"].items()]
   if year := list(money["months"]):
     ret += ["", f"money paid in over the income year from {year[0]} to {year[-1]}, {', '.join(spoke(s) for s in YEAR_SRC)}"]
     ret += [f"  {m:<44}{one['total']:>14,}" for m, one in money["months"].items()]
   if money["outside"]: ret += ["", "money paid in outside that income year"] + [f"  {key}" for key in money["outside"]]
   if money["undated"]: ret += ["", "money paid in with a date whose month is not clear"] + [f"  {key}" for key in money["undated"]]
-  if money["unread"]: ret += ["", "labels that do not read as money paid in"] + [f"  {key}" for key in money["unread"]]
-  for name, title in TITLES.items():
-    if not held[name]: continue
-    ret += ["", title]
-    for key, value in held[name].items():
-      if name != "pending":
-        ret += [f"  {key}", f"      {value}"]
-        continue
-      ret += [f"  {key}"] + ([f"      {said}"] if (said := headline(key, value)) else []) + [f"      {answers_to(key, value)}"]
-      ret += [f"      {n}. {line}" for n, (line, _) in enumerate(behind(held, key), 1)]
-  if worths := priced(text):
-    ret += ["", "what each answer changes in the tax to pay"]
-    for question, each in worths.items():
-      ret.append(f"  {question}")
-      for choice, fig in each.items(): ret += [f"    {choice:<30}{fig.amt:>+14,}"] + [f"      {s.section:<40}{s.url}" for s in fig.src]
+  if held.documents: ret += ["", "documents you read"] + [f"  {n:<44}{d.kind}" for n, d in held.documents.items()]
+  if held.payments:
+    ret += ["", "how each payment was labelled"]
+    for key, p in held.payments.items():
+      said = held.decisions.get(key)
+      ret += [f"  {key}", f"      {label_of(held, t, key, p)}" + (", as you said" if said else f", {p.check}" if p.check != "ok" else "")]
+  if held.readings:
+    ret += ["", "what each form was read as"]
+    for key, r in held.readings.items():
+      ret += [f"  {key}", f"      {r.amount:,} read from {r.quote}" + (", misread as you said" if held.decisions.get(key) == WRONG else "")]
+  asked = questions(held, t, proposed)
+  if waiting := [q for q in asked if said_to(held, q) is None]:
+    ret += ["", "questions still open"]
+    for q in waiting:
+      ret += [f"  {q.subject}"] + ([f"      {q.headline}"] if q.headline else []) + ([f"      {q.about}"] if q.about != q.subject else [])
+      ret += [f"      {q.asks}: " + "; ".join(f"{n} ({d})" for n, d in q.choices)]
+      if q.share: ret += [f"      {n}. {p.date} {p.amount:,} {p.description}" for n, p in enumerate((held.payments[k] for k in q.paid), 1)]
+      for choice, fig in priced(held, t, q, base).items(): ret += [f"      {choice:<30}{fig.amt:>+14,}"]
+  if done := [(q, said) for q in asked if (said := said_to(held, q)) is not None]:
+    ret += ["", "questions you answered"] + [line for q, said in done for line in (f"  {q.subject}", f"      {said}")]
   return ret

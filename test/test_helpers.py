@@ -30,9 +30,11 @@ class TestData(unittest.TestCase):
 
   def test_utf8_whatever_the_locale(self):
     plain = {**os.environ, "LC_ALL": "C", "PYTHONCOERCECLOCALE": "0", "PYTHONUTF8": "0"}
-    code = "\n".join(["import pathlib, sys", "from it01.helpers import data", "from it01.__main__ import rewritten", "data('model')",
-                      "here = pathlib.Path(sys.argv[1])", "rewritten(here, 'Emile \\u00e9')", "sys.stdout.buffer.write(here.read_bytes())"])
+    code = "\n".join(["import pathlib, sys", "from it01.helpers import data", "from it01.__main__ import held_in, rewritten", "data('model')",
+                      "here = pathlib.Path(sys.argv[1])", "rewritten(here, held_in(here))",
+                      "sys.stdout.buffer.write(held_in(here).sources['salary'].encode('utf-8'))"])
     with tempfile.TemporaryDirectory() as mine:
+      (pathlib.Path(mine)/"case.json").write_bytes('{"resident": true, "salary": 1, "sources": {"salary": "Emile \u00e9"}}'.encode())
       here = str(pathlib.Path(mine)/"case.json")
       root = pathlib.Path(__file__).parent.parent
       ran = subprocess.run([sys.executable, "-c", code, here], cwd=root, env=plain, capture_output=True, encoding="utf-8")

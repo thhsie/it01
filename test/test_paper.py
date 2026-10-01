@@ -1,6 +1,7 @@
 import json, pathlib, tempfile, unittest
 from unittest import mock
-from it01.__main__ import opened, source
+from it01.__main__ import opened_doc, source
+from it01.held import VERSION
 from it01.keep import fingerprint
 
 try:
@@ -42,11 +43,12 @@ class TestPaper(unittest.TestCase):
   def test_a_file_read_differently_since_is_still_shown(self):
     here = saved(b"Total emoluments  1,107,000.00\n", ".txt")
     self.addCleanup(here.unlink)
-    facts = {"resident": True, "paths": {here.name: str(here)}, "texts": {fingerprint(here.read_bytes()): here.name}}
+    facts = {"resident": True, "version": VERSION,
+             "documents": {here.name: {"kind": "statement of emoluments", "path": str(here), "mark": fingerprint(here.read_bytes())}}}
     held_at = saved(json.dumps(facts).encode(), ".json")
     self.addCleanup(held_at.unlink)
     with mock.patch("it01.__main__.source", return_value="Total emoluments  1,107,000.60"):
-      self.assertEqual(opened(held_at, here.name), ["Total emoluments  1,107,000.60"])
+      self.assertEqual(opened_doc(held_at, here.name), ["Total emoluments  1,107,000.60"])
 
 def told(*pages:str): return mock.patch.object(local, "looked", lambda shots: pages[:len(shots)])
 
@@ -75,11 +77,12 @@ class TestPdf(unittest.TestCase):
   def test_a_pdf_a_case_read_is_shown_line_by_line(self):
     here = saved(written(LINES), ".pdf")
     self.addCleanup(here.unlink)
-    facts = {"resident": True, "paths": {here.name: str(here)}, "texts": {fingerprint(here.read_bytes()): here.name}}
+    facts = {"resident": True, "version": VERSION,
+             "documents": {here.name: {"kind": "statement of emoluments", "path": str(here), "mark": fingerprint(here.read_bytes())}}}
     held_at = saved(json.dumps(facts).encode(), ".json")
     self.addCleanup(held_at.unlink)
     with told("\n".join(line.decode() for line in LINES)):
-      self.assertEqual(opened(held_at, here.name), [line.decode() for line in LINES])
+      self.assertEqual(opened_doc(held_at, here.name), [line.decode() for line in LINES])
 
   def test_a_pdf_is_read_by_its_suffix(self):
     for suffix in (".pdf", ".PDF"):

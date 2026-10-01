@@ -2,9 +2,9 @@ import importlib.util, json, unittest
 from decimal import Decimal
 from unittest import mock
 from it01.rows import Check
-from it01.credits import asked, drifted, label, received
+from it01.credits import label, received
 from it01.labels import listed, named, totals
-from it01.kinds import ADRIFT, picked, spoken
+from it01.kinds import picked, spoken
 from it01.tax import PLACES
 
 PAID_IN = """\
@@ -14,16 +14,6 @@ Date        Description                    Debit       Credit      Balance
 03/07/2025  Rent                          1,500.00                 4,500.00
 04/07/2025  INTEREST PAID                               12.50      4,512.50
 05/07/2025  CASH DEPOSIT                               500.00      5,012.50
-"""
-
-OFF_BY = """\
-Date        Description                    Debit       Credit      Balance
-01/07/2025  Opening balance                                       1,000.00
-02/07/2025  RENT JULY                                2,000.00      3,000.00
-03/07/2025  Shop                          1,000.00                 2,000.00
-04/07/2025  RENT AUGUST                              2,000.00      4,000.00
-05/07/2025  Shop                            500.00                 3,500.00
-06/07/2025  RENT SEPTEMBER                           2,000.00      5,600.00
 """
 
 TABLE = spoken("labelling")
@@ -42,14 +32,6 @@ class TestCredits(unittest.TestCase):
     schema = said.call_args.args[2]
     self.assertEqual((schema["required"], schema["additionalProperties"]), (["1", "2", "3"], False))
     self.assertEqual(schema["properties"]["2"], {"type": "string", "enum": list(KINDS)})
-
-  def test_a_credit_whose_balance_does_not_agree_is_asked_about(self):
-    found = named(received(OFF_BY), reply("rent", "rent", "rent"), KINDS)
-    self.assertEqual([(q.amt, q.description, q.asking) for q in drifted(found, FEEDS)], [(Decimal("2000.00"), "RENT SEPTEMBER", ADRIFT)])
-
-  def test_a_credit_of_a_kind_that_feeds_nothing_is_not_asked_about_its_balance(self):
-    found = named(received(OFF_BY), reply("pay", "pay", "pay"), KINDS)
-    self.assertEqual(drifted(found, FEEDS), ())
 
   def test_a_feeds_table_that_does_not_hold_up_is_refused(self):
     base = MODEL | {"name": "a statement", "kinds": {"one": "a", "two": "b", "three": "c"}, "asking": {"three": "what is this"}}
@@ -110,10 +92,10 @@ class TestCredits(unittest.TestCase):
   @unittest.skipIf(any(importlib.util.find_spec(m) is None for m in ("numpy", "onnxruntime", "tokenizers")), "the local extra is not installed")
   def test_a_model_file_labels_the_credits_when_one_is_named(self):
     with mock.patch("it01.labels.IT01_LABELLER", "labeller.onnx"):
-      with mock.patch("it01.local.classified", return_value=("pay", "interest", "cash")) as sorted_by: found, questions = label(PAID_IN)
+      with mock.patch("it01.local.classified", return_value=("pay", "interest", "cash")) as sorted_by: found = label(PAID_IN)
     self.assertEqual([c.kind for c in found], ["pay", "interest", "cash"])
     given = sorted_by.call_args.args
-    self.assertEqual((given[0][0], given[1], len(questions)), ((Decimal("5000.00"), "SALARY JULY ACME LTD"), TABLE.prompt, 1))
+    self.assertEqual((given[0][0], given[1]), ((Decimal("5000.00"), "SALARY JULY ACME LTD"), TABLE.prompt))
 
   def test_the_shipped_table_feeds_only_kinds_and_facts(self):
     for kind, fact in FEEDS.items():
@@ -145,17 +127,8 @@ class TestCredits(unittest.TestCase):
   def test_an_answer_that_is_not_an_object_is_refused(self):
     with self.assertRaisesRegex(ValueError, "must answer with a JSON object"): named(received(PAID_IN), '["pay"]', KINDS)
 
-  def test_the_kinds_that_only_the_taxpayer_knows_become_questions(self):
-    got = named(received(PAID_IN), reply("pay", "unclear", "cash"), KINDS)
-    self.assertEqual([(q.amt, q.asking) for q in asked(got, ASKING)],
-                     [(Decimal("12.50"), ASKING["unclear"]), (Decimal("500.00"), ASKING["cash"])])
-
   def test_a_payment_can_be_answered_with_any_kind_that_is_not_itself_a_question(self):
     self.assertEqual(list(picked(TABLE)), [k for k in KINDS if k not in ASKING])
-
-  def test_a_credit_with_a_settled_kind_raises_no_question(self):
-    got = named(received(PAID_IN), reply("pay", "interest", "business"), KINDS)
-    self.assertEqual(asked(got, ASKING), ())
 
   def test_credits_of_one_kind_are_added_together(self):
     got = named(received(PAID_IN), reply("pay", "pay", "interest"), KINDS)

@@ -50,11 +50,11 @@ A document is read as text. A PDF can be given instead, and each of its pages is
 
 `add` works out what the document is. A running balance column means a bank statement, which is labelled through your endpoint or a model file. Anything else is read with a model file of your own.
 
-The case keeps what it reads: the label of each payment and each figure a form shows. What it cannot place goes to `pending` as a question. A question you have already answered is not asked again, and the command says so.
+The case keeps what it reads: every payment in and out with its label, and each figure a form shows. What you say about them is kept under `decisions`. Questions are not kept. The open questions are worked out each time the case is read.
 
 A document whose name is already in `documents` is not read at all, and the file is left alone. A file identical to one read before is refused the same way, whatever it is called.
 
-The proposed figures are not kept in the file. Each time the case is read, they are worked out from what was read and what you answered. Each payment labelled with a kind that feeds a fact adds to it, and so does each figure a form shows.
+The proposed figures are not kept in the file. Each time the case is read, they are worked out from what was read and what you said. Each payment labelled with a kind that feeds a fact adds to it, and so does each figure a form shows.
 
 A relief or business cost you answered yes to, and a form line you chose, add too. Each figure notes where it came from.
 
@@ -62,9 +62,9 @@ A relief or business cost you answered yes to, and a form line you chose, add to
 
 `unconfirm` takes a confirmed figure out of the facts, and it is proposed again. A figure you entered is cleared with `set`.
 
-`data` prints the same case as JSON, with every number as text. It also gives a short headline for an open question about salary, a payment left out, or money paid out. It lists the payments behind each question about business costs paid out.
+`data` prints the same case as JSON, with every number as text. Each question comes with its subject, wording, answers, headline and price, and what you said. Each payment comes with its label, the label it was read with, and what you said.
 
-`keep` also adds up the money paid in by the kind it was labelled, and names the group of each kind. It also sums it by group: income, exempt, still to sort, or not income. A label that does not read as money paid in is listed, not counted. `data` carries the same totals and the group of each kind.
+`keep` also adds up the money paid in by the kind it was labelled, and names the group of each kind. It also sums it by group: income, exempt, still to sort, or not income. `data` carries the same totals and the group of each kind.
 
 The dates of a statement's labelled payments say which part is the month. A first part from 13 to 31 means the day comes first, and a second part from 13 to 31 means the month comes first. When the dates do not show the order, no payment from that statement is placed in a month, and `keep` lists them. A two-digit year is read as 20yy.
 
@@ -76,9 +76,9 @@ Money paid in is also added up for each month of one income year. The Act's year
 it01 remove facts.json statement-march.pdf
 ```
 
-`remove` drops everything read from one document: its labels, payments out, form figures and checks. Questions and answers about that document go too. Other answers stay.
+`remove` drops everything read from one document: its payments, form figures and form lines. What you said about them goes too. Other answers stay.
 
-The figures are worked out again, so a figure you confirmed from that document is proposed again without it. A form cannot be taken out while another form shares its line answers.
+The figures are worked out again, so a figure you confirmed from that document is proposed again without it.
 
 ## Enter a fact yourself
 
@@ -92,19 +92,21 @@ it01 set facts.json losses_brought_forward ""
 
 An empty value clears the fact, except `resident`. A value the computation would refuse is not kept.
 
-## Answer an open question
+## Answer a question or correct a reading
 
 ```sh
-it01 answer facts.json "1,200.00 paid in on 12/08" "sold my old bicycle"
+it01 answer facts.json "bank.txt, 1,200.00 paid in on 12/08" rent
 ```
 
-Give the start of the question's wording after the file. When it matches no question, or more than one, nothing changes and the command says so.
+Give the start of a subject after the file. A subject is a question, a payment, or a figure a form was read as. When it matches none, or more than one, nothing changes and the command says so.
 
-The question moves from `pending` to `answers` with the words you used. An answer that names a kind of payment, or one of the listed lines that feeds a fact, proposes the amount under that fact.
+The answer is kept under `decisions`, keyed by its subject. An answer the subject does not take is refused, and the case is left as it was. Answering again replaces the earlier answer, and the figures are worked out again.
 
-A line the question did not list is refused. Any other answer is kept as a note and moves no figure. A question already answered is refused, so your first words are kept.
+A payment takes `out`, or any kind of its statement, even one the labeller was sure of. A payment left out for its balance counts once given a kind. A form figure takes `wrong` when the reader took the wrong line.
 
-`it01 keep` prints what each answer would change in the tax to pay. It does this for a payment asked about, a line of a form and a relief found in money paid out. The change is worked out from the facts you confirmed.
+`it01 keep` prints what each answer would change in the tax to pay. The change is worked out from the figures the case would hold with every proposal confirmed.
+
+An answer that no longer fits its question counts for nothing, and the question opens again. `data` shows that answer under `earlier`.
 
 ## Fill in the return
 
@@ -122,21 +124,13 @@ A line ending with `the total of all rows` belongs to a table with one row per e
 
 Facts the return has no single field for are listed last, with where to enter them. The sheet refuses a quarter, because the return takes a year.
 
-## Change an answer
+## Take an answer back
 
 ```sh
-it01 change facts.json "1,200.00 paid in on 12/08" rent
+it01 forget facts.json "bank.txt, 1,200.00 paid in on 12/08"
 ```
 
-`change` puts the question back as it was asked, then answers it again with any answer the question takes. A payment returns to cash or unclear. A payment left out for its balance is left out again. The proposed figures are worked out again.
-
-When the change moves a figure you confirmed, that figure is proposed again. An answer that does not fit leaves the case as it was. An answer about a missing statement cannot be changed, and neither can one given before its wording was kept.
-
-A payment left out because its balance did not agree can also be counted as an income kind. Answer the kind instead of noted.
-
-`relabel` labels a payment in with another kind. Name the payment by its document and line. This works even when the labeller was sure of the label, and the payment counts whatever its balance check said. An open question about that one payment is answered with the kind.
-
-`drop` takes out one figure a form was read as, named by its document and fact. Use it when the reader took the wrong line. A figure you confirmed from it is proposed again without it. `rebuild` reads every document again, so it brings back dropped readings and payments you relabelled.
+`forget` removes what you said about one subject. A payment goes back to the label it was read with, a form figure counts again, and a question opens again. When this moves a figure you confirmed, that figure is proposed again.
 
 ## Read with a model file of your own
 
@@ -178,7 +172,7 @@ it01 debits statement.txt
 
 `rows` finds the columns from the arithmetic, checks each balance against the running total and marks each transaction `ok`, `does not agree` or `not checked`. Each transaction starts with the number of the line it was read from, counting from 1, as `it01 show` prints it. An amount it cannot place is counted, per page.
 
-A statement names its currency when a three-letter code follows the word currency above its first transaction. `it01 add` keeps that code in `currencies`. It refuses a statement whose currency differs from one the case already holds.
+A statement names its currency when a three-letter code follows the word currency above its first transaction. `it01 add` keeps that code with the document. It refuses a statement whose currency differs from one the case already holds.
 
 `credits` labels every payment in through your endpoint, or your model file when `IT01_LABELLER` is set. The kinds are in `it01/labelling.json`. `feeds` says which fact each kind adds to, and `asking` says which kinds it asks you about.
 
@@ -194,9 +188,9 @@ A question about money paid out, a missing statement or a balance that does not 
 
 A question about a missing statement closes once the figure is known. Its answers say what the money was instead, such as business or rent. The answer relabels every payment of that kind. It proposes their total within the year under the fact for the new kind.
 
-A question about a payment in takes one of the kinds `it01 add` prints. A question saved before its answers were listed shows them when the case is read.
+A question about a payment in takes one of the kinds `it01 keep` lists after it.
 
-A question about business costs paid out lists its payments by number. It takes yes, no, the business part as an amount, or the payments that were business costs, such as `payments 1, 3`. The engine adds up the payments named.
+A question about business costs paid out lists its payments by number. It takes yes, no, the business part as an amount, or the payments that were business costs, such as `payments 1, 3`. The engine adds up the payments named and keeps the sum.
 
 Payments that look like business costs are kept even when the case has no business income. Each statement then asks once whether they are costs of your business. Answer business and each kind of cost is asked about, even with no business income yet. Answer not and that statement's costs are never asked about.
 
@@ -267,24 +261,27 @@ Leave out of `income` any state benefit paid to a child or a bedridden relative 
 
 `lending` holds peer to peer lending as `interest` and `bad_debts`. 80% of the interest is exempt. The bad debts come off the rest. Bad debts above the whole interest are carried forward.
 
-Sixteen keys are set aside before the computation, and none of them reaches it:
+Nine keys are set aside before the computation, and none of them reaches it:
 
 ```
-version year sources confirmed documents texts paths asked
-labels paid read checks outside currencies answers pending
+version year sources confirmed documents payments readings lines decisions
 ```
 
-`checks` names each payment into the account whose balance did not agree or was not checked. A payment whose balance did not agree gives no figure until you give it a kind, by answering or with `change`. A figure notes how many of its payments were not checked. A case that has read a document but has no `version`, or that has `proposed`, is refused.
+`documents` holds each document read, with its kind, the full path it was read from and a mark of its contents. A bank statement also holds its currency. A form holds the last month of the year it covers.
 
-`it01 rebuild` reads such a case's documents again from their paths. It keeps the facts you gave and their sources, and proposes again any that differ from a reading. It replays the answers that still fit, and lists the rest and any document it skipped. Nothing changes if a document has no recorded path or is no longer there.
+`payments` holds every payment in and out of a statement. Each has its document, direction, amount, date, description, label, balance check and month. A payment whose balance did not agree gives no figure until you give it a kind. A figure notes how many of its payments were not checked.
 
-`year` holds the income year the case covers, as its first and last month. It starts in July and runs twelve months. `it01 year` sets it. Once the case has a year and has read a document, the year cannot change.
+`readings` holds each figure a form was read as, with the line it came from. `lines` holds each line of a form the reader asked about, with the lines it could be. `decisions` holds what you said, keyed by its subject.
 
-The months of money paid in follow the year. A bank statement line dated outside the year gives no figure and no question. It is kept in `outside`, marked paid in or paid out. A line whose month cannot be read stays in.
+A case of another `version` is refused. `it01 rebuild` reads every document again from its path. It keeps the facts you gave, their sources and everything you said.
 
-`read` holds each figure a form was read as, under the document and the fact, with the line it came from.
+`rebuild` drops what you said about a subject that is no longer read, and lists it. It also reads a case of an earlier version, whose answers it cannot keep. Nothing changes if a document has no recorded path or is no longer there.
 
-`paths` holds the full path each document was read from, so `it01 show` can print the document. `it01 show` refuses a document that is no longer at that path, and one whose file has changed since it was read.
+`year` holds the income year the case covers, as its first and last month. It starts in July and runs twelve months. `it01 year` sets it. A new year is refused when a form covers another year.
+
+The months of money paid in follow the year. A bank statement line dated outside the year gives no figure and no question, and `keep` lists it. A line whose month cannot be read stays in.
+
+`it01 show` prints a document from its recorded path. It refuses one that is no longer there, and one whose file has changed since it was read.
 
 ## Keep your own copies
 
@@ -306,15 +303,13 @@ it01 add FACTS.json DOCUMENT.txt        read a document into the file
 it01 keep FACTS.json                    print everything so far
 it01 show FACTS.json DOCUMENT.txt       print a document the way it was read
 it01 confirm FACTS.json FACT            accept a proposed figure
-it01 answer FACTS.json QUESTION ANSWER  answer an open question
-it01 change FACTS.json QUESTION ANSWER  answer a question again
+it01 answer FACTS.json SUBJECT ANSWER   answer a question, relabel a payment, or mark a reading misread
+it01 forget FACTS.json SUBJECT          take back what you said about a subject
 it01 year FACTS.json YYYY-MM            set the income year from its first month
 it01 set FACTS.json FACT VALUE          enter a fact yourself, or clear it with an empty value
-it01 rebuild FACTS.json                 read an older case's documents again
+it01 rebuild FACTS.json                 read every document again
 it01 remove FACTS.json DOCUMENT         take a document out of the case
 it01 unconfirm FACTS.json FACT          take back a confirmed figure
-it01 relabel FACTS.json PAYMENT KIND    label a payment in with another kind
-it01 drop FACTS.json READING            drop a figure a form was misread as
 it01 read DOCUMENT.txt                  propose facts through your endpoint
 it01 local DOCUMENT.txt                 propose facts with your model file
 it01 rows STATEMENT.txt                 read transactions
