@@ -57,6 +57,11 @@ class TestKeep(unittest.TestCase):
     self.assertTrue(any(line.strip().startswith("kind") and "computer" in line for line in ret))
     self.assertTrue(any(line.startswith("  annual allowance on computer") for line in ret))
 
+  def test_a_list_of_amounts_is_shown_one_amount_a_line(self):
+    ret = keep(made(dependants=1, medical_insurance=[1000, 2000]), T)
+    at = ret.index("  medical_insurance")
+    self.assertEqual([line.split() for line in ret[at + 1:at + 3]], [["1", "1,000"], ["2", "2,000"]])
+
   def test_the_same_key_written_twice_is_refused(self):
     with self.assertRaisesRegex(ValueError, "the same key is written twice cash"): loaded('{"decisions": {"cash": "a", "cash": "b"}}')
 
