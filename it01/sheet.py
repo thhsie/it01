@@ -1,4 +1,5 @@
-from dataclasses import fields
+from dataclasses import fields, is_dataclass, replace
+from decimal import Decimal
 from typing import Any
 from it01.helpers import data
 from it01.law import Addition, Period
@@ -27,8 +28,15 @@ def valued(f:Facts, figs:dict[str, Figure], kind:str, name:str) -> Any:
     case "addition": return ADDITIONS.get(part_of(f, name))
     case _: raise AssertionError(f"portal.json holds an unknown kind of field {kind}")
 
-def sheet(f:Facts) -> list[tuple[str, str]]:
-  if f.period is not Period.YEAR: raise ValueError(f"the return takes a year, not a {f.period.name.lower()}")
+def to_whole(value:Any) -> Any:
+  if isinstance(value, Decimal): return Decimal(int(value))
+  if isinstance(value, tuple): return tuple(to_whole(one) for one in value)
+  if not is_dataclass(value) or isinstance(value, type): return value
+  return replace(value, **{one.name: to_whole(getattr(value, one.name)) for one in fields(value)})
+
+def sheet(given:Facts) -> list[tuple[str, str]]:
+  if given.period is not Period.YEAR: raise ValueError(f"the return takes a year, not a {given.period.name.lower()}")
+  f = to_whole(given)
   table, figs = data("portal"), {fig.rule: fig for fig in assess(f)}
   checks, ret = set(table["checks"]), []
   for field, spec in table["fields"]:

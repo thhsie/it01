@@ -118,7 +118,7 @@ it01 sheet facts.json
 
 This prints what to type in the return, one field a line, in the order the return asks for them. Each line gives the return's own field id and the value. The table that maps facts to fields is `it01/portal.json`.
 
-The last lines are the return's own totals, so you can check them after typing. The return keeps whole amounts and drops the fraction as you type.
+The return keeps whole amounts and drops the fraction as you type, so each amount is given as a whole number. The last lines are the return's own totals, worked out from those whole amounts, so you can check them after typing.
 
 Some lines end with `filled in by the return, check it`. The return fills those fields itself. Check that each figure matches your document.
 
