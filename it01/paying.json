@@ -16,9 +16,10 @@
     "green_equipment": "A purchase of solar panels, a solar water heater, rainwater harvesting equipment or an electric vehicle charger.",
     "business_expense": "A cost of running a business, such as stock, supplies, premises, staff or services bought for the business.",
     "bills": "A bill for electricity, water, phone, internet or television.",
+    "bank_charges": "A fee or charge the bank takes, such as an account fee, a transfer fee, a card fee or a commission.",
     "tax_paid": "A payment of income tax to the tax authority, such as a quarterly payment or the balance due on a return.",
     "unclear": "A payment whose payee or purpose the statement does not show, such as a transfer to a person or a wallet with no stated purpose.",
-    "no_claim": "Everyday spending, cash withdrawals, bank fees, card repayments, taxes other than income tax, and transfers between the holder's own accounts."
+    "no_claim": "Everyday spending, cash withdrawals, card repayments, taxes other than income tax, and transfers between the holder's own accounts."
   },
   "examples": [],
   "claims": {
@@ -57,6 +58,10 @@
       "fact": "business.other_expenses",
       "asking": "pick the payments for your business, or type the business part"
     },
+    "bank_charges": {
+      "fact": "business.bank_charges",
+      "asking": "pick the charges on the account you use for your business, or type the business part"
+    },
     "bills": {
       "fact": "business.utilities",
       "asking": "pick the bills for your business, or type the business share"
@@ -71,6 +76,7 @@
   "headlines": {
     "business_expense": "which of these payments were costs of your business?",
     "bills": "which of these bills were for your business?",
+    "bank_charges": "which of these bank charges were for your business?",
     "pension": "were these paid into your own approved pension?",
     "donation": "were these donations to an approved charity?",
     "carer_wages": "did you pay the social contributions for each carer?",
