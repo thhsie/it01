@@ -6,7 +6,7 @@ from typing import Any
 from it01.form import wanted
 from it01.held import DIFFERS, MONTH, UNCHECKED, Case, Line, Payment, Reading, at, typed
 from it01.kinds import Paying, Table, paying, picked, spoken
-from it01.law import YEAR_STARTS
+from it01.law import EARLIER_MONTHS, YEAR_STARTS
 from it01.tax import ZERO, Facts, Figure, amount, assess, from_json, plain
 
 OUT, SAME, WRONG, EACH, GONE = "out", "same", "wrong", "each", "no longer read from any document"
@@ -123,14 +123,21 @@ def copies(held:Case, t:Tables, months:tuple[str, ...]) -> dict[str, str]:
 
 def is_dropped(said:str|None, key:str, copied:dict[str, str]) -> bool: return said == OUT or (key in copied and said in (None, SAME))
 
-def counted(held:Case, t:Tables, months:tuple[str, ...]) -> list[tuple[str, Payment, str]]:
-  ret, copied = [], copies(held, t, months)
-  for key, p in held.payments.items():
-    said = said_of(held, t, key, p)
-    if not is_dropped(said, key, copied) and is_counting(p, said, months): ret.append((key, p, label_of(held, t, key, p)))
-  return ret
-
 Rows = list[tuple[str, Payment, str]]
+
+def kept_rows(held:Case, t:Tables, months:tuple[str, ...]) -> Rows:
+  copied = copies(held, t, months)
+  return [(key, p, label_of(held, t, key, p)) for key, p in held.payments.items()
+          if not is_dropped(said := said_of(held, t, key, p), key, copied) and is_counting(p, said, months)]
+
+def is_earlier(t:Tables, kind:str, p:Payment, months:tuple[str, ...]) -> bool:
+  return p.way == "out" and kind in t.out.earlier and p.month in months[:EARLIER_MONTHS]
+
+def earlier(held:Case, t:Tables, months:tuple[str, ...]) -> dict[str, str]:
+  return {key: t.out.earlier[kind] for key, p, kind in kept_rows(held, t, months) if is_earlier(t, kind, p, months)}
+
+def counted(held:Case, t:Tables, months:tuple[str, ...]) -> Rows:
+  return [(key, p, kind) for key, p, kind in kept_rows(held, t, months) if not is_earlier(t, kind, p, months)]
 
 def twice(t:Tables, way:str, doc:str) -> tuple[tuple[str, str], ...]:
   return ((SAME, f"it is the same payment as in {doc}"), *relabelling(t, way))

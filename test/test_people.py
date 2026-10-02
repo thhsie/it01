@@ -89,7 +89,7 @@ def person(r:random.Random) -> PersonCtx:
   if trading and p.chance(0.5):
     for m in r.sample(YEAR, 4): p.row("out", p.amt(50, 300), "ACCOUNT FEE", "bank_charges", month=m, fact="business.bank_charges")
   if trading and p.chance(0.5):
-    for m in r.sample(YEAR[3:], r.randint(1, 3)):
+    for m in r.sample(YEAR[4:], r.randint(1, 3)):
       p.row("out", p.amt(5000, 40000), "INCOME TAX QUARTERLY", "tax_paid", month=m, fact="quarterly_tax_paid")
     if p.chance(0.5): p.row("out", p.amt(5000, 40000), "INCOME TAX BALANCE", "tax_paid", "earlier_tax", YEAR[2])
   for _ in range(r.randint(0, 2)): p.row("in", p.amt(2000, 50000), "CLIENT 9", "business", month=r.choice(("2025-05", "2026-08")))

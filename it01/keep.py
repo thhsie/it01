@@ -5,10 +5,10 @@ from decimal import Decimal
 from typing import Any
 from it01.asks import SAME, WRONG, Asked, Base, Tables, alike, based, claims, counted, copies, costs_of, derived, fitted, is_dropped, is_inside
 from it01.asks import is_listed, label_of, months_of, needing, payer, priced, proposals, proposed_from, put, questions, read_as, rule_of, said_of
-from it01.asks import evidence, for_payees, said_to, subject_of, trading_in, with_answer, yearly
+from it01.asks import earlier, evidence, for_payees, said_to, subject_of, trading_in, with_answer, yearly
 from it01.held import Case, Document, Line, Payment, Reading, at
 from it01.kinds import picked
-from it01.law import YEAR_SRC, Source
+from it01.law import EARLIER_SRC, YEAR_SRC, Source
 from it01.tax import LISTS, PLACES, Facts, Figure, amount, assess, from_json, summed
 
 ENTERED = "entered by you"
@@ -189,6 +189,7 @@ def case(held:Case, t:Tables) -> dict[str, Any]:
   return {"facts": texted(held.given), "proposed": texted(proposed), "changed": changed, "sources": sources, "confirmed": held.confirmed,
           "year": held.year, "documents": {n: d.kind for n, d in held.documents.items()},
           "outside": [k for k, p in held.payments.items() if not is_inside(p, months)],
+          "earlier": {"payments": earlier(held, t, months), "sources": [cited(s) for s in EARLIER_SRC]},
           "questions": [asked_data(held, t, q, base) for q in asked], "payments": payments, "readings": readings,
           "kinds": {"in": list(picked(t.into)), "out": list(t.out.prompt.kinds)},
           "evidence": {fact: keys for fact, keys in evidence(held, t).items() if held.sources.get(fact) != ENTERED},
@@ -211,6 +212,9 @@ def keep(held:Case, t:Tables) -> list[str]:
     ret += [f"  {m:<44}{one['total']:>14,}" for m, one in money["months"].items()]
   if money["outside"]: ret += ["", "money paid in outside that income year"] + [f"  {key}" for key in money["outside"]]
   if money["undated"]: ret += ["", "money paid in with a date whose month is not clear"] + [f"  {key}" for key in money["undated"]]
+  if before := earlier(held, t, months_of(held)):
+    ret += ["", f"money paid out counted for the year before, {', '.join(spoke(s) for s in EARLIER_SRC)}"]
+    ret += [f"  {key}" for key in before] + [f"    {why}" for why in dict.fromkeys(before.values())]
   if held.documents: ret += ["", "documents you read"] + [f"  {n:<44}{d.kind}" for n, d in held.documents.items()]
   if held.payments:
     ret += ["", "how each payment was labelled"]

@@ -86,6 +86,9 @@
     "green_equipment": "add the invoice for the equipment",
     "tax_paid": "which of these paid your income tax for this year?"
   },
+  "earlier": {
+    "tax_paid": "income tax paid from July to October is counted for the year before, whose return is due by 15 October"
+  },
   "aside": [
     "unclear",
     "no_claim"

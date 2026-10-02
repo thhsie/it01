@@ -125,8 +125,18 @@ class TestKeep(unittest.TestCase):
     self.assertEqual(held.given["business"], {"gross_income": Decimal("500.00")})
     self.assertEqual(held.sources["business.gross_income"], "bank.txt, 1 labelled business")
 
+  def test_income_tax_paid_early_in_the_year_counts_for_the_year_before(self):
+    rows = (paid("500.00", "tax_paid", date=f"15/{m[5:]}/{m[:4]}", way="out", month=m) for m in ("2025-07", "2025-10", "2025-11"))
+    held = with_year(made(*rows), "2025-07")
+    q = next(q for q in questions(held, T, proposed(held)) if q.subject == "bank.txt, paid out as tax paid")
+    data = case(held, T)["earlier"]
+    self.assertEqual((len(q.paid), sorted(data["payments"])), (1, sorted(k for k, p in held.payments.items() if p.month != "2025-11")))
+    self.assertEqual([s["url"][-7:] for s in data["sources"]], ["#page=3", "#page=9"])
+    self.assertIn("money paid out counted for the year before", "\n".join(keep(held, T)))
+
   def test_income_tax_paid_is_picked_without_a_business(self):
-    held = made(paid("9000.00", "tax_paid", way="out"), paid("4000.00", "tax_paid", date="15/08/2025", way="out", month="2025-08"))
+    held = made(paid("9000.00", "tax_paid", date="15/12/2025", way="out", month="2025-12"),
+                paid("4000.00", "tax_paid", date="15/01/2026", way="out", month="2026-01"))
     subject = "bank.txt, paid out as tax paid"
     self.assertIn(subject, [q.subject for q in questions(held, T, proposed(held))])
     self.assertEqual(proposed(answered(held, T, subject, "payments 1")), {"quarterly_tax_paid": Decimal("9000.00")})
@@ -282,7 +292,8 @@ class TestKeep(unittest.TestCase):
     self.assertIsNone(said_to(shrunk, q))
 
   def test_a_pick_is_kept_as_the_payments_it_names(self):
-    held = made(paid("900.00", "business"), paid("100.00", "tax_paid", way="out"), paid("40.00", "tax_paid", date="16/07/2025", way="out"))
+    held = made(paid("900.00", "business"), paid("100.00", "tax_paid", date="15/12/2025", way="out", month="2025-12"),
+                paid("40.00", "tax_paid", date="16/12/2025", way="out", month="2025-12"))
     held = answered(held, T, "bank.txt, paid out as tax paid", "payments 2, 1")
     self.assertEqual((held.decisions["bank.txt, paid out as tax paid"], proposed(held)["quarterly_tax_paid"]), ("payments 1, 2", Decimal("140.00")))
 
@@ -311,7 +322,8 @@ class TestKeep(unittest.TestCase):
     fed = made(paid("500.00", "business"), paid("70.00", "business", check="does not agree"), paid("9.00", "business", month="2023-07"))
     cases = {"fed": fed,
              "read": made(read=(SALARY,)),
-             "picked": answered(made(paid("100.00", "tax_paid", way="out"), paid("40.00", "tax_paid", date="16/07/2025", way="out")), T,
+             "picked": answered(made(paid("100.00", "tax_paid", date="15/12/2025", way="out", month="2025-12"),
+                                     paid("40.00", "tax_paid", date="16/12/2025", way="out", month="2025-12")), T,
                                 "bank.txt, paid out as tax paid", "payments 2"),
              "carried": self.two(answered(made(pension, other), T, "bank.txt, paid out as pension", "yes"), pension),
              "form line": answered(noted(made(), "form.txt", Document("statement of emoluments", "p", "c"), [], [], [("1.00 on the line X", line)]),
