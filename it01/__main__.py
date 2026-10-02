@@ -3,7 +3,7 @@ from collections.abc import Callable
 from dataclasses import replace
 from decimal import Decimal
 from typing import TYPE_CHECKING
-from it01.asks import Tables, is_inside, kept_asks, months_of, proposals, questions, tables, worded
+from it01.asks import Tables, from_answers, is_inside, kept_asks, months_of, proposals, questions, tables, worded
 from it01.credits import label
 from it01.debits import spending
 from it01.kinds import spoken
@@ -11,11 +11,12 @@ from it01.labels import Labelled, totals
 from it01.form import Form, ending, is_titled, wanted
 from it01.helpers import data
 from it01.held import AGREES, DIFFERS, RECORDS, UNCHECKED, VERSION, Case, Document, Line, Payment, Reading, dumped, loaded, opened, texts, written
-from it01.keep import answered, case, confirm, figures, fingerprint, forgot, keep, noted, remember, removed, set_fact, unconfirmed, with_year
+from it01.keep import answered, case, confirm, figures, fingerprint, forgot, in_step, keep, noted, remember, removed, set_fact, unconfirmed
+from it01.keep import with_year
 from it01.read import read
 from it01.rows import Check, currency_of, dropped, entries, is_statement, months
 from it01.sheet import sheet, untyped
-from it01.tax import Facts, from_json, summed
+from it01.tax import Facts, amount, from_json, summed
 if TYPE_CHECKING: from it01.local import Asked, Sum, Told
 
 MARKS = {Check.AGREES: AGREES, Check.DIFFERS: DIFFERS, Check.UNCHECKED: UNCHECKED}
@@ -110,7 +111,12 @@ def told(before:Case, after:Case, t:Tables) -> list[str]:
   def waiting(held:Case) -> list[str]:
     return [q.subject for q in questions(held, t, proposals(held, t)[0]) if held.decisions.get(q.subject) is None]
   asked = set(waiting(before))
+  answers = from_answers(after, t)
+  kept = [(name, amt) for name, amt in after.confirmed.items() if name in answers and before.confirmed.get(name) != amt]
+  gone = [name for name in before.confirmed if name not in after.confirmed and name not in now]
   return ([f"  new proposed figure {name:<20}{amt:>16,}" for name, amt in now.items() if was.get(name) != amt]
+          + [f"  accepted from your answer {name:<14}{amount(amt):>16,}" for name, amt in kept]
+          + [f"  removed from the facts {name}" for name in gone]
           + [f"  new question {subject}" for subject in waiting(after) if subject not in asked])
 
 def changed_by(here:pathlib.Path, work:Callable[[Case, Tables], Case], *said:str) -> list[str]:
@@ -132,7 +138,7 @@ def dropped_doc(here:pathlib.Path, name:str) -> list[str]:
   return changed_by(here, lambda held, t: removed(held, t, name), f"{name} is not part of {here.name}")
 
 def yeared(here:pathlib.Path, first:str) -> list[str]:
-  return changed_by(here, lambda held, t: with_year(held, first), f"the income year of {here.name} starts in {first}")
+  return changed_by(here, lambda held, t: in_step(held, t, with_year(held, first)), f"the income year of {here.name} starts in {first}")
 
 def matched(held:list[str], asked:str, what:str) -> str:
   if not (asked := asked.strip()): raise ValueError(f"type the name of one of the {what}")
@@ -150,7 +156,7 @@ def responded(here:pathlib.Path, typed:str, said:str) -> list[str]:
 
 def remembered_for(here:pathlib.Path, typed:str) -> list[str]:
   key = matched(list(held_in(here).payments), typed, "payments")
-  return changed_by(here, lambda held, t: remember(held, key), f"the answer for {key} applies to all payments with the same words")
+  return changed_by(here, lambda held, t: in_step(held, t, remember(held, key)), f"the answer for {key} applies to all payments with the same words")
 
 def forgotten(here:pathlib.Path, typed:str) -> list[str]:
   subject = matched(list(held_in(here).decisions), typed, "answers")
@@ -193,7 +199,7 @@ def added(here:pathlib.Path, document:str) -> list[str]:
   mark = fingerprint(paper.read_bytes())
   if same := next((n for n, d in held.documents.items() if d.mark == mark), None):
     return [f"{paper.name} is the same file as {same}. The case did not change"]
-  after = with_document(held, t, paper, mark, source(paper))
+  after = in_step(held, t, with_document(held, t, paper, mark, source(paper)))
   rewritten(here, after)
   ret = [f"{paper.name} is a {after.documents[paper.name].kind}"]
   months = months_of(after)

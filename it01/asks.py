@@ -216,7 +216,7 @@ def said_to(held:Case, q:Asked) -> str|None:
   if (said := held.decisions.get(q.subject)) is not None: return said if fits(q, said) else None
   return carried(held, q)
 
-Parts = dict[str, list[tuple[Decimal, str, tuple[str, ...]]]]
+Parts = dict[str, list[tuple[Decimal, str, tuple[str, ...], bool]]]
 
 def behind(q:Asked, said:str) -> tuple[str, ...]:
   if (nums := chosen_in(q, said)) is not None: return tuple(q.paid[n - 1] for n in nums)
@@ -225,7 +225,7 @@ def behind(q:Asked, said:str) -> tuple[str, ...]:
 def answering(held:Case, q:Asked, parts:Parts) -> None:
   if (answer := said_to(held, q)) is not None and (hit := added_by(q, answer)):
     said = f"your answer to {q.about}" if q.subject in held.decisions else f"your answer for {', '.join(dict.fromkeys(q.payees))}"
-    parts.setdefault(hit[0], []).append((hit[1], said, behind(q, answer)))
+    parts.setdefault(hit[0], []).append((hit[1], said, behind(q, answer), q.subject in held.decisions))
 
 def earned(held:Case, t:Tables, rows:Rows) -> Parts:
   parts:Parts = {}
@@ -235,9 +235,9 @@ def earned(held:Case, t:Tables, rows:Rows) -> Parts:
   for (doc, kind), paid in by.items():
     unsure = sum(1 for _, p in paid if p.check == UNCHECKED)
     said = f"{doc}, {len(paid)} of the type {kind}" + (f", {unsure} with no balance check" if unsure else "")
-    parts.setdefault(t.into.feeds[kind], []).append((sum((p.amount for _, p in paid), ZERO), said, tuple(key for key, _ in paid)))
+    parts.setdefault(t.into.feeds[kind], []).append((sum((p.amount for _, p in paid), ZERO), said, tuple(key for key, _ in paid), False))
   for key, r in held.readings.items():
-    if held.decisions.get(key) != WRONG: parts.setdefault(r.fact, []).append((r.amount, f"{r.document}, {r.quote}", (key,)))
+    if held.decisions.get(key) != WRONG: parts.setdefault(r.fact, []).append((r.amount, f"{r.document}, {r.quote}", (key,), False))
   for q in form_lines(held, t): answering(held, q, parts)
   return parts
 
@@ -254,7 +254,7 @@ def claimed(held:Case, t:Tables, rows:Rows, parts:Parts, trading:bool) -> Parts:
   return parts
 
 def totals(parts:Parts) -> dict[str, tuple[Decimal, str]]:
-  return {fact: (sum((amt for amt, _, _ in each), ZERO), ", ".join(src for _, src, _ in each)) for fact, each in parts.items()}
+  return {fact: (sum((amt for amt, _, _, _ in each), ZERO), ", ".join(src for _, src, _, _ in each)) for fact, each in parts.items()}
 
 def worked_out(held:Case, t:Tables, rows:Rows, parts:Parts, trading:bool) -> dict[str, tuple[Decimal, str]]:
   return totals(claimed(held, t, rows, parts, trading))
@@ -267,7 +267,9 @@ def parts_of(held:Case, t:Tables, trading:bool|None=None) -> Parts:
 def derived(held:Case, t:Tables, trading:bool|None=None) -> dict[str, tuple[Decimal, str]]: return totals(parts_of(held, t, trading))
 
 def evidence(held:Case, t:Tables) -> dict[str, list[str]]:
-  return {fact: [key for _, _, keys in each for key in keys] for fact, each in parts_of(held, t).items()}
+  return {fact: [key for _, _, keys, _ in each for key in keys] for fact, each in parts_of(held, t).items()}
+
+def from_answers(held:Case, t:Tables) -> set[str]: return {fact for fact, each in parts_of(held, t).items() if all(asked for _, _, _, asked in each)}
 
 def proposals(held:Case, t:Tables) -> tuple[dict[str, Decimal], dict[str, str]]: return proposed_from(held, derived(held, t))
 

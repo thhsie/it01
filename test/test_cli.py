@@ -217,6 +217,10 @@ class TestCase(unittest.TestCase):
 
   def proposed(self, here:pathlib.Path) -> dict[str, Decimal]: return proposals(self.held(here), tables())[0]
 
+  def figured(self, here:pathlib.Path) -> dict[str, Decimal]:
+    held = self.held(here)
+    return {f: Decimal(v) for f, v in held.confirmed.items()} | proposals(held, tables())[0]
+
   def waiting(self, here:pathlib.Path) -> list[str]:
     held = self.held(here)
     return [q.subject for q in questions(held, tables(), proposals(held, tables())[0]) if q.subject not in held.decisions]
@@ -292,9 +296,26 @@ class TestCase(unittest.TestCase):
   def test_a_relief_answer_can_change_from_yes_to_no(self):
     self.banked(here := self.made(), spent=(pay("13/07/2025", "200.00", "PENSION", "pension"),))
     responded(here, "bank.txt, paid out as pension", "yes")
-    self.assertEqual(self.proposed(here), {"pension_contributions": Decimal("200.00")})
+    self.assertEqual((self.figured(here), self.proposed(here)), ({"pension_contributions": Decimal("200.00")}, {}))
     responded(here, "bank.txt, paid out as pension", "no")
-    self.assertEqual(self.proposed(here), {})
+    self.assertEqual(self.figured(here), {})
+
+  def test_a_figure_made_only_of_answers_is_accepted_with_the_answer(self):
+    self.banked(here := self.made(), spent=(pay("13/07/2025", "200.00", "PENSION", "pension"),))
+    said = responded(here, "bank.txt, paid out as pension", "yes")
+    self.assertIn("  accepted from your answer pension_contributions          200.00", said)
+    self.assertIn("  removed from the facts pension_contributions", responded(here, "bank.txt, paid out as pension", "no"))
+
+  def test_a_carried_answer_proposes_the_new_amount_for_the_person_to_accept(self):
+    self.banked(here := self.made(), spent=(pay("13/07/2025", "200.00", "PENSION", "pension"),))
+    responded(here, "bank.txt, paid out as pension", "yes")
+    self.banked(here, spent=(pay("13/08/2025", "300.00", "PENSION", "pension"),), text=INCOMINGS, name="two.txt")
+    held = self.held(here).confirmed
+    self.assertEqual((held, self.proposed(here)), ({"pension_contributions": "200.00"}, {"pension_contributions": Decimal("500.00")}))
+
+  def test_accepting_a_read_figure_prints_no_answer_line(self):
+    self.banked(here := self.made(), [pay("14/07/2025", "500.00", "CLIENT", "business")])
+    self.assertFalse([one for one in accepted(here, "business.gross_income") if "from your answer" in one])
 
   def test_a_misread_form_figure_can_be_dropped_and_restored(self):
     self.formed(here := self.made())
@@ -309,9 +330,9 @@ class TestCase(unittest.TestCase):
     subject = "soe.txt, 1,107,000.00 on the line EMOLUMENTS 1,107,000.00"
     self.assertEqual(self.asked(here, subject), ["net_emoluments", "total"])
     responded(here, subject, "net_emoluments")
-    self.assertEqual(proposals(self.held(here), tables())[1], {"salary": f"your answer to {subject[9:]}, in soe.txt"})
+    self.assertEqual(self.held(here).sources, {"salary": f"your answer to {subject[9:]}, in soe.txt"})
     responded(here, subject, "total")
-    self.assertEqual(self.proposed(here), {})
+    self.assertEqual(self.figured(here), {})
     with self.assertRaisesRegex(ValueError, "the answer must be one of: net_emoluments, total"): responded(here, subject, "salary")
 
   def test_a_new_reading_puts_a_confirmed_figure_back_to_the_person(self):
@@ -387,12 +408,12 @@ class TestCase(unittest.TestCase):
 
   def test_a_business_payment_takes_a_typed_share_up_to_its_total(self):
     responded(here := self.business(), "bank.txt, paid out as business expense", "60")
-    self.assertEqual(self.proposed(here), {"business.other_expenses": Decimal("60")})
+    self.assertEqual(self.figured(here), {"business.other_expenses": Decimal("60")})
     with self.assertRaisesRegex(ValueError, r"a part of the total, from 0\.01 to 140\.00"): responded(here, "bank.txt, paid out as business", "200")
 
   def test_payments_named_by_number_are_added_up(self):
     responded(here := self.business(), "bank.txt, paid out as business expense", "payments 1, 2")
-    self.assertEqual(self.proposed(here), {"business.other_expenses": Decimal("140.00")})
+    self.assertEqual(self.figured(here), {"business.other_expenses": Decimal("140.00")})
     for said in ("payments 1, 1", "payments 3"):
       with self.subTest(said), self.assertRaisesRegex(ValueError, "give each payment number from 1 to 2 one time only"):
         responded(here, "bank.txt, paid out as business expense", said)

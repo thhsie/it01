@@ -62,6 +62,8 @@ A relief or a business cost also adds to its fact when your answer is yes. A lin
 
 If a new document or answer changes an accepted figure, the figure becomes a proposed figure again. `data` then shows the previous amount in `changed`. If no document gives an accepted figure at this time, the engine proposes 0 for that figure.
 
+If a figure comes only from your answers, the engine accepts it when you give the answer. If a new answer or document changes that figure, the accepted figure changes with it. If you answer no, or `forget` or `remove` takes these answers away, the engine removes the figure from the facts. If you use `unconfirm` on that figure, it stays a proposed figure. A figure that you typed with `set` does not change in this way.
+
 `unconfirm` removes an accepted figure from the facts, and the figure becomes a proposed figure again. Use `set` to clear a figure that you gave with `set`.
 
 `data` prints the same case as JSON, with each number as text. Each question has its subject, its words, its answers and its headline. Each question also has your answer, the change in tax for each answer and the fact that closes the question.
