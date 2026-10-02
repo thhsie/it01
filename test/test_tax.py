@@ -40,7 +40,8 @@ class TestQuarter(unittest.TestCase):
       with self.subTest(resident):
         figs = assess(Facts(resident, rent=Decimal(400000), period=Period.QUARTER))
         self.assertIn(Source("ita", "s.107(2)", 122), fig(figs, "chargeable income").src)
-        self.assertIn(Source("cps", "9. Calculation of Tax", 6), fig(figs, "income tax").src)
+        self.assertIn(Source("cps", "9. Calculation of Tax", 8), fig(figs, "income tax").src)
+        self.assertIn(Source("cps", "10. Tax Deducted at Source", 9), fig(figs, "tax already paid").src)
 
   def test_quarter_figures(self):
     figs = assess(Facts(True, rent=Decimal(400000), period=Period.QUARTER))
@@ -73,7 +74,7 @@ class TestQuarter(unittest.TestCase):
   def test_quarter_allowance_names_the_guidance(self):
     held = biz(assets=(Asset(AssetKind.COMPUTER, Decimal(80000)),))
     figs = assess(Facts(True, business=held, period=Period.QUARTER))
-    self.assertIn(Source("cps", "7. Annual allowance", 3), fig(figs, "a quarter of the annual allowance on computer").src)
+    self.assertIn(Source("cps", "7. Annual allowance", 5), fig(figs, "a quarter of the annual allowance on computer").src)
 
 class TestIncomeTax(unittest.TestCase):
   def test_calculator_cases(self):

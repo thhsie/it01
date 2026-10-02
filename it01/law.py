@@ -74,9 +74,9 @@ LOSSES_SRC = (Source("ita", "s.20", 40),)
 YEAR_STARTS = 7
 YEAR_SRC = (Source("ita", "s.2", 19), Source("ita", "s.2", 26))
 QUARTER_BANDS = ((Decimal(125000), Decimal(0)), (Decimal(125000), Decimal("0.10")), (Decimal("Infinity"), Decimal("0.20")))
-QUARTER_BANDS_SRC = (Source("ita", "s.108", 123), Source("cps", "9. Calculation of Tax", 6))
+QUARTER_BANDS_SRC = (Source("ita", "s.108", 123), Source("cps", "9. Calculation of Tax", 8))
 QUARTER_INCOME_SRC = (Source("ita", "s.105", 121), Source("ita", "s.107(2)", 122))
-QUARTER_CREDIT_SRC = (Source("ita", "s.111G", 129), Source("cps", "10. Tax Deducted at Source", 7))
+QUARTER_CREDIT_SRC = (Source("ita", "s.111G", 129), Source("cps", "10. Tax Deducted at Source", 9))
 QUARTER_RELIEF = Decimal("0.25")
 
 class Period(Enum):
@@ -93,7 +93,7 @@ class AllowanceRule:
 
 ALLOWANCE_RULES = {Period.YEAR: AllowanceRule("annual allowance on", Decimal(1), ()),
                    Period.QUARTER: AllowanceRule("a quarter of the annual allowance on", Decimal("0.25"),
-                                             (Source("cps", "7. Annual allowance", 3),))}
+                                             (Source("cps", "7. Annual allowance", 5),))}
 
 class Basis(Enum):
   COST = auto()
