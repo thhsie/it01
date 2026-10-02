@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Any
 from it01.asks import SAME, WRONG, Asked, Base, Tables, alike, based, claims, counted, copies, costs_of, derived, fitted, is_dropped, is_inside
 from it01.asks import is_listed, label_of, months_of, needing, payer, priced, proposals, proposed_from, put, questions, read_as, rule_of, said_of
-from it01.asks import earlier, evidence, for_payees, said_to, subject_of, trading_in, with_answer, yearly
+from it01.asks import earlier, evidence, for_payees, said_to, subject_of, this_year, trading_in, with_answer, yearly
 from it01.held import Case, Document, Line, Payment, Reading, at
 from it01.kinds import picked
 from it01.law import EARLIER_SRC, YEAR_SRC, Source
@@ -92,6 +92,7 @@ def removed(held:Case, t:Tables, name:str) -> Case:
   def kept[T:(Payment, Reading, Line)](part:dict[str, T]) -> dict[str, T]: return {k: v for k, v in part.items() if v.document != name}
   payments = kept(held.payments)
   gone = {*held.payments, *held.readings, *held.lines} - {*payments, *kept(held.readings), *kept(held.lines)}
+  gone |= {this_year(key) for key in held.payments if key not in payments}
   gone |= {trading_in(name), *(costs_of(name, kind) for kind in t.out.prompt.kinds), *(costs_of(name, kind, "in") for kind in t.into.business)}
   needs, labels = {needing(kind): kind for kind in t.into.needs}, {p.label for p in payments.values() if p.way == "in"}
   def is_kept(subject:str) -> bool: return subject not in gone and (subject not in needs or needs[subject] in labels)
@@ -189,7 +190,8 @@ def case(held:Case, t:Tables) -> dict[str, Any]:
   return {"facts": texted(held.given), "proposed": texted(proposed), "changed": changed, "sources": sources, "confirmed": held.confirmed,
           "year": held.year, "documents": {n: d.kind for n, d in held.documents.items()},
           "outside": [k for k, p in held.payments.items() if not is_inside(p, months)],
-          "earlier": {"payments": earlier(held, t, months), "sources": [cited(s) for s in EARLIER_SRC]},
+          "earlier": {"payments": (before := earlier(held, t, months)), "asks": {key: this_year(key) for key in before},
+                      "sources": [cited(s) for s in EARLIER_SRC]},
           "questions": [asked_data(held, t, q, base) for q in asked], "payments": payments, "readings": readings,
           "kinds": {"in": list(picked(t.into)), "out": list(t.out.prompt.kinds)},
           "evidence": {fact: keys for fact, keys in evidence(held, t).items() if held.sources.get(fact) != ENTERED},
@@ -215,12 +217,15 @@ def keep(held:Case, t:Tables) -> list[str]:
   if before := earlier(held, t, months_of(held)):
     ret += ["", f"money paid out counted for the year before, {', '.join(spoke(s) for s in EARLIER_SRC)}"]
     ret += [f"  {key}" for key in before] + [f"    {why}" for why in dict.fromkeys(before.values())]
+    ret += [f'    to count one for this income year, answer "{this_year("PAYMENT")}" with yes']
   if held.documents: ret += ["", "documents you read"] + [f"  {n:<44}{d.kind}" for n, d in held.documents.items()]
   if held.payments:
     ret += ["", "how each payment was labelled"]
     for key, p in held.payments.items():
       note = ", as you said" if key in held.decisions else f", as you said for {rule}" if (rule := rule_of(held, t, key, p)) else ""
-      ret += [f"  {key}", f"      {label_of(held, t, key, p)}" + (note or (f", {p.check}" if p.check != "ok" else ""))]
+      label = label_of(held, t, key, p)
+      kept = ", counted for this income year as you said" if this_year(key) in held.decisions and label in t.out.earlier else ""
+      ret += [f"  {key}", f"      {label}" + (note or (f", {p.check}" if p.check != "ok" else "")) + kept]
   if held.readings:
     ret += ["", "what each form was read as"]
     for key, r in held.readings.items():
