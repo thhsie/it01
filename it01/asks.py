@@ -38,6 +38,7 @@ class Asked:
   trade: bool = False
   payees: tuple[str, ...] = ()
   amounts: tuple[Decimal, ...] = ()
+  months: tuple[str, ...] = ()
 
 def year_of(month:str) -> tuple[str, ...]:
   first = int(month[:4]) - (int(month[5:]) < YEAR_STARTS)
@@ -64,7 +65,7 @@ def unread(missing:list[str]) -> list[Asked]:
   return [Asked(f"months no statement covers, {', '.join(missing)}", f"no statement covers {', '.join(missing)}",
                "money paid in those months is not counted. Add the statements, or say your accounts had no payments then",
                (("later", "I'll add the statements"), ("none", "my accounts had no payments in those months")), None,
-               "a statement seems to be missing")]
+               "a statement seems to be missing", months=tuple(missing))]
 
 def needing(kind:str) -> str: return f"money labelled {kind}"
 def costs_of(doc:str, kind:str, way:str="out") -> str: return f"{doc}, paid {way} as {plain(kind)}"

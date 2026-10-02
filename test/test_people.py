@@ -135,8 +135,7 @@ def replied(p:PersonCtx, held:Case, q:Asked) -> Case:
     return noted(held, "form.txt", Document("statement of emoluments", "form.txt", "form.txt", ends=YEAR[-1]), [], read, [])
   if q.closes: return set_fact(held, T, q.closes, p.certificates[q.closes])
   if "none" in choices:
-    missing = q.about.removeprefix("no statement covers ").split(", ")
-    if found := next((name for name, rows in p.kept.items() if any(one.month in missing for one in rows)), None):
+    if found := next((name for name, rows in p.kept.items() if any(one.month in q.months for one in rows)), None):
       return statement(held, found, p.kept.pop(found))
     return answered(held, T, q.subject, "none")
   if "business" in choices: return answered(held, T, q.subject, "business" if "business" in p.facts else "not")
