@@ -255,11 +255,11 @@ class TestKeep(unittest.TestCase):
   def test_a_later_answer_replaces_what_a_payee_carries(self):
     office = replace(paid("100.00", "business_expense", way="out"), description="OFFICE")
     held = made(paid("900.00", "business"), office, replace(office, amount=Decimal("40.00"), date="16/07/2025"))
-    for said in ("payments 1", "50.00"):
+    for said, want in (("payments 1", None), ("50.00", "25.00")):
       done = answered(answered(held, T, "bank.txt, paid out as business expense", "yes"), T, "bank.txt, paid out as business expense", said)
       later = self.two(done, replace(office, amount=Decimal("70.00")))
-      with self.subTest(said): self.assertIn("two.txt, paid out as business expense", [q.subject for q in questions(later, T, proposed(later))
-                                                                                       if said_to(later, q) is None])
+      q = next(q for q in questions(later, T, proposed(later)) if q.subject == "two.txt, paid out as business expense")
+      with self.subTest(said): self.assertEqual(said_to(later, q), want)
 
   def test_forgetting_an_answer_withdraws_what_it_carried(self):
     held = forgot(answered(made(paid("100.00", "pension", way="out")), T, "bank.txt, paid out as pension", "yes"), T, "bank.txt, paid out as pension")
@@ -285,6 +285,20 @@ class TestKeep(unittest.TestCase):
     held = made(paid("900.00", "business"), paid("100.00", "tax_paid", way="out"), paid("40.00", "tax_paid", date="16/07/2025", way="out"))
     held = answered(held, T, "bank.txt, paid out as tax paid", "payments 2, 1")
     self.assertEqual((held.decisions["bank.txt, paid out as tax paid"], proposed(held)["quarterly_tax_paid"]), ("payments 1, 2", Decimal("140.00")))
+
+  def test_a_typed_share_carries_to_the_same_payee_in_a_later_statement(self):
+    for part, later, want in (("40.00", "50.00", "20.00"), ("33.33", "10.00", "3.33")):
+      held = answered(made(paid("900.00", "business"), paid("100.00", "bills", way="out")), T, "bank.txt, paid out as bills", part)
+      after = self.two(held, paid(later, "bills", way="out"))
+      q = next(q for q in questions(after, T, proposed(after)) if q.subject == "two.txt, paid out as bills")
+      with self.subTest(part): self.assertEqual((said_to(after, q), proposed(after)["business.utilities"]), (want, Decimal(part) + Decimal(want)))
+
+  def test_a_typed_part_over_several_payees_carries_nothing(self):
+    elec, water = (replace(paid("100.00", "bills", way="out"), description=d) for d in ("ELEC", "WATER"))
+    held = answered(made(paid("900.00", "business"), elec, replace(water, date="16/07/2025")), T, "bank.txt, paid out as bills", "100.00")
+    after = self.two(held, replace(elec, amount=Decimal("80.00")))
+    q = next(q for q in questions(after, T, proposed(after)) if q.subject == "two.txt, paid out as bills")
+    self.assertIsNone(said_to(after, q))
 
   def test_a_carried_figure_names_the_payees_it_came_from(self):
     held = answered(made(paid("100.00", "pension", way="out")), T, "bank.txt, paid out as pension", "yes")
