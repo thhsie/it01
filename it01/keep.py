@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Any
 from it01.asks import SAME, WRONG, Asked, Base, Tables, alike, based, claims, counted, copies, costs_of, derived, fitted, is_dropped, is_inside
 from it01.asks import is_listed, label_of, months_of, needing, payer, priced, proposals, proposed_from, put, questions, read_as, rule_of, said_of
-from it01.asks import earlier, evidence, kept_this_year, for_payees, said_to, subject_of, this_year, trading_in, with_answer, yearly
+from it01.asks import earlier, evidence, from_answers, kept_this_year, for_payees, said_to, subject_of, this_year, trading_in, with_answer, yearly
 from it01.held import Case, Document, Line, Payment, Reading, at
 from it01.kinds import picked
 from it01.law import EARLIER_SRC, YEAR_SRC, Source
@@ -74,7 +74,17 @@ def set_fact(held:Case, t:Tables, name:str, said:str) -> Case:
 
 def answered(held:Case, t:Tables, subject:str, said:str) -> Case:
   q = subject_of(held, t, subject)
-  return replace(held, decisions=with_answer(held.decisions, q, said, fitted(held, q, said)))
+  return in_step(held, t, replace(held, decisions=with_answer(held.decisions, q, said, fitted(held, q, said))))
+
+def in_step(held:Case, t:Tables, after:Case) -> Case:
+  before = proposals(held, t)[0]
+  following = {fact for fact in from_answers(held, t) if fact in held.confirmed and fact not in before}
+  ret = after
+  now, answers = proposals(after, t)[0], from_answers(after, t)
+  for fact in sorted(f for f in now if after.sources.get(f) != ENTERED):
+    if fact in answers and (fact in following or fact not in before): ret = confirm(ret, t, fact)
+    elif fact in following and fact not in answers and not now[fact]: ret = unconfirmed(ret, fact)
+  return ret
 
 def remember(held:Case, key:str) -> Case:
   if (p := held.payments.get(key)) is None: raise ValueError(f"the case has no payment {key}")
@@ -86,7 +96,7 @@ def remember(held:Case, key:str) -> Case:
 def forgot(held:Case, t:Tables, subject:str) -> Case:
   if subject not in held.decisions: raise ValueError(f"the case has no answer for {subject}")
   q = next((q for q in claims(t, counted(held, t, months_of(held))) if q.subject == subject), None)
-  return replace(held, decisions=without(held.decisions, subject, *(for_payees(q, "") if q else {})))
+  return in_step(held, t, replace(held, decisions=without(held.decisions, subject, *(for_payees(q, "") if q else {}))))
 
 def removed(held:Case, t:Tables, name:str) -> Case:
   if name not in held.documents: raise ValueError(f"the case has no document {name}")
@@ -97,8 +107,9 @@ def removed(held:Case, t:Tables, name:str) -> Case:
   gone |= {trading_in(name), *(costs_of(name, kind) for kind in t.out.prompt.kinds), *(costs_of(name, kind, "in") for kind in t.into.business)}
   needs, labels = {needing(kind): kind for kind in t.into.needs}, {p.label for p in payments.values() if p.way == "in"}
   def is_kept(subject:str) -> bool: return subject not in gone and (subject not in needs or needs[subject] in labels)
-  return replace(held, documents={k: v for k, v in held.documents.items() if k != name}, payments=payments, readings=kept(held.readings),
+  left = replace(held, documents={k: v for k, v in held.documents.items() if k != name}, payments=payments, readings=kept(held.readings),
                  lines=kept(held.lines), decisions={k: v for k, v in held.decisions.items() if is_kept(k)})
+  return in_step(held, t, left)
 
 def with_year(held:Case, first:str) -> Case:
   year = yearly(first)

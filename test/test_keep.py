@@ -23,6 +23,8 @@ SALARY = Reading("soe.txt", "salary", Decimal("1107000.00"), "Net emoluments 1,1
 
 def proposed(held:Case) -> dict[str, Decimal]: return proposals(held, T)[0]
 
+def figured(held:Case) -> dict[str, Decimal]: return {f: Decimal(v) for f, v in held.confirmed.items()} | proposed(held)
+
 def broken(**records:object) -> dict:
   return {"resident": True, "version": VERSION, "documents": {"bank.txt": {"kind": "bank statement", "path": "p", "mark": "m"}}} | records
 
@@ -154,7 +156,7 @@ class TestKeep(unittest.TestCase):
     data = case(held, T)["earlier"]
     self.assertEqual((data["payments"], data["kept"]), ({}, {early: f"{early}, for this income year"}))
     self.assertEqual(label_of(held, T, early, held.payments[early]), "tax_paid")
-    self.assertEqual(proposed(answered(held, T, "bank.txt, paid out as tax paid", "yes")), {"quarterly_tax_paid": Decimal("1000.00")})
+    self.assertEqual(figured(answered(held, T, "bank.txt, paid out as tax paid", "yes")), {"quarterly_tax_paid": Decimal("1000.00")})
     self.assertIn(f"  {early}\n      tax_paid, from your answer, for this income year from your answer", "\n".join(keep(held, T)))
 
   def test_a_payment_no_longer_of_a_tax_type_is_not_kept_for_this_year(self):
@@ -173,7 +175,7 @@ class TestKeep(unittest.TestCase):
                 paid("4000.00", "tax_paid", date="15/01/2026", way="out", month="2026-01"))
     subject = "bank.txt, paid out as tax paid"
     self.assertIn(subject, [q.subject for q in questions(held, T, proposed(held))])
-    self.assertEqual(proposed(answered(held, T, subject, "payments 1")), {"quarterly_tax_paid": Decimal("9000.00")})
+    self.assertEqual(figured(answered(held, T, subject, "payments 1")), {"quarterly_tax_paid": Decimal("9000.00")})
 
   def test_bank_charges_are_asked_only_of_a_business(self):
     subject = "bank.txt, paid out as bank charges"
@@ -181,7 +183,7 @@ class TestKeep(unittest.TestCase):
       held = made(*income, paid("75.00", "bank_charges", way="out"))
       with self.subTest(asked=asked): self.assertEqual(subject in [q.subject for q in questions(held, T, proposed(held))], asked)
     held = made(paid("900.00", "business"), paid("75.00", "bank_charges", way="out"))
-    self.assertEqual(proposed(answered(held, T, subject, "yes"))["business.bank_charges"], Decimal("75.00"))
+    self.assertEqual(figured(answered(held, T, subject, "yes"))["business.bank_charges"], Decimal("75.00"))
 
   def test_a_refund_of_a_business_cost_is_business_income(self):
     subject = "bank.txt, paid in as refund"
@@ -189,7 +191,7 @@ class TestKeep(unittest.TestCase):
     self.assertEqual(questions(alone, T, proposed(alone)), [])
     held = made(paid("900.00", "business"), paid("40.00", "refund"))
     self.assertIn(subject, [q.subject for q in questions(held, T, proposed(held))])
-    self.assertEqual(proposed(answered(held, T, subject, "yes"))["business.other_income"], Decimal("40.00"))
+    self.assertEqual(figured(answered(held, T, subject, "yes"))["business.other_income"], Decimal("40.00"))
 
   def test_months_no_statement_covers_are_asked_about_once_the_year_is_set(self):
     def gaps(held:Case) -> list[Asked]: return [q for q in questions(held, T, proposed(held)) if q.subject.startswith("months no statement")]
@@ -291,7 +293,7 @@ class TestKeep(unittest.TestCase):
   def test_a_carried_answer_can_be_changed_for_its_own_statement(self):
     held = answered(made(paid("100.00", "pension", way="out")), T, "bank.txt, paid out as pension", "yes")
     later = answered(self.two(held, paid("200.00", "pension", way="out")), T, "two.txt, paid out as pension", "no")
-    self.assertEqual(proposed(later), {"pension_contributions": Decimal("100.00")})
+    self.assertEqual(figured(later), {"pension_contributions": Decimal("100.00")})
 
   def test_a_new_payee_keeps_the_later_question_open(self):
     held = answered(made(paid("100.00", "pension", way="out")), T, "bank.txt, paid out as pension", "yes")
@@ -306,6 +308,18 @@ class TestKeep(unittest.TestCase):
       later = self.two(done, replace(office, amount=Decimal("70.00")))
       q = next(q for q in questions(later, T, proposed(later)) if q.subject == "two.txt, paid out as business expense")
       with self.subTest(said): self.assertEqual(said_to(later, q), want)
+
+  def test_an_answer_puts_its_figure_in_the_facts_and_forgetting_it_takes_it_out(self):
+    held = answered(made(paid("100.00", "pension", way="out")), T, "bank.txt, paid out as pension", "yes")
+    self.assertEqual((held.confirmed, proposed(held)), ({"pension_contributions": "100.00"}, {}))
+    self.assertEqual(forgot(held, T, "bank.txt, paid out as pension").confirmed, {})
+    self.assertEqual(removed(held, T, "bank.txt").confirmed, {})
+
+  def test_a_figure_the_person_took_back_stays_a_proposal(self):
+    held = made(paid("100.00", "pension", way="out"), paid("50.00", "donation", way="out"))
+    held = unconfirmed(answered(held, T, "bank.txt, paid out as pension", "yes"), "pension_contributions")
+    held = answered(held, T, "bank.txt, paid out as donation", "yes")
+    self.assertEqual((held.confirmed, proposed(held)), ({"electronic_donations": "50.00"}, {"pension_contributions": Decimal("100.00")}))
 
   def test_forgetting_an_answer_withdraws_what_it_carried(self):
     held = forgot(answered(made(paid("100.00", "pension", way="out")), T, "bank.txt, paid out as pension", "yes"), T, "bank.txt, paid out as pension")
@@ -331,7 +345,7 @@ class TestKeep(unittest.TestCase):
     held = made(paid("900.00", "business"), paid("100.00", "tax_paid", date="15/12/2025", way="out", month="2025-12"),
                 paid("40.00", "tax_paid", date="16/12/2025", way="out", month="2025-12"))
     held = answered(held, T, "bank.txt, paid out as tax paid", "payments 2, 1")
-    self.assertEqual((held.decisions["bank.txt, paid out as tax paid"], proposed(held)["quarterly_tax_paid"]), ("payments 1, 2", Decimal("140.00")))
+    self.assertEqual((held.decisions["bank.txt, paid out as tax paid"], figured(held)["quarterly_tax_paid"]), ("payments 1, 2", Decimal("140.00")))
 
   def test_a_typed_share_carries_to_the_same_payee_in_a_later_statement(self):
     for part, later, want in (("40.00", "50.00", "20.00"), ("33.33", "10.00", "3.33")):

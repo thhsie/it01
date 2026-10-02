@@ -1,7 +1,8 @@
 import random, unittest
 from dataclasses import replace
 from decimal import Decimal
-from it01.asks import Asked, balance, based, derived, priced, projected, proposals, questions, subject_of, tables, worded
+from typing import Any
+from it01.asks import Asked, balance, based, derived, from_answers, priced, projected, proposals, questions, subject_of, tables, worded
 from it01.held import Case, Document, Line, Payment, Reading, loaded, opened, written
 from it01.keep import ENTERED, answered, case, confirm, forgot, keep, noted, removed, said_to, set_fact, unconfirmed, with_year
 
@@ -54,6 +55,11 @@ for seed in range(30):
     held = moved(r, held, n)
     CASES.append((f"seed {seed} step {n}", held))
 
+def flat(given:dict[str, Any]) -> dict[str, Any]:
+  ret = {}
+  for k, v in given.items(): ret |= {f"{k}.{f}": one for f, one in v.items()} if isinstance(v, dict) else {k: v}
+  return ret
+
 class TestMoves(unittest.TestCase):
   def test_every_case_reads_back_and_shows(self):
     for at, held in CASES:
@@ -71,7 +77,13 @@ class TestMoves(unittest.TestCase):
             asked = [x for x in questions(after, T, proposals(after, T)[0]) if x.subject == q.subject]
             stored = choice
             self.assertTrue(all(said_to(after, x) == stored for x in asked))
-            self.assertEqual(replace(after, decisions=held.decisions), held)
+            moved = {f for f in after.confirmed.keys() | held.confirmed.keys() if after.confirmed.get(f) != held.confirmed.get(f)}
+            self.assertLessEqual(moved, from_answers(after, T) | from_answers(held, T))
+            now, was = flat(after.given), flat(held.given)
+            self.assertLessEqual({f for f in now.keys() | was.keys() if now.get(f) != was.get(f)}, moved)
+            self.assertLessEqual({f for f in after.sources.keys() | held.sources.keys() if after.sources.get(f) != held.sources.get(f)}, moved)
+            kept = replace(after, decisions=held.decisions, given=held.given, confirmed=held.confirmed, sources=held.sources)
+            self.assertEqual(kept, held)
 
   def test_a_price_is_what_the_answer_changes(self):
     for at, held in CASES:
