@@ -131,14 +131,20 @@ def kept_rows(held:Case, t:Tables, months:tuple[str, ...]) -> Rows:
   return [(key, p, label_of(held, t, key, p)) for key, p in held.payments.items()
           if not is_dropped(said := said_of(held, t, key, p), key, copied) and is_counting(p, said, months)]
 
-def is_earlier(t:Tables, kind:str, p:Payment, months:tuple[str, ...]) -> bool:
-  return p.way == "out" and kind in t.out.earlier and p.month in months[:EARLIER_MONTHS]
+def this_year(key:str) -> str: return f"{key}, for this income year"
+
+def is_earlier(held:Case, t:Tables, key:str, kind:str, p:Payment, months:tuple[str, ...]) -> bool:
+  return p.way == "out" and kind in t.out.earlier and p.month in months[:EARLIER_MONTHS] and this_year(key) not in held.decisions
 
 def earlier(held:Case, t:Tables, months:tuple[str, ...]) -> dict[str, str]:
-  return {key: t.out.earlier[kind] for key, p, kind in kept_rows(held, t, months) if is_earlier(t, kind, p, months)}
+  return {key: t.out.earlier[kind] for key, p, kind in kept_rows(held, t, months) if is_earlier(held, t, key, kind, p, months)}
 
 def counted(held:Case, t:Tables, months:tuple[str, ...]) -> Rows:
-  return [(key, p, kind) for key, p, kind in kept_rows(held, t, months) if not is_earlier(t, kind, p, months)]
+  return [(key, p, kind) for key, p, kind in kept_rows(held, t, months) if not is_earlier(held, t, key, kind, p, months)]
+
+def kept_asks(held:Case, t:Tables) -> list[Asked]:
+  return [Asked(this_year(key), worded(p := held.payments[key]), why, (("yes", "it paid tax for this income year"),), p.document, amount=p.amount)
+          for key, why in earlier(held, t, months_of(held)).items()]
 
 def twice(t:Tables, way:str, doc:str) -> tuple[tuple[str, str], ...]:
   return ((SAME, f"it is the same payment as in {doc}"), *relabelling(t, way))
@@ -345,6 +351,7 @@ def payment_asked(held:Case, t:Tables, key:str) -> Asked:
 def subject_of(held:Case, t:Tables, subject:str) -> Asked:
   if q := next((q for q in questions(held, t, proposals(held, t)[0]) if q.subject == subject), None): return q
   if subject in held.payments: return payment_asked(held, t, subject)
+  if q := next((q for q in kept_asks(held, t) if q.subject == subject), None): return q
   if r := held.readings.get(subject):
     misread = ((WRONG, "this figure was misread"),)
     return Asked(subject, f"{r.amount:,} read from {r.quote}", "say whether this figure was misread", misread, r.document)

@@ -2,7 +2,7 @@ import json, unittest
 from dataclasses import replace
 from decimal import Decimal
 from it01.asks import EACH, OUT, SAME, Asked, balance, based, derived, months_of, priced, projected, proposals, questions, tables, year_of, yearly
-from it01.asks import decided, payer
+from it01.asks import decided, label_of, payer, subject_of
 from it01.held import VERSION, Case, Document, Line, Payment, Reading, dumped, loaded, opened, written
 from it01.keep import ENTERED, answered, case, confirm, figures, forgot, keep, noted, received, removed, set_fact, shown, unconfirmed, with_year
 from it01.keep import remember, said_to
@@ -133,6 +133,31 @@ class TestKeep(unittest.TestCase):
     self.assertEqual((len(q.paid), sorted(data["payments"])), (1, sorted(k for k, p in held.payments.items() if p.month != "2025-11")))
     self.assertEqual([s["url"][-7:] for s in data["sources"]], ["#page=3", "#page=9"])
     self.assertIn("money paid out counted for the year before", "\n".join(keep(held, T)))
+
+  def early_and_late(self) -> Case:
+    rows = (paid("500.00", "pension", date=f"15/{m[5:]}/{m[:4]}", way="out", month=m) for m in ("2025-08", "2025-11"))
+    held = with_year(made(*rows), "2025-07")
+    early, late = held.payments
+    return answered(answered(held, T, early, "tax_paid"), T, late, "tax_paid")
+
+  def test_only_tax_paid_early_can_be_counted_for_this_year(self):
+    held = self.early_and_late()
+    early, late = held.payments
+    self.assertEqual(list(case(held, T)["earlier"]["asks"]), [early])
+    with self.assertRaises(ValueError): subject_of(held, T, f"{late}, for this income year")
+
+  def test_an_early_tax_payment_counted_for_this_year_keeps_its_label(self):
+    held = self.early_and_late()
+    early = next(iter(held.payments))
+    held = answered(held, T, f"{early}, for this income year", "yes")
+    self.assertEqual((case(held, T)["earlier"]["payments"], label_of(held, T, early, held.payments[early])), ({}, "tax_paid"))
+    self.assertEqual(proposed(answered(held, T, "bank.txt, paid out as tax paid", "yes")), {"quarterly_tax_paid": Decimal("1000.00")})
+    self.assertIn(f"  {early}\n      tax_paid, as you said, counted for this income year as you said", "\n".join(keep(held, T)))
+
+  def test_removing_the_statement_drops_the_answer_for_this_year(self):
+    held = self.early_and_late()
+    held = answered(held, T, f"{next(iter(held.payments))}, for this income year", "yes")
+    self.assertEqual(removed(held, T, "bank.txt").decisions, {})
 
   def test_income_tax_paid_is_picked_without_a_business(self):
     held = made(paid("9000.00", "tax_paid", date="15/12/2025", way="out", month="2025-12"),
