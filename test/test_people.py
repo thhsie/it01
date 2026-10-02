@@ -153,7 +153,7 @@ def settled(p:PersonCtx) -> Case:
   for _ in range(60):
     if not (waiting := [q for q in questions(held, T, proposals(held, T)[0]) if said_to(held, q) is None]): break
     held = replied(p, held, waiting[0])
-  else: raise AssertionError("questions still open after 60 answers")
+  else: raise AssertionError("questions with no answer after 60 answers")
   while proposed := proposals(held, T)[0]:
     for name in proposed: held = confirm(held, T, name)
   return held

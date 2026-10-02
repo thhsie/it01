@@ -9,8 +9,8 @@ from it01.kinds import Paying, Table, paying, picked, spoken
 from it01.law import EARLIER_MONTHS, YEAR_STARTS
 from it01.tax import ZERO, Facts, Figure, amount, assess, from_json, plain
 
-OUT, SAME, WRONG, EACH, GONE = "out", "same", "wrong", "each", "no longer read from any document"
-ADRIFT = "the balance after this does not agree, so it is left out"
+OUT, SAME, WRONG, EACH, GONE = "out", "same", "wrong", "each", "no document gives this figure at this time"
+ADRIFT = "the balance on the statement after this payment does not agree with the amounts. The totals do not include this payment"
 NUMBERED = re.compile(r"payments? (?P<nums>\d+(?:, ?\d+)*)")
 SHARE = re.compile(r"share (?P<part>\S+) of (?P<whole>\S+)")
 
@@ -46,7 +46,7 @@ def year_of(month:str) -> tuple[str, ...]:
 
 def yearly(first:str) -> dict[str, str]:
   if not MONTH.fullmatch(first) or int(first[5:]) != YEAR_STARTS:
-    raise ValueError(f"an income year starts in month {YEAR_STARTS}, not {first!r}")
+    raise ValueError(f"an income year starts in month {YEAR_STARTS}, not in {first!r}")
   return {"from": first, "to": year_of(first)[-1]}
 
 def months_of(held:Case) -> tuple[str, ...]:
@@ -63,9 +63,10 @@ def uncovered(held:Case, months:tuple[str, ...]) -> list[str]:
 def unread(missing:list[str]) -> list[Asked]:
   if not missing: return []
   return [Asked(f"months no statement covers, {', '.join(missing)}", f"no statement covers {', '.join(missing)}",
-               "money paid in those months is not counted. Add the statements, or say your accounts had no payments then",
-               (("later", "I'll add the statements"), ("none", "my accounts had no payments in those months")), None,
-               "a statement seems to be missing", months=tuple(missing))]
+               "the totals do not include money from these months. Add the statements for these months, "
+               "or tell if the accounts had no payments in these months",
+               (("later", "add the statements after this"), ("none", "the accounts had no payments in these months")), None,
+               "a statement is possibly missing", months=tuple(missing))]
 
 def needing(kind:str) -> str: return f"money labelled {kind}"
 def costs_of(doc:str, kind:str, way:str="out") -> str: return f"{doc}, paid {way} as {plain(kind)}"
@@ -74,11 +75,11 @@ def trading_in(doc:str) -> str: return f"{doc}, business costs"
 def kinds_of(t:Tables, way:str) -> tuple[str, ...]: return picked(t.into) if way == "in" else tuple(t.out.prompt.kinds)
 
 def relabelling(t:Tables, way:str) -> tuple[tuple[str, str], ...]:
-  return ((OUT, "leave it out"), *((kind, f"label it {kind}") for kind in kinds_of(t, way)))
+  return ((OUT, "do not count this payment"), *((kind, f"change the type to {kind}") for kind in kinds_of(t, way)))
 
 def read_as(held:Case, t:Tables, p:Payment) -> str:
   if p.label not in (t.into if p.way == "in" else t.out).prompt.kinds:
-    raise ValueError(f"{p.document} holds a payment labelled {p.label}, which the labelling tables do not list")
+    raise ValueError(f"{p.document} has a payment of the type {p.label}, and the tables of types do not have this type")
   if p.way == "in" and p.label in t.into.needs and (instead := held.decisions.get(needing(p.label))) in picked(t.into): return str(instead)
   return p.label
 
@@ -143,16 +144,17 @@ def counted(held:Case, t:Tables, months:tuple[str, ...]) -> Rows:
   return [(key, p, kind) for key, p, kind in kept_rows(held, t, months) if not is_earlier(held, t, key, kind, p, months)]
 
 def kept_asks(held:Case, t:Tables) -> list[Asked]:
-  return [Asked(this_year(key), worded(p := held.payments[key]), why, (("yes", "it paid tax for this income year"),), p.document, amount=p.amount)
+  kept = (("yes", "this payment is tax for this income year"),)
+  return [Asked(this_year(key), worded(p := held.payments[key]), why, kept, p.document, amount=p.amount)
           for key, why in earlier(held, t, months_of(held)).items()]
 
 def twice(t:Tables, way:str, doc:str) -> tuple[tuple[str, str], ...]:
-  return ((SAME, f"it is the same payment as in {doc}"), *relabelling(t, way))
+  return ((SAME, f"this is the same payment as in {doc}"), *relabelling(t, way))
 
 def worded(p:Payment) -> str: return f"{p.amount:,} paid {p.way} on {p.date}, {p.description}"
 
 def outgoing(amt:Decimal, cnt:int, kind:str, doc:str, way:str) -> str:
-  return f"{amt:,} paid {way} in {cnt} payment{'s' if cnt > 1 else ''} that look{'' if cnt > 1 else 's'} like {plain(kind)}, in {doc}"
+  return f"{amt:,} paid {way} in {cnt} payment{'s' if cnt > 1 else ''} of the type {plain(kind)}, in {doc}"
 
 def payee_of(p:Payment, kind:str) -> str: return f"{alike(p)}, as {plain(kind)}"
 
@@ -170,9 +172,9 @@ def claims(t:Tables, rows:Rows) -> list[Asked]:
     total, claim = sum((amt for _, amt in paid), ZERO), claimable.get(kind)
     asking, closes = (claim[1], None) if claim else t.out.certificates[kind]
     payees = tuple(payee_of(p, kind) if claim and payer(p) and not (way == "out" and kind in t.out.picks) else "" for _, p in members)
-    holds = ", and counts for other statements with the same payees" if any(payees) else ""
-    if claim: choices = (("yes", f"adds {total:,} to {plain(claim[0])}{holds}"), ("no", f"adds nothing{holds}"))
-    else: choices = (("later", "I'll add it later"), ("not", f"this was not for {plain(kind)}"))
+    holds = ". This answer also applies to other statements with the same payees" if any(payees) else ""
+    if claim: choices = (("yes", f"adds {total:,} to {plain(claim[0])}{holds}"), ("no", f"adds no money{holds}"))
+    else: choices = (("later", "add it after this"), ("not", f"this is not for {plain(kind)}"))
     ret.append(Asked(costs_of(doc, kind, way), outgoing(total, len(paid), kind, doc, way), asking, choices, doc, headlines.get(kind), total,
                      (("yes", claim[0]),) if claim else (), tuple(k for k, _ in paid), kind in picking, closes, trade=kind in trading,
                      payees=payees, amounts=tuple(amt for _, amt in paid)))
@@ -219,7 +221,7 @@ def behind(q:Asked, said:str) -> tuple[str, ...]:
 
 def answering(held:Case, q:Asked, parts:Parts) -> None:
   if (answer := said_to(held, q)) is not None and (hit := added_by(q, answer)):
-    said = f"answered {q.about}" if q.subject in held.decisions else f"carried from {', '.join(dict.fromkeys(q.payees))}"
+    said = f"your answer to {q.about}" if q.subject in held.decisions else f"your answer for {', '.join(dict.fromkeys(q.payees))}"
     parts.setdefault(hit[0], []).append((hit[1], said, behind(q, answer)))
 
 def earned(held:Case, t:Tables, rows:Rows) -> Parts:
@@ -229,7 +231,7 @@ def earned(held:Case, t:Tables, rows:Rows) -> Parts:
     if p.way == "in" and kind in t.into.feeds: by.setdefault((p.document, kind), []).append((key, p))
   for (doc, kind), paid in by.items():
     unsure = sum(1 for _, p in paid if p.check == UNCHECKED)
-    said = f"{doc}, {len(paid)} labelled {kind}" + (f", {unsure} unchecked" if unsure else "")
+    said = f"{doc}, {len(paid)} of the type {kind}" + (f", {unsure} with no balance check" if unsure else "")
     parts.setdefault(t.into.feeds[kind], []).append((sum((p.amount for _, p in paid), ZERO), said, tuple(key for key, _ in paid)))
   for key, r in held.readings.items():
     if held.decisions.get(key) != WRONG: parts.setdefault(r.fact, []).append((r.amount, f"{r.document}, {r.quote}", (key,)))
@@ -276,16 +278,16 @@ def proposed_from(held:Case, worked:dict[str, tuple[Decimal, str]]) -> tuple[dic
 
 def is_given(held:Case, proposed:dict[str, Decimal], name:str) -> bool: return at(held.given, name) is not None or name in proposed
 
-def costing() -> tuple[tuple[str, str], ...]: return (("business", "they are costs of my business"), ("not", "they are not business costs"))
+def costing() -> tuple[tuple[str, str], ...]: return (("business", "these payments are business costs"), ("not", "these are not business costs"))
 
 def together(held:Case, t:Tables, subject:str, members:list[tuple[str, Payment, str]]) -> list[Asked]:
   if len(members) < 2 or held.decisions.get(subject) == EACH:
     return [Asked(key, worded(p), t.into.asking[kind], relabelling(t, "in"), p.document, amount=p.amount) for key, p, kind in members]
   total = sum((p.amount for _, p, _ in members), ZERO)
-  about = f"{len(members)} payments paid in worded like {payer(members[0][1])}, {total:,} in all"
-  asks = "say what these payments were. The answer counts for each payment listed"
-  return [Asked(subject, about, asks, (*relabelling(t, "in"), (EACH, "they differ, so ask about each one")), None,
-                "payments worded alike", total, paid=tuple(key for key, _, _ in members))]
+  about = f"{len(members)} payments in with the words {payer(members[0][1])}, {total:,} in total"
+  asks = "select the type of these payments. The answer applies to each payment in the list"
+  return [Asked(subject, about, asks, (*relabelling(t, "in"), (EACH, "the payments are different, thus give an answer for each payment")), None,
+                "payments with the same words", total, paid=tuple(key for key, _, _ in members))]
 
 def is_alike(q:Asked) -> bool: return EACH in dict(q.choices)
 
@@ -314,21 +316,21 @@ def questions(held:Case, t:Tables, proposed:dict[str, Decimal]) -> list[Asked]:
   for key, p in held.payments.items():
     if not is_inside(p, months): continue
     if doc := copied.get(key):
-      asks = f"the same date, amount and wording are in {doc}, so it is counted once"
-      ret.append(Asked(key, worded(p), asks, twice(t, p.way, doc), p.document, "a payment read in two statements", p.amount))
+      asks = f"{doc} has a payment with the same date, amount and words. The totals include this payment one time only"
+      ret.append(Asked(key, worded(p), asks, twice(t, p.way, doc), p.document, "a payment is in two statements", p.amount))
       continue
     if p.way != "in": continue
     if rule_of(held, t, key, p): continue
     if (kind := read_as(held, t, p)) in t.into.asking:
       groups.setdefault(key if key in held.decisions or not payer(p) else alike(p), []).append((key, p, kind))
     elif kind in t.into.feeds and p.check == DIFFERS:
-      ret.append(Asked(key, worded(p), ADRIFT, relabelling(t, "in"), p.document, "a payment was left out of the totals", p.amount))
+      ret.append(Asked(key, worded(p), ADRIFT, relabelling(t, "in"), p.document, "the totals do not include a payment", p.amount))
   for subject, members in groups.items(): ret += together(held, t, subject, members)
   for kind, (fact, asking) in t.into.needs.items():
     came = any(p.way == "in" and p.label == kind and is_inside(p, months) and said_of(held, t, key, p) is None for key, p in held.payments.items())
     if (subject := needing(kind)) in held.decisions or (came and not is_given(held, proposed, fact)):
-      choices = tuple((instead, f"label it {instead} instead") for instead in picked(t.into) if instead != kind)
-      about = f"money labelled {kind} came in and the case gives no {plain(fact)}"
+      choices = tuple((instead, f"change the type to {instead}") for instead in picked(t.into) if instead != kind)
+      about = f"money of the type {kind} came in, and the case has no {plain(fact)}"
       ret.append(Asked(subject, about, asking, choices, None, t.into.headlines.get(kind), closes=fact))
   rows = counted(held, t, months)
   owed, trading = claims(t, rows), is_trading(held, earned(held, t, rows))
@@ -336,9 +338,9 @@ def questions(held:Case, t:Tables, proposed:dict[str, Decimal]) -> list[Asked]:
     costs = [q for q in owed if q.trade and q.document == doc]
     if (spent := [q for q in costs if held.payments[q.paid[0]].way == "out"]) and (not trading or trading_in(doc) in held.decisions):
       cnt = sum(len(q.paid) for q in spent)
-      ret.append(Asked(trading_in(doc), f"{cnt} payment{'s' if cnt > 1 else ''} in {doc} look{'' if cnt > 1 else 's'} like costs of a business, "
-                       "and the case has no business income", "say whether you run a business, even one with no income yet", costing(), doc,
-                       "costs of a business with no income yet?"))
+      ret.append(Asked(trading_in(doc), f"{cnt} payment{'s' if cnt > 1 else ''} in {doc} {'are' if cnt > 1 else 'is'} possibly business costs, "
+                       "and the case has no business income", "tell if you have a business. A business with no income also counts", costing(), doc,
+                       "business costs, but no business income?"))
     ret += [q for q in costs if is_owed(held, q, trading)]
   return unread(uncovered(held, months)) + ret + [q for q in owed if not q.trade and not is_closed(held, q)] + form_lines(held, t)
 
@@ -346,16 +348,16 @@ def is_closed(held:Case, q:Asked) -> bool: return q.closes is not None and at(he
 
 def payment_asked(held:Case, t:Tables, key:str) -> Asked:
   p = held.payments[key]
-  return Asked(key, worded(p), "say what this payment was", relabelling(t, p.way), p.document, amount=p.amount)
+  return Asked(key, worded(p), "select the type of this payment", relabelling(t, p.way), p.document, amount=p.amount)
 
 def subject_of(held:Case, t:Tables, subject:str) -> Asked:
   if q := next((q for q in questions(held, t, proposals(held, t)[0]) if q.subject == subject), None): return q
   if subject in held.payments: return payment_asked(held, t, subject)
   if q := next((q for q in kept_asks(held, t) if q.subject == subject), None): return q
   if r := held.readings.get(subject):
-    misread = ((WRONG, "this figure was misread"),)
-    return Asked(subject, f"{r.amount:,} read from {r.quote}", "say whether this figure was misread", misread, r.document)
-  raise ValueError(f"the case asks nothing about {subject}")
+    misread = ((WRONG, "the figure is not correct"),)
+    return Asked(subject, f"{r.amount:,} read from {r.quote}", "tell if the figure is not correct", misread, r.document)
+  raise ValueError(f"the case has no question about {subject}")
 
 def numbers(said:str) -> list[int]|None:
   return [int(n) for n in named["nums"].replace(" ", "").split(",")] if (named := NUMBERED.fullmatch(said.strip())) else None
@@ -364,12 +366,12 @@ def fitted(held:Case, q:Asked, said:str) -> str:
   said = said.strip()
   if q.share and q.paid and numbers(said) is not None:
     if (named := chosen_in(q, said)) is None:
-      raise ValueError(f"answer {q.subject} naming each of payments 1 to {len(q.paid)} at most once, not {said}")
+      raise ValueError(f"for {q.subject}, give each payment number from 1 to {len(q.paid)} one time only, not {said}")
     return f"payments {', '.join(str(n) for n in sorted(named))}"
   if fits(q, said): return said
-  numbered = ", payments by number such as payments 1, 3" if q.share and q.paid else ""
-  share = f"{numbered}, or the part that was, from 0.01 to {q.amount:,}" if q.share else ""
-  raise ValueError(f"answer {q.subject} with one of: {', '.join(n for n, _ in q.choices)}{share}")
+  numbered = ", the payment numbers, for example payments 1, 3" if q.share and q.paid else ""
+  share = f"{numbered}, or a part of the total, from 0.01 to {q.amount:,}" if q.share else ""
+  raise ValueError(f"for {q.subject}, the answer must be one of: {', '.join(n for n, _ in q.choices)}{share}")
 
 def put(given:dict[str, Any], name:str, amt:Decimal|int|bool|list[Decimal]) -> dict[str, Any]:
   part, _, rest = name.partition(".")

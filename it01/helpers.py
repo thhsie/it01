@@ -4,7 +4,7 @@ from typing import Any
 def flag(name:str, default:str) -> str: return os.environ.get(name, default)
 
 def number(name:str, default:str) -> int:
-  if not (value := flag(name, default)).isdecimal(): raise ValueError(f"{name} must be a whole number, not {value}")
+  if not (value := flag(name, default)).isdecimal(): raise ValueError(f"{name} must be a number with no decimal part, not {value}")
   return int(value)
 
 def folder(name:str, default:str) -> str:

@@ -1,13 +1,13 @@
 # it01
 
-it01 prepares an individual's income tax on your own computer. A model reads your documents and proposes facts. Plain Python computes the tax from the facts you confirm.
+it01 prepares the income tax of one person on your own computer. A model reads your documents and proposes facts. Python code calculates the tax from the facts that you accept.
 
-- **Readers** turn a document into proposed figures, each with a note of where it came from.
-- **A case file** holds what was read, what is proposed, what you confirmed and what is still open.
-- **Every figure** names the rule and the section of law behind it.
-- **No network** is used beyond the model endpoint you configure.
+- **Readers** read a document and make proposed figures, each with a record of its source.
+- **A case file** keeps the data from your documents, your answers and the facts that you accept.
+- **Each figure** shows the rule and the section of the law that it comes from.
+- **The only connection** goes to the model endpoint that you configure.
 
-A model never decides tax. Nothing it proposes reaches the computation until you confirm it.
+A model does not calculate tax. The engine uses a proposed figure only after you accept that figure.
 
 ---
 
@@ -20,22 +20,22 @@ echo '{"resident": true, "dependants": 1, "salary": 1200000}' > facts.json
 it01 facts.json
 ```
 
-It computes chargeable income, income tax, fair share contribution, total tax, the balance after tax already paid, and the losses to carry forward. Each figure prints with the sections behind it and a link to the page of the law.
+The command calculates the chargeable income, the income tax, the fair share contribution and the total tax. It also shows the `tax paid`, the `balance of tax` and the `losses carried forward`. Each figure shows its sections of the law, with a link to the page of the law.
 
-## Pay the tax on a quarter
+## Pay the tax for a quarter
 
-A person with rental income pays tax on each of the first three quarters of the year.
+A person with income from rent pays tax for each of the first three quarters of the year.
 
 ```sh
 echo '{"resident": true, "dependants": 1, "rent": 400000, "period": "quarter"}' > q1.json
 it01 q1.json
 ```
 
-`period` is `year` unless you say otherwise. A quarter is taxed on its own bands and takes a quarter of the deduction for dependants. It credits the tax deducted at source in that quarter and owes no fair share contribution.
+If you do not set `period`, its value is `year`. The tax for a quarter uses the bands for a quarter. A quarter gets one quarter of the deduction for dependants. The engine subtracts the tax deducted at source in that quarter, and a quarter has no fair share contribution.
 
-A quarter takes `rent`, `losses_brought_forward`, `tax_deducted_at_source` and `business`. Every other fact is refused by name. In a quarter, the allowance on an asset is a quarter of the annual allowance, and the figure is named that way.
+For a quarter, the facts file can have only `resident`, `dependants`, `period`, `rent`, `losses_brought_forward`, `tax_deducted_at_source` and `business`. For each other fact, the engine shows an error that gives the name of the fact. For a quarter, the allowance on an asset is one quarter of the annual allowance. The name of that figure starts with `a quarter of the annual allowance on`.
 
-## Drop a document in
+## Add a document to the case
 
 ```sh
 export IT01_ENDPOINT=http://localhost:8080/v1/chat/completions IT01_MODEL=your-model
@@ -44,43 +44,49 @@ it01 keep facts.json
 it01 confirm facts.json resident_dividends
 ```
 
-The endpoint takes OpenAI-compatible chat requests and can be on your computer or on a server.
+The endpoint uses OpenAI-compatible chat requests. The endpoint can be on your computer or on a server.
 
-A document is read as text. A PDF can be given instead, and each of its pages is read off its picture, as described below.
+The engine reads a document as text. You can also add a PDF. The engine then reads an image of each page, as a section below shows.
 
-`add` works out what the document is. A running balance column means a bank statement, which is labelled through your endpoint or a model file. Anything else is read with a model file of your own.
+`add` finds the type of the document. A document with a column for the running balance is a bank statement. The engine gives a type to each payment in a statement, through your endpoint or with a model file. The engine reads all other documents with a model file that you supply.
 
-The case keeps what it reads: every payment in and out with its label, and each figure a form shows. What you say about them is kept under `decisions`. Questions are not kept. The open questions are worked out each time the case is read.
+The case keeps the data that the engine reads: each payment in and out with its type, and each figure on a form. Your answers go in `decisions`. The case does not keep the questions. The engine finds the questions each time that it reads the case.
 
-A document whose name is already in `documents` is not read at all, and the file is left alone. A file identical to one read before is refused the same way, whatever it is called.
+If `documents` has the name of the document that you add, the engine does not read it. The file does not change. The engine also does not read a file with the same contents as a previous file. The name of the file has no effect on this.
 
-The proposed figures are not kept in the file. Each time the case is read, they are worked out from what was read and what you said. Each payment labelled with a kind that feeds a fact adds to it, and so does each figure a form shows.
+The case file does not keep the proposed figures. Each time that the engine reads the case, it calculates them again from the documents and your answers. A payment adds to a fact when `feeds` gives that fact for the type of the payment. Each figure on a form also adds to its fact.
 
-A relief or business cost you answered yes to, and a form line you chose, add too. Each figure notes where it came from.
+A relief or a business cost also adds to its fact when your answer is yes. A line on a form that you select also adds to its fact. Each figure has a record of its source.
 
-`keep` prints everything processed so far. `confirm` moves one figure into the facts, and keeps the amount in `confirmed`. When a later document or answer changes that figure, it is proposed again, and `data` lists its old amount under `changed`. A confirmed figure no longer read from any document is proposed at 0.
+`keep` prints all the data in the case. `confirm` accepts one proposed figure. The figure goes into the facts, and its amount goes into `confirmed`.
 
-`unconfirm` takes a confirmed figure out of the facts, and it is proposed again. A figure you entered is cleared with `set`.
+If a new document or answer changes an accepted figure, the figure becomes a proposed figure again. `data` then shows the previous amount in `changed`. If no document gives an accepted figure at this time, the engine proposes 0 for that figure.
 
-`data` prints the same case as JSON, with every number as text. Each question comes with its subject, wording, answers, headline and price, what you said, and the fact that closes it, if any. Each payment comes with its label, the label it was read with, and what you said. `outside` lists every payment in or out dated outside the income year, whatever was said about it.
+`unconfirm` removes an accepted figure from the facts, and the figure becomes a proposed figure again. Use `set` to clear a figure that you gave with `set`.
 
-`keep` also adds up the money paid in by the kind it was labelled, and names the group of each kind. It also sums it by group: income, exempt, still to sort, or not income. `data` carries the same totals and the group of each kind.
+`data` prints the same case as JSON, with each number as text. Each question has its subject, its words, its answers and its headline. Each question also has your answer, the change in tax for each answer and the fact that closes the question.
 
-The dates of a statement's labelled payments say which part is the month. A first part from 13 to 31 means the day comes first, and a second part from 13 to 31 means the month comes first. When the dates do not show the order, no payment from that statement is placed in a month, and `keep` lists them. A two-digit year is read as 20yy.
+Each payment has its type, the type from the reader and your answer. `outside` lists each payment in or out with a date that is not in the income year. Your answers have no effect on this list.
 
-Money paid in is also added up for each month of one income year. The Act's year starts on 1 July, and the year shown holds the latest payment. A payment dated before that year is listed. `data` also gives, for each month, its sums by group and the labels in each sum.
+`keep` adds the money paid in for each type, and shows the group of each type. It also adds the money for each group: `income`, `exempt`, `type not known` or `not income`. `data` has the same totals and the group of each type, with the keys `income`, `exempt`, `unsorted` and `other`.
 
-## Take a document out
+The dates of the payments in a statement show which part of a date is the month. If the first part is from 13 to 31, the day comes first. If the next part is from 13 to 31, the month comes first.
+
+If the dates do not show the sequence, the engine puts no payment from that statement in a month. `keep` lists these payments. The engine reads a year of two digits as `20yy`.
+
+`keep` also adds the money paid in for each month of one income year. The income year starts on 1 July, and the year that `keep` shows has the last payment. `keep` lists each payment with a date that is not in that year. For each month, `data` also gives the total of each group and the payments in each total.
+
+## Remove a document from the case
 
 ```sh
 it01 remove facts.json statement-march.pdf
 ```
 
-`remove` drops everything read from one document: its payments, form figures and form lines. What you said about them goes too. Other answers stay.
+`remove` removes all the data from one document: its payments, its form figures and its form lines. Your answers about these items also go. Your other answers stay.
 
-The figures are worked out again, so a figure you confirmed from that document is proposed again without it.
+The engine then calculates the figures again. If you accepted a figure from that document, the engine proposes that figure again, without the data from that document.
 
-## Enter a fact yourself
+## Type a fact
 
 ```sh
 it01 set facts.json dependants 2
@@ -88,27 +94,33 @@ it01 set facts.json quarterly_tax_paid 12500
 it01 set facts.json losses_brought_forward ""
 ```
 
-`set` writes one fact into the case, with the source `entered by you`. It takes any amount the computation reads, a whole number of `dependants`, and yes or no for `resident` and `spouse_above_interest_bar`. `medical_insurance` and `school_fees` take one amount per person, separated by spaces or semicolons. A figure entered this way replaces its proposal.
+`set` writes one fact into the case, with the source `entered by you`. You can set each amount that the engine uses to calculate the tax. For `dependants`, type a number with no decimal part. For `resident` and `spouse_above_interest_bar`, type yes or no.
 
-An empty value clears the fact, except `resident`. A value the computation would refuse is not kept.
+For `medical_insurance` and `school_fees`, type one amount for each person, with spaces or semicolons between the amounts. A figure that you type replaces the proposed figure.
 
-## Answer a question or correct a reading
+An empty value clears the fact, but not for `resident`. If the engine cannot calculate the tax with a value, the case does not keep the value.
+
+## Answer a question or correct a figure from a form
 
 ```sh
 it01 answer facts.json "bank.txt, 1,200.00 paid in on 12/08" rent
 ```
 
-Give the start of a subject after the file. A subject is a question, a payment, or a figure a form was read as. When it matches none, or more than one, nothing changes and the command says so.
+After the file, type the start of a subject. A subject is a question, a payment or a figure that the engine read from a form. If the start agrees with no subject or with more than one, the command shows an error. The case does not change.
 
-The answer is kept under `decisions`, keyed by its subject. An answer the subject does not take is refused, and the case is left as it was. Answering again replaces the earlier answer, and the figures are worked out again.
+The case keeps the answer in `decisions`, with its subject as the key. If the subject cannot have that answer, the engine shows an error and the case does not change. A new answer replaces the previous answer, and the engine calculates the figures again.
 
-A payment takes `out`, or any kind of its statement, even one the labeller was sure of. A payment left out for its balance counts once given a kind. A form figure takes `wrong` when the reader took the wrong line.
+For a payment, the answer is `out` or a type for its direction. You can give this answer for each payment, also for a payment with no question. If its balance keeps a payment out of the totals, the payment counts when you give it a type. For a figure from a form, the answer `wrong` tells the engine that the reader used the incorrect line.
 
-`it01 keep` prints what each answer would change in the tax to pay. The change is worked out from the figures the case would hold with every proposal confirmed. A question whose answers all leave the tax as it is shows no change. A question that waits for a figure, such as a missing salary, shows no change either.
+`it01 keep` shows the change in the tax to pay for each answer. The engine calculates this change as if you accept all the proposed figures. If no answer to a question changes the tax, the question shows no change. A question for a missing figure, for example a missing salary, also shows no change.
 
-An answer that no longer fits its question counts for nothing, and the question opens again. `data` shows that answer under `earlier`.
+If an answer is not possible for its question at this time, the answer has no effect. The question then has no answer, and `data` shows the previous answer in `earlier`.
 
-A payment with the same direction, date, amount and wording as one in an earlier statement is counted once. It is asked about, because two statements can overlap. `same` keeps it counted once, and a kind counts it as another payment. A payment counts again once the statement it repeats is removed.
+Two statements can have the same payment, with the same direction, date, amount and words. The totals include this payment one time, and the engine shows a question about it. The answer `same` keeps one payment in the totals. A type as the answer adds it as a different payment.
+
+If you remove the other statement, the payment counts again.
+
+`remember` uses your answer for one payment for all payments in the same direction with the same payee words. First, give the payment a type or `out` with `answer`. `keep` then shows `from your answer for` and the rule after the type of each of these payments.
 
 ## Fill in the return
 
@@ -116,25 +128,25 @@ A payment with the same direction, date, amount and wording as one in an earlier
 it01 sheet facts.json
 ```
 
-This prints what to type in the return, one field a line, in the order the return asks for them. Each line gives the return's own field id and the value. The table that maps facts to fields is `it01/portal.json`.
+`sheet` prints the values to type in the return, with one field on each line. The fields are in the same sequence as in the return. Each line gives the field id from the return and the value. `it01/portal.json` is the table that gives the field for each fact.
 
-The return keeps whole amounts and drops the fraction as you type, so each amount is given as a whole number. The last lines are the return's own totals, worked out from those whole amounts, so you can check them after typing.
+The return keeps only amounts with no decimal part, and it removes the decimal part when you type. Thus the sheet gives each amount with no decimal part. The last lines are the totals that the return calculates from these amounts. Use them to check the return after you type.
 
-Some lines end with `filled in by the return, check it`. The return fills those fields itself. Check that each figure matches your document.
+Some lines end with `the return fills in this field, examine it`. The return puts a value in these fields. Make sure that each figure agrees with your document.
 
-A line ending with `the total of all rows` belongs to a table with one row per employer or payer. Split it across the rows as your documents do.
+A line that ends with `the total of all rows` is for a table with one row for each employer or payer. Divide the total between the rows, as your documents show.
 
-Facts the return has no single field for are listed last, with where to enter them. The sheet refuses a quarter, because the return takes a year.
+The last lines, in the `not on the sheet` section, list the facts that have no field of their own. Each line tells you where to type the fact. For a quarter, `sheet` shows an error, because the return is for a year.
 
-## Take an answer back
+## Remove an answer
 
 ```sh
 it01 forget facts.json "bank.txt, 1,200.00 paid in on 12/08"
 ```
 
-`forget` removes what you said about one subject. A payment goes back to the label it was read with, a form figure counts again, and a question opens again. When this moves a figure you confirmed, that figure is proposed again.
+`forget` removes your answer for one subject. A payment gets the type from the reader again. A figure from a form counts again, and a question has no answer again. If this changes a figure that you accepted, that figure becomes a proposed figure again.
 
-## Read with a model file of your own
+## Read with your own model file
 
 ```sh
 pip install -e '.[local]'
@@ -142,15 +154,15 @@ export IT01_MODEL_FILE=reader.onnx IT01_TOKENISER=tokenizer.json
 it01 local statement.txt
 ```
 
-The `local` command takes an encoder that scores runs of words. It reads the document once and every answer points at a place in the text. The model is asked to fill one form, and the form's own sums decide between competing readings.
+The `local` command uses an encoder that gives a score to each sequence of words. The encoder reads the document one time, and each answer refers to a position in the text. The engine gives the model one form to complete. When the model gives two possible results, the totals on the form select the correct result.
 
-`it01/model.json` says what your file calls the nine things the package needs, along with the wording it expects. `it01/reading.json` holds the form, and the instruction the endpoint reader sends.
+`it01/model.json` gives the names that your file uses for the nine inputs and outputs of the package. It also gives the words that the file must get. `it01/reading.json` has the form, and the instruction that the endpoint reader sends.
 
-The form's `title` is the heading a document must print to be read as that form. `it01 add` refuses a document that is neither a bank statement nor titled.
+The `title` of the form is the heading that a document must have, to be that form. `it01 add` shows an error if a document is not a bank statement and does not have that heading.
 
-The form's `ends` finds the last month of the income year the document covers. When the case has a year, a document for another year is refused, and so is one whose year cannot be read. Both keys are optional.
+The `ends` key of the form finds the last month of the income year of the document. If the case has an income year, `add` does not read a document for a different year. It also does not read a document if the engine cannot find its year. The two keys are optional.
 
-## Read a PDF off its pages
+## Read a PDF from the images of its pages
 
 ```sh
 pip install -e '.[pdf,local]'
@@ -158,11 +170,13 @@ export IT01_DETECTOR=detector.onnx IT01_RECOGNISER=recogniser.onnx
 it01 rows statement.pdf
 ```
 
-Every page of a PDF is drawn as a picture and read with two model files. The text layer is not used, so a scan and a printed file are read the same way. A page on which nothing is read is refused, and the message names the page.
+The engine makes an image of each page of a PDF and reads the image with two model files. The engine does not use the text layer. Thus a scan and a file from a computer give the same result. If the engine finds no text on a page, it shows an error that gives the page number.
 
-The detector takes the page at most 1280 pixels on its longest side, with each side a multiple of 32. It returns, for each pixel, the chance that it is part of a line of writing. The recogniser takes one line at 48 pixels tall. It returns the chance of each character at each step, where the first means no character and the last means a space.
+The detector gets the page with no side more than 1280 pixels, and each side is a multiple of 32. For each pixel, the detector gives the probability that the pixel is part of a line of text.
 
-The recogniser lists the characters it writes in its metadata, under `character`, one to a line. A list that does not match its output is refused. Both files take red, green and blue channels first, scaled from minus one to one.
+The recogniser gets one line with a height of 48 pixels. For each step, it gives the probability of each character. The first character is no character, and the last character is a space.
+
+The metadata of the recogniser lists its characters in `character`, one character on each line. If the list does not agree with the output, the engine shows an error. The two files get the red, green and blue channels first, with values from minus one to one.
 
 ## Read a bank statement
 
@@ -172,52 +186,60 @@ it01 credits statement.txt
 it01 debits statement.txt
 ```
 
-`rows` finds the columns from the arithmetic, checks each balance against the running total and marks each transaction `ok`, `does not agree` or `not checked`. Each transaction starts with the number of the line it was read from, counting from 1, as `it01 show` prints it. An amount it cannot place is counted, per page.
+`rows` finds the columns from the arithmetic, and it compares each balance with the running total. It marks each transaction `ok`, `does not agree` or `not checked`. Each transaction starts with the number of its line in the document, from 1, as `it01 show` prints it. For each page, `rows` gives the number of amounts that the engine did not use.
 
-A statement names its currency when a three-letter code follows the word currency above its first transaction. `it01 add` keeps that code with the document. It refuses a statement whose currency differs from one the case already holds.
+A statement gives its currency when a code of three characters comes after the word currency, above the first transaction. `it01 add` keeps that code with the document. If the case has a statement in a different currency, `add` does not read the new statement.
 
-`credits` labels every payment in through your endpoint, or your model file when `IT01_LABELLER` is set. The kinds are in `it01/labelling.json`. `feeds` says which fact each kind adds to, and `asking` says which kinds it asks you about.
+`credits` gives a type to each payment in, through your endpoint. If you set `IT01_LABELLER`, it uses your model file. The types are in `it01/labelling.json`. `feeds` gives the fact that each type adds to, and `asking` gives the types that make a question for you.
 
-`not_income` names the kinds that are not income. Every kind must be fed, needed, exempt, asked about or not income.
+`not_income` gives the types that are not income. Each type must be in one of `feeds`, `needs`, `exempt`, `asking`, `not_income` or `business`.
 
-`debits` labels every payment out the same way, with the kinds in `it01/paying.json`, and prints the total of each kind. Most kinds match a relief in the law, such as a pension contribution or school fees. A label proposes no fact.
+`debits` gives a type to each payment out, with the types in `it01/paying.json`. It prints the total of each type. Most types are for a relief in the law, for example a pension contribution or school fees. The type of a payment out does not propose a fact.
 
-`it01 add` asks one question for each kind of payment out in a statement. `claims` names the kinds a yes adds to a fact, with the condition the law sets. `certificates` names the kinds whose figure comes from a certificate, the question that asks for it, and the fact it is entered as. The question closes once that fact is given.
+For each type of payment out in a statement, `it01 add` makes one question. `claims` gives the types that add to a fact when the answer is yes, with the condition from the law.
 
-`business` names the kinds asked about only when the case has business income. A yes adds the total to the accounts line it names, and a typed amount adds only that part. `aside` names the kinds that count for nothing. A payment whose balance does not agree is left out of the totals.
+`certificates` gives the types that get their figure from a certificate. For each type, it gives the question and the fact for that figure. The question closes when the case has that fact.
 
-A question about money paid out, a missing statement or a balance that does not agree lists its answers after a colon. Each answer says what it does.
+`business` gives the types that make a question only when the case has business income. The answer yes adds the total to the line of the accounts that `business` gives. An amount as the answer adds only that amount.
 
-A question about a missing statement closes once the figure is known. Its answers say what the money was instead, such as business or rent. The answer relabels every payment of that kind. It proposes their total within the year under the fact for the new kind.
+`aside` gives the types that do not count. If the balance after a payment does not agree, the totals do not include that payment.
 
-A question about a payment in takes one of the kinds `it01 keep` lists after it.
+`keep` shows the answers to each question after a colon, and each answer tells its effect.
 
-A question about business costs paid out lists its payments by number. It takes yes, no, the business part as an amount, or the payments that were business costs, such as `payments 1, 3`. The engine adds up the payments named and keeps the sum.
+A question for a missing document, for example a statement of emoluments, closes when the case has the figure. Its answers give a different type for the money, for example business or rent. The answer changes the type of each payment of that type. The engine then proposes their total in the income year as the fact for the new type.
 
-Payments that look like business costs are kept even when the case has no business income. Each statement then asks once whether they are costs of your business. Answer business and each kind of cost is asked about, even with no business income yet. Answer not and that statement's costs are never asked about.
+For a question about a payment in, give one of the types that `it01 keep` lists after the question.
 
-Once business income is given or proposed, the costs kept from earlier statements are asked about too.
+A question about business costs lists its payments with numbers. The answer is yes, no, the business part as an amount, or the numbers of the business payments. For example, type `payments 1, 3`. The engine adds these payments and keeps the total.
 
-## Label bank credits with a model file of your own
+The case keeps payments that can be business costs, also when the case has no business income. Then each statement has one question about these payments. If you answer `business`, each type of cost gets a question, also when the business has no income. If you answer `not`, the costs in that statement get no questions.
+
+When the case has business income as a fact or a proposed figure, the costs in previous statements get questions.
+
+## Give types to payments in with your own model file
 
 ```sh
 export IT01_LABELLER=labeller.onnx IT01_TOKENISER=tokenizer.json
 it01 credits bank.txt
 ```
 
-With `IT01_LABELLER` set, each credit is labelled by a classifier on this computer and the endpoint is not called. The file scores every kind in `it01/labelling.json` for one credit at a time, and the highest score wins. Its inputs may have a fixed length or any length. A file of any length reads each credit at its own length.
+If you set `IT01_LABELLER`, a classifier on this computer gives the type of each credit. The engine does not use the endpoint. The file gives a score to each type in `it01/labelling.json`, for one credit at a time. The type with the maximum score is the result.
 
-`it01/labeller.json` says what your file calls its four inputs and its output, and the marks and wording around each kind and example. The task name, the instruction and the layout of one credit are under `model` in `it01/labelling.json`. The kinds, their descriptions and the examples are there too. The labeller reads with the same `IT01_TOKENISER` as the reader.
+Each input of the file has one length for all credits, or a length that can change. If the length can change, the file reads each credit at its own length.
 
-`debits` reads with the same model file. The task, the instruction, the line layout and the kinds are in `it01/paying.json`.
+`it01/labeller.json` gives the names that your file uses for its four inputs and its output. It also gives the marks and words around each type and example. The task name, the instruction and the layout of one credit are in `model` in `it01/labelling.json`. The types, their descriptions and the examples are also in that file.
 
-The file lists the tasks it was trained for in its metadata, under `tasks`, separated by commas: `source,purpose` for both tables. A file that does not list a table's task is refused.
+The labeller uses the same `IT01_TOKENISER` as the reader. `debits` uses the same model file. The task, the instruction, the layout of the line and the types are in `it01/paying.json`.
+
+The metadata of the file lists its tasks in `tasks`, with commas between them. For the two tables, the value is `source,purpose`. If the file does not list the task of a table, the engine shows an error.
 
 ## The facts file
 
-Only `resident` is required. `dependants` is a count and `business` is an object.
+The file must have `resident`, and all other facts are optional. `dependants` is a number of persons, and `business` is an object.
 
-`medical_insurance` is a list of premiums, one per insured person: you first, then each dependant in order. It holds at most five, for you and four dependants. The rest are amounts, written as numbers with at most two decimal places.
+`medical_insurance` is a list of premiums, with one premium for each person with insurance. Your premium is first, then the premium of each dependant in sequence. The list has a maximum of five premiums, for you and four dependants.
+
+The other facts are amounts. Write each amount as a number with a maximum of two digits after the decimal point.
 
 ```
 salary                       taxable_transport_allowance  performance_bonus
@@ -233,61 +255,69 @@ foreign_interest             foreign_other                exempt_interest
 global_business_dividends    duty_expenses
 ```
 
-The income heads follow the return. Each adds to income other than emoluments, so a loss can be set against it.
+The income heads are the same as in the return. Each head adds to income other than emoluments. Thus you can set a loss against that income.
 
-The four `foreign_` heads hold income from abroad received here, and only a resident may have them. Put income from any other source in `other_source`. `other_income` is its older name and adds to the same total.
+The four `foreign_` heads are for income from a different country that you received here. Only a resident can have them. Put income from all other sources in `other_source`. `other_income` is the previous name of this fact, and it adds to the same total.
 
-The reliefs follow the return. `school_fees` lists the private school fees paid for each child, and each counts up to 60,000. `electronic_donations` counts up to 100,000, `pension_contributions` up to 50,000 and `carer_wages` up to 30,000.
+The reliefs are the same as in the return. `school_fees` lists the fees that you paid to a private school for each child. Each amount counts up to 60,000. `electronic_donations` counts up to 100,000, `pension_contributions` up to 50,000 and `carer_wages` up to 30,000.
 
-`additional_deduction` is `retired` or `disabled` and adds 50,000. A retired person with emoluments above 50,000 before duty expenses, or with any business, agriculture, private tuition or peer to peer lending, gets nothing.
+`additional_deduction` is `retired` or `disabled` and adds 50,000. A retired person gets no deduction if the emoluments before duty expenses are more than 50,000. A retired person with business, agriculture, private tuition or peer to peer lending also gets no deduction.
 
-`housing_loan_interest` is not deducted when your net income, `resident_dividends`, `global_business_dividends` and `exempt_interest` together exceed 4,000,000, or when `spouse_above_interest_bar` is true. Set it to true when your spouse's income, counted the same way, exceeds 4,000,000. `exempt_interest` is interest on savings and fixed deposits, on government securities and on central bank bills. None of the three adds to your income.
+The engine does not deduct `housing_loan_interest` if the total of these amounts is more than 4,000,000: your net income, `resident_dividends`, `global_business_dividends` and `exempt_interest`. It also does not deduct the interest if `spouse_above_interest_bar` is `true`. Set it to `true` if the same total for your spouse is more than 4,000,000.
 
-`solar_energy`, `rainwater_harvesting` and `fast_charger` each hold `invested` this year and `brought_forward` from earlier years. After every other relief, they are deducted in that order from what income is left, and the rest is carried forward. Only a resident may claim them. When you and your spouse split a solar energy or rainwater harvesting investment, enter your own share as `invested`.
+`exempt_interest` is interest on savings and fixed deposits, on government securities and on central bank bills. The three amounts do not add to your income.
 
-`dependant_income` lists the income of each dependant, in order, as an object with `income`, `exempt` and `emoluments`. `income` is their net income and exempt income together. What is neither exempt nor emoluments adds to your other income, and their emoluments add to yours. A dependant whose income is above 110,000, 80,000, 85,000 or 80,000, for the first to the fourth, cannot be claimed.
+`solar_energy`, `rainwater_harvesting` and `fast_charger` each have `invested`, for this year, and `brought_forward`, from previous years. The engine deducts them after all other reliefs, in that sequence, from the remaining income. The remaining amount goes forward to the next year.
 
-Leave out of `income` any state benefit paid to a child or a bedridden relative you claim.
+Only a resident can claim them. If you and your spouse share an investment in solar energy or rainwater harvesting, type your part as `invested`.
 
-`students` lists each child at a university, as an object with `abroad`, `undergraduate`, `tuition` and `year`. Each gives 500,000, for at most four children and six years. An undergraduate course that is not abroad counts only when the tuition is at least 34,800.
+`dependant_income` lists the income of each dependant in sequence, as an object with `income`, `exempt` and `emoluments`. `income` is the total of the net income and the exempt income of the dependant.
 
-`salary` holds all emoluments. `duty_expenses` holds what you spent wholly, exclusively and necessarily in doing your job, and comes off your emoluments. Include an allowance to the extent it repays such spending.
+The income that is not exempt and not emoluments adds to your other income. The emoluments of the dependant add to your emoluments. You cannot claim a dependant with income above 110,000, 80,000, 85,000 or 80,000, for dependants 1, 2, 3 and 4.
 
-`other_income` holds income that is neither emoluments, rent nor business. `business` holds the accounts line by line as the return lists them, with an `assets` list for annual allowances.
+Do not include in `income` a benefit from the government for a child or a bedridden relative that you claim.
 
-`rent` holds income from letting, before expenses. `letting` holds what was spent to earn it: `repairs`, `interest`, `syndic_fees`, `other_expenses`, and an `assets` list as in `business`. A rent loss is set against other income and carried forward like a business loss.
+`students` lists each child at a university, as an object with `abroad`, `undergraduate`, `tuition` and `year`. Each child gives 500,000, for a maximum of four children and six years. An undergraduate course in the country counts only if the tuition is a minimum of 34,800.
 
-`farming` holds agriculture: `gross_income`, `labour`, `rent`, `fertilizers_and_pesticides`, `motor_vehicle_expenses` and `other_expenses`. A loss is treated like a business loss.
+`salary` has all emoluments.
 
-`tuition` holds private tuition as `gross_income` and `expenses`. A tuition loss counts as zero.
+`duty_expenses` is the money for your job that the law lets you deduct. The law accepts only money that you used "wholly, exclusively and necessarily" to do your job. The engine deducts it from your emoluments. Include the part of an allowance that pays back this money.
 
-`lending` holds peer to peer lending as `interest` and `bad_debts`. 80% of the interest is exempt. The bad debts come off the rest. Bad debts above the whole interest are carried forward.
+`other_income` has income that is not emoluments, rent or business. `business` has the accounts line by line, in the sequence of the return. Its `assets` list is for annual allowances.
 
-Nine keys are set aside before the computation, and none of them reaches it:
+`rent` has the income from rent, before expenses. `letting` has the expenses for that income: `repairs`, `interest`, `syndic_fees`, `other_expenses`, and an `assets` list as in `business`. The engine sets a rent loss against other income, the same as a business loss. The remaining loss goes forward to the next year.
+
+`farming` has the income and expenses of agriculture: `gross_income`, `labour`, `rent`, `fertilizers_and_pesticides`, `motor_vehicle_expenses` and `other_expenses`. The engine uses a loss from agriculture the same as a business loss.
+
+`tuition` has private tuition as `gross_income` and `expenses`. A tuition loss counts as zero.
+
+`lending` has peer to peer lending as `interest` and `bad_debts`. 80% of the interest is exempt. The engine deducts the bad debts from the remaining interest. If the bad debts are more than all the interest, the remaining bad debts go forward to the next year.
+
+The engine removes nine keys from the facts before it calculates the tax:
 
 ```
 version year sources confirmed documents payments readings lines decisions
 ```
 
-`documents` holds each document read, with its kind, the full path it was read from and a mark of its contents. A bank statement also holds its currency. A form holds the last month of the year it covers.
+`documents` has each document that the engine read. Each document has its type, the full path of the file and a mark of its contents. A bank statement also has its currency. A form also has the last month of its income year.
 
-`payments` holds every payment in and out of a statement. Each has its document, direction, amount, date, description, label, balance check and month. A payment whose balance did not agree gives no figure until you give it a kind. A figure notes how many of its payments were not checked.
+`payments` has each payment in and out of a statement. Each payment has its document, direction, amount, date, description, type, balance check and month. If the balance after a payment did not agree, the payment gives no figure until you give it a type. A figure shows the number of its payments with no balance check.
 
-`readings` holds each figure a form was read as, with the line it came from. `lines` holds each line of a form the reader asked about, with the lines it could be. `decisions` holds what you said, keyed by its subject.
+`readings` has each figure that the engine read from a form, with its line. `lines` has each line of a form that the reader was not sure of, with the possible lines. `decisions` has your answers, with the subject as the key.
 
-A case of another `version` is refused. `it01 rebuild` reads every document again from its path. It keeps the facts you gave, their sources and everything you said.
+The engine cannot read a case of a different `version`. `it01 rebuild` reads each document again from its path. It keeps your facts, their sources and all your answers.
 
-`rebuild` drops what you said about a subject that is no longer read, and lists it. It also reads a case of an earlier version, whose answers it cannot keep. Nothing changes if a document has no recorded path or is no longer there.
+`rebuild` removes each answer for a subject that the documents do not give, and lists these answers. `rebuild` can also read a case of a previous version, but it cannot keep the answers of that case. The case does not change if it does not show the location of a document. It also does not change if a document is not at its location.
 
-`year` holds the income year the case covers, as its first and last month. It starts in July and runs twelve months. `it01 year` sets it. A new year is refused when a form covers another year.
+`year` has the income year of the case, as its first and last month. The income year starts in July and has twelve months. `it01 year` sets it. If a form is for a different income year, `it01 year` shows an error.
 
-The months of money paid in follow the year. A bank statement line dated outside the year gives no figure and no question, and `keep` lists it. A line whose month cannot be read stays in.
+The months of money paid in are the months of that income year. A payment with a date that is not in the income year gives no figure and no question. `keep` lists it. A payment with a month that is not clear stays in the totals.
 
-`it01 show` prints a document from its recorded path. It refuses one that is no longer there, and one whose file has changed since it was read.
+`it01 show` prints a document from the path in the case. It shows an error if the file is not at that path. It also shows an error if the file changed after the engine read it.
 
 ## Keep your own copies
 
-`it01/model.json`, `it01/reading.json` and `it01/labelling.json` ship as defaults and are meant to be changed. Set `IT01_DATA` to a folder of your own and a file found there is used instead of the one in the package. A name you do not put there still comes from the package.
+The package has default copies of `it01/model.json`, `it01/reading.json` and `it01/labelling.json`, and you can change them. Set `IT01_DATA` to your own folder. The engine then uses each file in that folder, not the file in the package. For each file that is not in your folder, the engine uses the file in the package.
 
 ```sh
 mkdir -p ~/it01
@@ -295,55 +325,57 @@ cp "$(python -c 'import it01, pathlib; print(pathlib.Path(it01.__file__).parent)
 export IT01_DATA=~/it01
 ```
 
-A folder that is not there is refused.
+If the folder is not there, the engine shows an error.
 
 ## Commands
 
 ```
-it01 FACTS.json                         compute the tax
+it01 FACTS.json                         calculate the tax
 it01 add FACTS.json DOCUMENT.txt        read a document into the file
-it01 keep FACTS.json                    print everything so far
-it01 show FACTS.json DOCUMENT.txt       print a document the way it was read
+it01 keep FACTS.json                    print all the data in the case
+it01 show FACTS.json DOCUMENT.txt       print a document as the engine read it
 it01 confirm FACTS.json FACT            accept a proposed figure
-it01 answer FACTS.json SUBJECT ANSWER   answer a question, relabel a payment, or mark a reading misread
-it01 forget FACTS.json SUBJECT          take back what you said about a subject
+it01 answer FACTS.json SUBJECT ANSWER   answer a question, give a type to a payment, or mark a form figure as incorrect
+it01 remember FACTS.json PAYMENT        use the answer for one payment for all payments with the same words
+it01 forget FACTS.json SUBJECT          remove your answer for a subject
 it01 year FACTS.json YYYY-MM            set the income year from its first month
-it01 set FACTS.json FACT VALUE          enter a fact yourself, or clear it with an empty value
-it01 rebuild FACTS.json                 read every document again
-it01 remove FACTS.json DOCUMENT         take a document out of the case
-it01 unconfirm FACTS.json FACT          take back a confirmed figure
+it01 set FACTS.json FACT VALUE          type a fact, or clear it with an empty value
+it01 rebuild FACTS.json                 read all the documents again
+it01 remove FACTS.json DOCUMENT         remove a document from the case
+it01 unconfirm FACTS.json FACT          make an accepted figure a proposed figure again
 it01 read DOCUMENT.txt                  propose facts through your endpoint
 it01 local DOCUMENT.txt                 propose facts with your model file
-it01 rows STATEMENT.txt                 read transactions
-it01 credits STATEMENT.txt              label what was paid in
-it01 debits STATEMENT.txt               label what was paid out
-it01 data FACTS.json                    print the whole case as JSON
+it01 rows STATEMENT.txt                 read the payments
+it01 credits STATEMENT.txt              give a type to each payment in
+it01 debits STATEMENT.txt               give a type to each payment out
+it01 data FACTS.json                    print all the case as JSON
+it01 sheet FACTS.json                   print what to type in the return
 ```
 
-`IT01_KEY` is a bearer token if your endpoint needs one, `IT01_TIMEOUT` the seconds to wait, `IT01_DEBUG=2` prints the endpoint's reply. `IT01_DATA` is a folder holding your own copies of the JSON files in `it01/`.
+`IT01_KEY` is a bearer token for an endpoint that must have one. `IT01_TIMEOUT` is the number of seconds to wait for the endpoint. `IT01_DEBUG=2` prints the reply from the endpoint. `IT01_DATA` is a folder with your own copies of the JSON files in `it01/`.
 
-## What it does not do yet
+## Cases that the engine does not calculate
 
-Reading through an endpoint does not read the business accounts or the number of dependants. It does not handle an exempt activity inside the business accounts. It does not handle the extra deductions for special categories of employees, nor the artist and fast charger deductions. It does not handle a balancing charge when an asset is sold.
+The endpoint reader does not read the business accounts or the number of dependants. The engine does not calculate the business accounts when part of the business is exempt. It does not calculate the deductions for special categories of employees, or the deduction for artists. It does not calculate a balancing charge for the sale of an asset.
 
-It does not hold dividends that a body you belong to received and did not pay out, which the fair share contribution counts as yours.
+The engine has no fact for dividends that a body of yours received and did not pay out. The fair share contribution counts these dividends as your dividends.
 
-## Development
+## Run the checks
 
 ```sh
 pip install -e '.[linting]'
 python -m ruff check . && python -m mypy && python -m unittest && MAX_LINE_COUNT=3000 python sz.py
 ```
 
-Every check passes before a commit. There is no formatter. Do not run one.
+Run all the checks before a commit, and make sure that they show no errors. The repository has no formatter. Do not use a formatter.
 
-## Contributing
+## Send a change
 
-Fixes and updates to the tax rules are welcome. Read [AGENTS.md](AGENTS.md) first, because its rules bind every change.
+You can send corrections and updates to the tax rules. Read [AGENTS.md](AGENTS.md) first, because its rules apply to each change.
 
-No code golf. Line count is how complexity is measured here, and deleting a newline does nothing for readability.
+Do not remove line breaks only to decrease the line count. The repository uses the line count as a measure of complexity. When you remove a line break, the code does not become more easy to read.
 
-Every bug fix ships a test that fails without it. A refactor is its own pull request and changes no computed result. Say in a sentence or two why your change should be merged.
+Each bug correction must include a test that shows the bug without the correction. A refactor is a pull request of its own, and it does not change a calculated result. In the pull request, explain your change in one or two lines.
 
 ## License
 

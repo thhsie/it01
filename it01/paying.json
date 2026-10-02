@@ -25,69 +25,69 @@
   "claims": {
     "pension": {
       "fact": "pension_contributions",
-      "asking": "yes if each payment went into a personal pension scheme approved under the insurance law, for yourself. Ask the scheme for proof that it is approved"
+      "asking": "select yes if all these payments went into your personal pension scheme. The scheme must have the approval that the insurance law specified. Get a document that shows this approval from the scheme"
     },
     "donation": {
       "fact": "electronic_donations",
-      "asking": "yes if each donation was paid electronically to a charity the tax authority approved"
+      "asking": "select yes if you paid all these donations electronically to a charity with approval from the tax authority"
     },
     "carer_wages": {
       "fact": "carer_wages",
-      "asking": "yes if you paid the social contributions due for each carer"
+      "asking": "select yes if you paid the social contributions for each carer"
     }
   },
   "certificates": {
     "medical_insurance": {
-      "asking": "the insurer's certificate gives the premium for each person insured. Enter one amount per person, you first, as medical insurance",
+      "asking": "the certificate from the insurer shows the premium for each insured person. Type one amount for each person. Type your amount first",
       "fact": "medical_insurance"
     },
     "school_fees": {
-      "asking": "the school's receipt gives the fees for each child. Enter one amount per child as school fees",
+      "asking": "the receipt from the school shows the fees for each child. Type one amount for each child",
       "fact": "school_fees"
     },
     "housing_loan": {
-      "asking": "the lender's certificate gives the interest paid in the year. Enter it as housing loan interest",
+      "asking": "the certificate from the lender shows the interest that you paid in the year. Type this amount as housing loan interest",
       "fact": "housing_loan_interest"
     },
     "green_equipment": {
-      "asking": "add the invoice, which says whether it is solar, rainwater harvesting or a fast charger"
+      "asking": "add the invoice. The invoice shows the type of equipment: solar, rainwater harvesting or a fast charger"
     }
   },
   "business": {
     "business_expense": {
       "fact": "business.other_expenses",
-      "asking": "pick the payments for your business, or type the business part"
+      "asking": "select the payments for your business, or type the business part of the total"
     },
     "bank_charges": {
       "fact": "business.bank_charges",
-      "asking": "pick the charges on the account you use for your business, or type the business part"
+      "asking": "select the charges on your business account, or type the business part of the total"
     },
     "bills": {
       "fact": "business.utilities",
-      "asking": "pick the bills for your business, or type the business share"
+      "asking": "select the bills for your business, or type the business part of the total"
     }
   },
   "picks": {
     "tax_paid": {
       "fact": "quarterly_tax_paid",
-      "asking": "pick the payments of income tax for this income year. Tax paid for an earlier year does not count"
+      "asking": "select the income tax payments for this income year. Tax for a previous year does not count"
     }
   },
   "headlines": {
-    "business_expense": "which of these payments were costs of your business?",
-    "bills": "which of these bills were for your business?",
-    "bank_charges": "which of these bank charges were for your business?",
-    "pension": "were these paid into your own approved pension?",
-    "donation": "were these donations to an approved charity?",
+    "business_expense": "which payments are business costs?",
+    "bills": "which bills are for your business?",
+    "bank_charges": "which bank charges are for your business?",
+    "pension": "did these payments go into your approved pension scheme?",
+    "donation": "did these donations go to an approved charity?",
     "carer_wages": "did you pay the social contributions for each carer?",
     "medical_insurance": "add your medical insurance certificate",
     "school_fees": "add the school fees receipt",
     "housing_loan": "add your housing loan certificate",
     "green_equipment": "add the invoice for the equipment",
-    "tax_paid": "which of these paid your income tax for this year?"
+    "tax_paid": "which payments are income tax for this year?"
   },
   "earlier": {
-    "tax_paid": "income tax paid from July to October is counted for the year before, whose return is due by 15 October"
+    "tax_paid": "income tax that you pay from July to October is for the previous year. The last date for the return of that year is 15 October"
   },
   "aside": [
     "unclear",

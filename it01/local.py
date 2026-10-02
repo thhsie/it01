@@ -267,8 +267,8 @@ def shaped() -> Shape:
                tuple(text(gives, role, "model.json, under gives") for role, _ in ANSWERS), schema, line, written_at, start)
 
 def file_at(path:str, flag:str) -> str:
-  if not path: raise ValueError(f"set {flag} to use a model of your own")
-  if not pathlib.Path(path).is_file(): raise ValueError(f"{flag} names {path}, which is not a file")
+  if not path: raise ValueError(f"to use your model file, set {flag}")
+  if not pathlib.Path(path).is_file(): raise ValueError(f"{flag} refers to {path}, and {path} is not a file")
   return path
 
 def loaded(model:str, key:str) -> tuple[Any, Any]:
@@ -327,7 +327,7 @@ def figure(quote:str) -> Decimal|None:
   except ValueError: return None
 
 def found(document:str) -> tuple[Found, ...]:
-  if not (said := words(document)): raise ValueError("the document holds no words")
+  if not (said := words(document)): raise ValueError("the document has no words")
   ask, shape = wanted(), shaped()
   session, tok = reader()
   size = sizes(session, shape)

@@ -61,8 +61,9 @@ class Asset:
 
   def __post_init__(self) -> None:
     check_amounts(self)
-    if self.allowances_before > self.cost: raise ValueError(f"allowances before {self.allowances_before} exceed cost {self.cost}")
-    if self.kind is AssetKind.MOTOR_VEHICLE and self.cost > MOTOR_VEHICLE_CAP: raise ValueError(f"motor vehicle cost {self.cost} not supported yet")
+    if self.allowances_before > self.cost: raise ValueError(f"previous allowances {self.allowances_before} are more than the cost {self.cost}")
+    if self.kind is AssetKind.MOTOR_VEHICLE and self.cost > MOTOR_VEHICLE_CAP:
+      raise ValueError(f"the engine cannot calculate a motor vehicle cost of {self.cost}")
 
   def allowance(self, part:Decimal) -> Decimal:
     rate, basis, plant = ALLOWANCES[self.kind]
@@ -179,7 +180,7 @@ class Dependant:
 
   def __post_init__(self) -> None:
     check_amounts(self)
-    if self.exempt + self.emoluments > self.income: raise ValueError(f"exempt income and emoluments exceed the income {self.income}")
+    if self.exempt + self.emoluments > self.income: raise ValueError(f"exempt income and emoluments are more than the income {self.income}")
 
   @property
   def other(self) -> Decimal: return self.income - self.exempt - self.emoluments
@@ -256,23 +257,23 @@ class Facts:
     for name in ("medical_insurance", "school_fees"):
       if (bad := next((v for v in getattr(self, name) if not is_amount(v)), None)) is not None: raise ValueError(f"invalid {name} {bad}")
     if len(self.medical_insurance) > (most := min(self.dependants, len(MEDICAL) - 1) + 1):
-      raise ValueError(f"medical_insurance names {len(self.medical_insurance)} people, at most {most} can be insured")
+      raise ValueError(f"medical_insurance has {len(self.medical_insurance)} persons, and the maximum is {most}")
     if (children := len(self.school_fees) + len(self.students)) > self.dependants:
-      raise ValueError(f"school_fees and students name {children} children, more than the {self.dependants} dependants")
+      raise ValueError(f"school_fees and students have {children} children, which is more than the {self.dependants} dependants")
     if len(self.dependant_income) > (most := min(self.dependants, len(DEPENDANT_LIMITS))):
-      raise ValueError(f"dependant_income names {len(self.dependant_income)} dependants, at most {most} can have income")
+      raise ValueError(f"dependant_income has {len(self.dependant_income)} dependants, and the maximum is {most}")
     for idx, (one, limit) in enumerate(zip(self.dependant_income, DEPENDANT_LIMITS), 1):
-      if one.income > limit: raise ValueError(f"dependant {idx} has {one.income:,} of income, above {limit:,}, so cannot be claimed")
+      if one.income > limit: raise ValueError(f"dependant {idx} has {one.income:,} of income, more than {limit:,}. You cannot claim this dependant")
     if not self.resident and self.dependant_income: raise ValueError("a non-resident cannot claim dependant_income")
     if not self.resident and (held := [n for n in INVESTMENTS if getattr(self, n) != Investment()]):
       raise ValueError(f"a non-resident cannot claim investment allowances {held}")
     if len(self.students) > TERTIARY_CHILDREN:
-      raise ValueError(f"students names {len(self.students)} children, at most {TERTIARY_CHILDREN} can be claimed")
+      raise ValueError(f"students has {len(self.students)} children, and the maximum is {TERTIARY_CHILDREN}")
     if not self.resident and (abroad := [n for n in ABROAD if getattr(self, n)]):
       raise ValueError(f"a non-resident cannot have income from abroad {abroad}")
     if self.period is Period.YEAR: return
     held = sorted(f.name for f in fields(self) if f.name not in QUARTER_TAKES and is_held(getattr(self, f.name), f.default))
-    if held: raise ValueError(f"a quarter does not take {held}")
+    if held: raise ValueError(f"a quarter cannot have {held}")
 
   @property
   def emoluments(self) -> Decimal: return self.salary + self.taxable_transport_allowance + self.performance_bonus + self.statutory_bonus
@@ -376,7 +377,7 @@ def income_tax(chargeable:Decimal, period:Period) -> Figure:
 
 def business_figures(b:Business, rule:AllowanceRule) -> tuple[Figure, ...]:
   each = tuple(Figure(f"{rule.wording} {a.kind.name.lower().replace('_', ' ')}", a.allowance(rule.part), ALLOWANCE_SRC + rule.src) for a in b.assets)
-  return (Figure("gross profit", b.gross_profit, BUSINESS_SRC), Figure("net profit per accounts", b.net_profit, BUSINESS_SRC),
+  return (Figure("gross profit", b.gross_profit, BUSINESS_SRC), Figure("net profit in the accounts", b.net_profit, BUSINESS_SRC),
           Figure("non-allowable expenses", b.non_allowable, DISALLOWED_SRC), *each,
           Figure(f"{rule.wording} business assets", allowances(b.assets, rule.part), ALLOWANCE_SRC + rule.src),
           Figure("net income from business", b.net_income(rule.part), BUSINESS_SRC + DISALLOWED_SRC + ALLOWANCE_SRC + rule.src))
@@ -387,13 +388,13 @@ def assess(f:Facts) -> tuple[Figure, ...]:
   losses = Figure("losses carried forward", net_income_and_losses(f)[1], LOSSES_SRC)
   ret:tuple[Figure, ...]
   if f.period is Period.QUARTER:
-    paid = Figure("tax already paid", f.tax_deducted_at_source, QUARTER_CREDIT_SRC)
+    paid = Figure("tax paid", f.tax_deducted_at_source, QUARTER_CREDIT_SRC)
     ret = (ci, tax, paid, Figure("balance of tax", tax.amt - paid.amt, tax.src + QUARTER_CREDIT_SRC), losses)
     return ret if (b := f.business) == Business() else (*ret, *business_figures(b, ALLOWANCE_RULES[f.period]))
   share = Figure("fair share contribution", to_unit(max(ZERO, ci.amt + f.resident_dividends - FAIR_SHARE_THRESHOLD) * FAIR_SHARE_RATE),
                  FAIR_SHARE_SRC)
   total = Figure("total tax", tax.amt + share.amt, tax.src + share.src)
-  paid = Figure("tax already paid", f.paye_withheld + f.tax_deducted_at_source + f.quarterly_tax_paid, CREDITS_SRC)
+  paid = Figure("tax paid", f.paye_withheld + f.tax_deducted_at_source + f.quarterly_tax_paid, CREDITS_SRC)
   balance = Figure("balance of tax", total.amt - paid.amt, total.src + CREDITS_SRC)
   ret = (ci, tax, share, total, paid, balance, losses)
   if f.letting != Letting():

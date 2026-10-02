@@ -144,7 +144,7 @@ def headings(rows:list[str], starts:tuple[int, ...], found:tuple[Amount, ...], m
     most = max((said + against for said, against in votes), default=0)
     top = [vote for vote in votes if vote[0] + vote[1] == most and most]
     if any(said > against for said, against in top) and any(against > said for said, against in top):
-      raise ValueError(f"the headings on page {i + 1} disagree about which way the money moved")
+      raise ValueError(f"the headings on page {i + 1} do not agree about the direction of the money")
     if top: agree, oppose = agree + top[0][0], oppose + top[0][1]
   return agree, oppose
 
@@ -204,9 +204,9 @@ def widened(starts:tuple[int, ...], bounds:tuple[tuple[int, int], ...]) -> tuple
 
 def entries(text:str) -> tuple[Entry, ...]:
   rows, found, starts, maps = scanned(text)
-  if not balanced(maps): raise ValueError("no running balance column in the statement")
+  if not balanced(maps): raise ValueError("the statement has no column for the running balance")
   agree, oppose = headings(rows, starts, found, maps)
-  if agree == oppose: raise ValueError("the column headings do not say which way the money moved")
+  if agree == oppose: raise ValueError("the column headings do not show the direction of the money")
   flip = oppose > agree
   groups:list[tuple[Moves, Amount|None, Decimal|None]|None] = []
   bounds:list[tuple[int, int]] = []

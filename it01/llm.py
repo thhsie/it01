@@ -12,15 +12,15 @@ def ask(instruction:str, document:str, schema:dict[str, Any]|None=None) -> str:
   request = urllib.request.Request(IT01_ENDPOINT, body, headers)
   try:
     with urllib.request.urlopen(request, timeout=IT01_TIMEOUT) as resp: answer = resp.read().decode(errors="replace")
-  except urllib.error.HTTPError as e: raise ValueError(f"the model endpoint {IT01_ENDPOINT} answered {e.code} {e.reason}") from e
+  except urllib.error.HTTPError as e: raise ValueError(f"the model endpoint {IT01_ENDPOINT} gave the error {e.code} {e.reason}") from e
   except (TimeoutError, urllib.error.URLError) as e: raise OSError(f"cannot reach the model endpoint {IT01_ENDPOINT}") from e
   if IT01_DEBUG >= 2: print(answer)
   try: reply = json.loads(answer, parse_float=Decimal)
-  except json.JSONDecodeError: raise ValueError(f"the endpoint did not answer with JSON {answer}") from None
+  except json.JSONDecodeError: raise ValueError(f"the reply from the endpoint is not JSON {answer}") from None
   if not isinstance(reply, dict) or not isinstance(choices := reply.get("choices"), list) or not choices:
-    raise ValueError(f"the endpoint answered without choices {reply}")
+    raise ValueError(f"the reply from the endpoint has no choices {reply}")
   first = choices[0]
   inner = first.get("message") if isinstance(first, dict) else None
   content = inner.get("content") if isinstance(inner, dict) else None
-  if not isinstance(content, str): raise ValueError(f"the endpoint answered without a message {first}")
+  if not isinstance(content, str): raise ValueError(f"the reply from the endpoint has no message {first}")
   return content

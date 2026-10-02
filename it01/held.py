@@ -60,7 +60,7 @@ class Case:
 def once(pairs:list[tuple[str, Any]]) -> dict[str, Any]:
   ret:dict[str, Any] = {}
   for key, value in pairs:
-    if key in ret: raise ValueError(f"the same key is written twice {key}")
+    if key in ret: raise ValueError(f"the file has the same key two times {key}")
     ret[key] = value
   return ret
 
@@ -68,12 +68,12 @@ def loaded(text:str) -> Any: return json.loads(text, parse_float=Decimal, object
 
 def texts(raw:Any, where:str) -> dict[str, str]:
   if not isinstance(raw, dict) or not all(isinstance(k, str) and k.strip() and isinstance(v, str) and v.strip() for k, v in raw.items()):
-    raise ValueError(f"{where} must be a JSON object of text, with nothing left blank")
+    raise ValueError(f"{where} must be a JSON object of text, and each text must have words")
   return raw
 
 def part(raw:Any, where:str, need:tuple[str, ...], may:tuple[str, ...]=()) -> dict[str, Any]:
   if not isinstance(raw, dict): raise ValueError(f"{where} must be a JSON object")
-  if unknown := sorted(set(raw) - {*need, *may}): raise ValueError(f"{where} holds unknown fields {unknown}")
+  if unknown := sorted(set(raw) - {*need, *may}): raise ValueError(f"{where} has unknown fields {unknown}")
   if missing := [n for n in need if not isinstance(raw.get(n), str) or not raw[n].strip()]: raise ValueError(f"{where} needs {missing} as text")
   if bad := [n for n in may if n in raw and (not isinstance(raw[n], str) or not raw[n].strip())]: raise ValueError(f"{where} needs {bad} as text")
   return raw
@@ -108,7 +108,7 @@ def at(given:dict[str, Any], name:str) -> Any:
 def opened(raw:Any) -> Case:
   if not isinstance(raw, dict): raise ValueError("facts must be a JSON object")
   if ("version" in raw or "documents" in raw) and raw.get("version") != VERSION:
-    raise ValueError(f"a case of version {texts(raw.get('version', {}), 'version').get('case', 'none')} cannot be read")
+    raise ValueError(f"this engine cannot read a case of version {texts(raw.get('version', {}), 'version').get('case', 'none')}")
   docs, pays = each(raw, "documents", to_document), each(raw, "payments", to_payment)
   reads, lines = each(raw, "readings", to_reading), each(raw, "lines", to_line)
   given = {k: v for k, v in raw.items() if k not in RECORDS}
@@ -116,16 +116,16 @@ def opened(raw:Any) -> Case:
   ret = Case(given, year, sources, confirmed, docs, pays, reads, lines, texts(raw.get("decisions", {}), "decisions"))
   owners = [(k, p.document) for k, p in pays.items()] + [(k, r.document) for k, r in reads.items()] + [(k, n.document) for k, n in lines.items()]
   if stray := sorted(k for k, doc in owners if doc not in docs):
-    raise ValueError(f"these name a document the case does not hold {stray}")
+    raise ValueError(f"these refer to a document that is not in the case {stray}")
   def is_bad(p:Payment) -> bool:
     return p.way not in WAYS or p.check not in (AGREES, DIFFERS, UNCHECKED) or bool(p.month and not MONTH.fullmatch(p.month))
   if bad := sorted(k for k, p in pays.items() if is_bad(p)):
-    raise ValueError(f"these payments hold an unknown way, check or month {bad}")
-  if stray := sorted(k for k, r in reads.items() if r.fact not in PLACES): raise ValueError(f"these readings name unknown facts {stray}")
+    raise ValueError(f"these payments have an unknown direction, check or month {bad}")
+  if stray := sorted(k for k, r in reads.items() if r.fact not in PLACES): raise ValueError(f"these readings refer to unknown facts {stray}")
   if unknown := sorted(n for n in (*ret.sources, *ret.confirmed) if at(given, n) is None):
-    raise ValueError(f"sources and confirmed figures name facts the case does not give {unknown}")
-  if nested := sorted(k for k in ret.sources if isinstance(given.get(k), dict)): raise ValueError(f"sources cannot name {nested}")
-  if bad := sorted(k for k, v in ret.confirmed.items() if typed(v) is None): raise ValueError(f"confirmed holds a figure that is not an amount {bad}")
+    raise ValueError(f"sources and accepted figures refer to facts that are not in the case {unknown}")
+  if nested := sorted(k for k in ret.sources if isinstance(given.get(k), dict)): raise ValueError(f"sources cannot refer to {nested}")
+  if bad := sorted(k for k, v in ret.confirmed.items() if typed(v) is None): raise ValueError(f"confirmed has a figure that is not an amount {bad}")
   return ret
 
 def typed(said:str) -> Decimal|None:
@@ -143,7 +143,7 @@ def dumped(value:Any, deep:int=0) -> str:
   if isinstance(value, list): return "[\n" + ",\n".join(f"{pad}  " + dumped(item, deep + 1) for item in value) + f"\n{pad}]"
   if isinstance(value, dict):
     return "{\n" + ",\n".join(f"{pad}  {json.dumps(k)}: " + dumped(v, deep + 1) for k, v in value.items()) + f"\n{pad}}}"
-  raise ValueError(f"a case file cannot hold {value}")
+  raise ValueError(f"a case file cannot have {value}")
 
 def plainly(one:Any) -> dict[str, Any]:
   def plain(v:Any) -> Any: return str(v) if isinstance(v, Decimal) else dict(v) if isinstance(v, tuple) else v

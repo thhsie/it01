@@ -411,9 +411,9 @@
   "period"
  ],
  "untyped": {
-  "other_income": "has no field of its own, so enter it under the income head it belongs to",
-  "other_reliefs": "has no field of its own, so enter each relief in its own section",
-  "students": "are entered in the university section, with the course, institution and year of each child",
-  "spouse_above_interest_bar": "is answered in the housing loan section, where the return asks about the spouse"
+  "other_income": "has no field. Type it in the section of its type of income",
+  "other_reliefs": "has no field. Type each relief in its section",
+  "students": "go in the university section. Type the course, the institution and the year of each child",
+  "spouse_above_interest_bar": "goes in the housing loan section. The return has a question about the spouse there"
  }
 }

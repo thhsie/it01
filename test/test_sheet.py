@@ -54,7 +54,7 @@ class TestSheet(unittest.TestCase):
     self.assertNotIn("incThresholdOpt", dict(sheet(Facts(False))))
 
   def test_a_quarter_is_refused(self):
-    with self.assertRaisesRegex(ValueError, "the return takes a year, not a quarter"): sheet(Facts(True, rent=Decimal(1), period=Period.QUARTER))
+    with self.assertRaisesRegex(ValueError, "the return is for a year, not for a quarter"): sheet(Facts(True, rent=Decimal(1), period=Period.QUARTER))
 
   def test_facts_with_no_field_are_named(self):
     f = Facts(True, 1, students=(Student(True, True, Decimal(0), 1),), other_income=Decimal(5))
