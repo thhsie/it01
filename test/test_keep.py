@@ -150,9 +150,17 @@ class TestKeep(unittest.TestCase):
     held = self.early_and_late()
     early = next(iter(held.payments))
     held = answered(held, T, f"{early}, for this income year", "yes")
-    self.assertEqual((case(held, T)["earlier"]["payments"], label_of(held, T, early, held.payments[early])), ({}, "tax_paid"))
+    data = case(held, T)["earlier"]
+    self.assertEqual((data["payments"], data["kept"]), ({}, {early: f"{early}, for this income year"}))
+    self.assertEqual(label_of(held, T, early, held.payments[early]), "tax_paid")
     self.assertEqual(proposed(answered(held, T, "bank.txt, paid out as tax paid", "yes")), {"quarterly_tax_paid": Decimal("1000.00")})
     self.assertIn(f"  {early}\n      tax_paid, from your answer, for this income year from your answer", "\n".join(keep(held, T)))
+
+  def test_a_payment_no_longer_of_a_tax_type_is_not_kept_for_this_year(self):
+    held = self.early_and_late()
+    early = next(iter(held.payments))
+    held = answered(answered(held, T, f"{early}, for this income year", "yes"), T, early, "pension")
+    self.assertEqual(case(held, T)["earlier"]["kept"], {})
 
   def test_removing_the_statement_drops_the_answer_for_this_year(self):
     held = self.early_and_late()
