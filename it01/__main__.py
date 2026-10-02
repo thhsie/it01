@@ -161,10 +161,11 @@ def opened_doc(here:pathlib.Path, name:str) -> list[str]:
   if not (doc := held.documents.get(name)): raise ValueError(f"the case does not show the location of {name}")
   if not (paper := pathlib.Path(doc.path)).is_file(): raise ValueError(f"{name} is not at {paper}")
   if fingerprint(paper.read_bytes()) != doc.mark: raise ValueError(f"{name} changed after the engine read it")
-  return source(paper).splitlines()
+  lines = source(paper).split("\n")
+  return lines[:-1] if lines[-1] == "" else lines
 
 def payments_of(name:str, way:str, found:tuple[Labelled, ...], ways:dict[str, str|None]) -> list[tuple[str, Payment]]:
-  paid = [Payment(name, way, c.amt, c.date, c.description, c.kind, MARKS[c.check], ways[c.date]) for c in found]
+  paid = [Payment(name, way, c.amt, c.date, c.description, c.kind, MARKS[c.check], ways[c.date], c.line + 1) for c in found]
   return [(worded(p), p) for p in paid]
 
 def with_document(held:Case, t:Tables, paper:pathlib.Path, mark:str, src:str) -> Case:

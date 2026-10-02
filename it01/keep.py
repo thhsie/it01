@@ -180,7 +180,7 @@ def case(held:Case, t:Tables) -> dict[str, Any]:
   asked = questions(held, t, proposed)
   money = texted(received(held, t)) | {"year_sources": [cited(s) for s in YEAR_SRC]}
   payments = {key: {"document": p.document, "way": p.way, "amount": str(p.amount), "date": p.date, "description": p.description,
-                    "label": label_of(held, t, key, p), "read": read_as(held, t, p), "check": p.check, "month": p.month,
+                    "label": label_of(held, t, key, p), "read": read_as(held, t, p), "check": p.check, "month": p.month, "line": p.line,
                     "said": held.decisions.get(key), "rule": rule_of(held, t, key, p),
                     "alike": alike(p) if payer(p) else None}
                 for key, p in held.payments.items()}

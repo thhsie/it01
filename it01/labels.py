@@ -17,6 +17,7 @@ class Labelled:
   description: str
   kind: str
   check: Check
+  line: int
 
 def listed(moved:Moved) -> str: return "\n".join(f"{n}. {e.date} {amt:,} {e.description}" for n, (e, amt) in enumerate(moved, 1))
 
@@ -35,7 +36,7 @@ def named(moved:Moved, reply:str, kinds:dict[str, str]) -> tuple[Labelled, ...]:
   ret = []
   for n, (e, amt) in enumerate(moved, 1):
     if not isinstance(kind := raw[str(n)], str) or kind not in kinds: raise ValueError(f"unknown kind {kind} for line {n}")
-    ret.append(Labelled(e.date, amt, e.description, kind, e.check))
+    ret.append(Labelled(e.date, amt, e.description, kind, e.check, e.line))
   return tuple(ret)
 
 def totals(found:tuple[Labelled, ...]) -> dict[str, Decimal]: return summed([(c.kind, c.amt) for c in found])
@@ -44,7 +45,7 @@ def by_file(moved:Moved, prompt:Prompt) -> tuple[Labelled, ...]:
   try: from it01.local import classified
   except ImportError as e: raise ValueError(f"labelling with a model file needs pip install 'it01[local]' ({e})") from e
   kinds = classified(tuple((amt, e.description) for e, amt in moved), prompt)
-  return tuple(Labelled(e.date, amt, e.description, kind, e.check) for (e, amt), kind in zip(moved, kinds, strict=True))
+  return tuple(Labelled(e.date, amt, e.description, kind, e.check, e.line) for (e, amt), kind in zip(moved, kinds, strict=True))
 
 def by_endpoint(moved:Moved, prompt:Prompt, instruction:str) -> tuple[Labelled, ...]:
   said = "\n".join(f"{kind}: {means}" for kind, means in prompt.kinds.items())

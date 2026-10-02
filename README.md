@@ -301,7 +301,7 @@ version year sources confirmed documents payments readings lines decisions
 
 `documents` has each document that the engine read. Each document has its type, the full path of the file and a mark of its contents. A bank statement also has its currency. A form also has the last month of its income year.
 
-`payments` has each payment in and out of a statement. Each payment has its document, direction, amount, date, description, type, balance check and month. If the balance after a payment did not agree, the payment gives no figure until you give it a type. A figure shows the number of its payments with no balance check.
+`payments` has each payment in and out of a statement. Each payment has its document, direction, amount, date, description, type, balance check, month, and the number of its line from 1, as `it01 show` prints it. If the balance after a payment did not agree, the payment gives no figure until you give it a type. A figure shows the number of its payments with no balance check.
 
 `readings` has each figure that the engine read from a form, with its line. `lines` has each line of a form that the reader was not sure of, with the possible lines. `decisions` has your answers, with the subject as the key.
 
