@@ -1,7 +1,7 @@
 import re
 from collections import Counter
 from dataclasses import dataclass, replace
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 from it01.form import wanted
 from it01.held import DIFFERS, MONTH, UNCHECKED, Case, Line, Payment, Reading, at, typed
@@ -12,6 +12,7 @@ from it01.tax import ZERO, Facts, Figure, amount, assess, from_json, plain
 OUT, SAME, WRONG, EACH, GONE = "out", "same", "wrong", "each", "no longer read from any document"
 ADRIFT = "the balance after this does not agree, so it is left out"
 NUMBERED = re.compile(r"payments? (?P<nums>\d+(?:, ?\d+)*)")
+SHARE = re.compile(r"share (?P<part>\S+) of (?P<whole>\S+)")
 
 @dataclass(frozen=True)
 class Tables:
@@ -182,7 +183,12 @@ def added_by(q:Asked, said:str) -> tuple[str, Decimal]|None:
   return (dict(q.adds)["yes"], part) if said not in dict(q.choices) and (part := share_of(q, said)) is not None else None
 
 def carried(held:Case, q:Asked) -> str|None:
-  if not q.payees or not all(q.payees) or not (said := {held.decisions.get(payee) for payee in q.payees}) <= {"yes", "no"}: return None
+  if not q.payees or not all(q.payees): return None
+  if not (said := {held.decisions.get(payee) for payee in q.payees}) <= {"yes", "no"}:
+    if not q.share or len(said) != 1 or not (got := SHARE.fullmatch(said.pop() or "")): return None
+    if (part := typed(got["part"])) is None or not (whole := typed(got["whole"])): return None
+    amt = (q.amount * part / whole).quantize(Decimal("0.01"), ROUND_HALF_UP)
+    return str(amt) if ZERO < amt <= q.amount else None
   if len(said) == 1: return said.pop()
   chosen = [str(n) for n, payee in enumerate(q.payees, 1) if held.decisions[payee] == "yes"]
   return f"payments {', '.join(chosen)}" if q.share else None
@@ -279,6 +285,8 @@ def for_payees(q:Asked, said:str) -> dict[str, str|None]:
   if (chosen := numbers(said)) is not None:
     for n, payee in enumerate(q.payees, 1):
       if payee: seen.setdefault(payee, set()).add(n in chosen)
+  if chosen is None and len({payee for payee in q.payees if payee}) == 1 and (part := share_of(q, said)) is not None:
+    return {payee: f"share {part} of {q.amount}" for payee in q.payees if payee}
   return {payee: None for payee in q.payees if payee} | {payee: "yes" if True in flags else "no" for payee, flags in seen.items() if len(flags) == 1}
 
 def with_answer(decisions:dict[str, str], q:Asked, said:str, value:str) -> dict[str, str]:
