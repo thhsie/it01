@@ -89,8 +89,8 @@ class TestCli(unittest.TestCase):
 
   def test_sheet_marks_what_the_return_fills_in_and_what_it_leaves_out(self):
     out = saved(json.dumps({"resident": True, "salary": 1200000, "other_income": 5}), ".json", "sheet").stdout
-    self.assertIn(f"{'B_D_ENEXINC1':<24}{'1200000':>16}  filled in by the return, check it  the total of all rows", out)
-    self.assertIn("  other_income has no field of its own", out)
+    self.assertIn(f"{'B_D_ENEXINC1':<24}{'1200000':>16}  the return fills in this field, examine it  the total of all rows", out)
+    self.assertIn("  other_income has no field. Type it", out)
 
   def test_prints_figures_with_links(self):
     out = assess(json.dumps({"resident": True, "dependants": 1, "salary": 1200000})).stdout
@@ -99,12 +99,12 @@ class TestCli(unittest.TestCase):
 
   def test_says_how_many_amounts_a_page_lost(self):
     out = statement(LOST_PAGE).stdout
-    self.assertIn("2 amounts on page 2 left out", out)
+    self.assertIn("the engine did not use 2 amounts on page 2", out)
     self.assertIn("Rent", out)
 
   def test_a_cover_page_says_what_it_left_out(self):
     out = statement("Your statement\nOpening balance 1,000.00\nClosing balance 4,500.00\n\f" + STATEMENT).stdout
-    self.assertIn("2 amounts on page 1 left out", out)
+    self.assertIn("the engine did not use 2 amounts on page 1", out)
     self.assertIn("Rent", out)
 
   def test_refuses_bad_facts(self):
@@ -142,7 +142,7 @@ class TestCli(unittest.TestCase):
     for verb in ((), ("keep",)):
       with self.subTest(verb):
         ret = saved(twice, ".json", *verb)
-        self.assertEqual((ret.returncode, ret.stderr), (1, "error: the same key is written twice salary\n"))
+        self.assertEqual((ret.returncode, ret.stderr), (1, "error: the file has the same key two times salary\n"))
 
   def test_a_facts_file_with_wording_still_computes(self):
     out = assess(json.dumps({"resident": True, "dependants": 1, "salary": 1200000,
@@ -152,26 +152,26 @@ class TestCli(unittest.TestCase):
 
   def test_says_so_when_nothing_was_paid_in(self):
     out = saved(OUTGOINGS, ".txt", "credits")
-    self.assertEqual((out.returncode, out.stdout.strip()), (0, "no money was paid into the account"))
+    self.assertEqual((out.returncode, out.stdout.strip()), (0, "the statement shows no money paid into the account"))
 
   def test_debits_are_totalled_by_kind(self):
     found = (Labelled("03/07/2025", Decimal("1000.00"), "RETIREMENT PLAN", "pension", Check.AGREES),
              Labelled("03/08/2025", Decimal("1000.00"), "RETIREMENT PLAN", "pension", Check.UNCHECKED),
              Labelled("04/08/2025", Decimal("800.00"), "SHOP", "no_claim", Check.AGREES))
     with mock.patch("it01.__main__.spending", return_value=found): got = to_debits("")
-    self.assertEqual(got, [f"{'pension':<46}{'2,000.00':>14}    2 debits, 1 with no balance that agrees",
+    self.assertEqual(got, [f"{'pension':<46}{'2,000.00':>14}    2 debits, 1 with a balance that does not agree or has no check",
                            f"{'no_claim':<46}{'800.00':>14}    1 debit"])
 
   def test_says_so_when_nothing_was_paid_out(self):
     out = saved(INCOMINGS, ".txt", "debits")
-    self.assertEqual((out.returncode, out.stdout.strip()), (0, "no money was paid out of the account"))
+    self.assertEqual((out.returncode, out.stdout.strip()), (0, "the statement shows no money paid out of the account"))
 
   def test_each_transaction_names_the_line_it_starts_on(self):
     self.assertEqual([row.split()[0] for row in statement(STATEMENT).stdout.splitlines()], ["3", "4"])
 
   def test_refuses_a_statement_it_cannot_check(self):
     ret = statement("Salary 5,000.00\nRent 1,500.00\n")
-    self.assertEqual((ret.returncode, ret.stderr), (1, "error: no running balance column in the statement\n"))
+    self.assertEqual((ret.returncode, ret.stderr), (1, "error: the statement has no column for the running balance\n"))
 
 FORM = "Statement of emoluments\nfor the income year ended 30 June 2026\nNet emoluments 1,107,000.00\n"
 YEAR = {"from": "2025-07", "to": "2026-06"}
@@ -226,7 +226,7 @@ class TestCase(unittest.TestCase):
     self.assertEqual(self.waiting(here), [KEY])
     responded(here, KEY, "business")
     self.assertEqual((self.waiting(here), self.proposed(here)), ([], {"business.gross_income": Decimal("20000.00")}))
-    self.assertEqual(proposals(self.held(here), tables())[1]["business.gross_income"], "bank.txt, 1 labelled business")
+    self.assertEqual(proposals(self.held(here), tables())[1]["business.gross_income"], "bank.txt, 1 of the type business")
 
   def test_a_kind_that_counts_nothing_proposes_nothing(self):
     self.banked(here := self.made(), (WALLET,))
@@ -236,12 +236,13 @@ class TestCase(unittest.TestCase):
   def test_an_answer_that_is_not_offered_leaves_the_case_as_it_was(self):
     self.banked(here := self.made(), (WALLET,))
     was = here.read_text()
-    with self.assertRaisesRegex(ValueError, "with one of: out, pay, business"): responded(here, KEY, "a gift")
+    with self.assertRaisesRegex(ValueError, "one of: out, pay, business, interest, dividend, rent, refund, other"): responded(here, KEY, "a gift")
     self.assertEqual(here.read_text(), was)
 
   def test_a_blank_subject_answers_nothing(self):
     ret = run("answer", str(here := self.made()), " ", "a gift")
-    self.assertEqual((ret.returncode, ret.stderr, here.read_text()), (1, "error: name one of the questions, payments or readings\n", PLAIN))
+    self.assertEqual((ret.returncode, ret.stderr, here.read_text()), (1, "error: type the name of one of the questions, payments or readings\n",
+                                                                PLAIN))
 
   def test_two_payments_alike_but_for_the_wording_ask_two_questions(self):
     self.banked(here := self.made(), (WALLET, pay("13/07/2025", "20000.00", "WALLET TOPUP", "unclear")))
@@ -280,7 +281,7 @@ class TestCase(unittest.TestCase):
     self.assertEqual(self.proposed(here), {"business.gross_income": Decimal("500.00")})
 
   def test_nothing_said_cannot_be_forgotten(self):
-    with self.assertRaisesRegex(ValueError, "0 answers match bank"): forgotten(self.made(), "bank")
+    with self.assertRaisesRegex(ValueError, "0 answers start with bank"): forgotten(self.made(), "bank")
 
   def test_a_relief_answer_can_change_from_yes_to_no(self):
     self.banked(here := self.made(), spent=(pay("13/07/2025", "200.00", "PENSION", "pension"),))
@@ -302,10 +303,10 @@ class TestCase(unittest.TestCase):
     subject = "soe.txt, 1,107,000.00 on the line EMOLUMENTS 1,107,000.00"
     self.assertEqual(self.asked(here, subject), ["net_emoluments", "total"])
     responded(here, subject, "net_emoluments")
-    self.assertEqual(proposals(self.held(here), tables())[1], {"salary": f"answered {subject[9:]}, in soe.txt"})
+    self.assertEqual(proposals(self.held(here), tables())[1], {"salary": f"your answer to {subject[9:]}, in soe.txt"})
     responded(here, subject, "total")
     self.assertEqual(self.proposed(here), {})
-    with self.assertRaisesRegex(ValueError, "with one of: net_emoluments, total"): responded(here, subject, "salary")
+    with self.assertRaisesRegex(ValueError, "the answer must be one of: net_emoluments, total"): responded(here, subject, "salary")
 
   def test_a_new_reading_puts_a_confirmed_figure_back_to_the_person(self):
     self.banked(here := self.made(), (CLIENT,))
@@ -339,11 +340,11 @@ class TestCase(unittest.TestCase):
   def test_payments_out_of_one_kind_are_asked_about_once(self):
     self.banked(here := self.made(), spent=(pay("13/07/2025", "100.00", "PENSION", "pension"), pay("13/08/2025", "200.00", "PENSION", "pension")))
     self.assertEqual([(q["subject"], q["about"]) for q in self.data(here)["questions"]],
-                     [("bank.txt, paid out as pension", "300.00 paid out in 2 payments that look like pension, in bank.txt")])
+                     [("bank.txt, paid out as pension", "300.00 paid out in 2 payments of the type pension, in bank.txt")])
 
   def test_a_relief_question_takes_only_yes_or_no(self):
     self.banked(here := self.made(), spent=(pay("13/07/2025", "100.00", "PENSION", "pension"),))
-    with self.assertRaisesRegex(ValueError, "with one of: yes, no$"): responded(here, "bank.txt, paid out as pension", "100")
+    with self.assertRaisesRegex(ValueError, "pension, the answer must be one of: yes, no$"): responded(here, "bank.txt, paid out as pension", "100")
 
   def test_a_relief_question_is_priced_from_the_figures_the_case_would_hold(self):
     self.banked(here := self.made(), (pay("13/07/2025", "900000.00", "CLIENT", "business"),), (pay("14/07/2025", "10000.00", "PENSION", "pension"),))
@@ -381,13 +382,13 @@ class TestCase(unittest.TestCase):
   def test_a_business_payment_takes_a_typed_share_up_to_its_total(self):
     responded(here := self.business(), "bank.txt, paid out as business expense", "60")
     self.assertEqual(self.proposed(here), {"business.other_expenses": Decimal("60")})
-    with self.assertRaisesRegex(ValueError, "or the part that was, from 0.01 to 140.00"): responded(here, "bank.txt, paid out as business", "200")
+    with self.assertRaisesRegex(ValueError, r"a part of the total, from 0\.01 to 140\.00"): responded(here, "bank.txt, paid out as business", "200")
 
   def test_payments_named_by_number_are_added_up(self):
     responded(here := self.business(), "bank.txt, paid out as business expense", "payments 1, 2")
     self.assertEqual(self.proposed(here), {"business.other_expenses": Decimal("140.00")})
     for said in ("payments 1, 1", "payments 3"):
-      with self.subTest(said), self.assertRaisesRegex(ValueError, "naming each of payments 1 to 2 at most once"):
+      with self.subTest(said), self.assertRaisesRegex(ValueError, "give each payment number from 1 to 2 one time only"):
         responded(here, "bank.txt, paid out as business expense", said)
 
   def test_the_case_data_lists_the_payments_behind_a_business_question(self):
@@ -397,7 +398,7 @@ class TestCase(unittest.TestCase):
   def test_money_dated_outside_the_year_is_left_out_and_listed(self):
     said = self.banked(here := self.made(year=YEAR), (pay("15/05/2025", "900.00", "CLIENT", "business"), CLIENT))
     self.assertEqual(self.proposed(here), {"business.gross_income": Decimal("500.00")})
-    self.assertEqual(said[1:4], ["", "left out, dated outside the income year", "  bank.txt, 900.00 paid in on 15/05/2025, CLIENT"])
+    self.assertEqual(said[1:4], ["", "not counted, with a date that is not in the income year", "  bank.txt, 900.00 paid in on 15/05/2025, CLIENT"])
 
   def test_a_new_year_counts_the_money_dated_in_it(self):
     self.banked(here := self.made(year=YEAR), (pay("15/05/2025", "900.00", "CLIENT", "business"), CLIENT))
@@ -406,23 +407,23 @@ class TestCase(unittest.TestCase):
 
   def test_a_year_a_form_does_not_cover_is_refused(self):
     self.formed(here := self.made(year=YEAR))
-    with self.assertRaisesRegex(ValueError, "soe.txt covers another income year"): yeared(here, "2024-07")
+    with self.assertRaisesRegex(ValueError, "the income year of the case cannot start in 2024-07"): yeared(here, "2024-07")
 
   def test_a_form_for_another_year_is_not_read(self):
-    for said, why in (("for the income year ended 30 June 2025", "covers the income year ending 2025-06"),
-                      ("", "does not say which income year it covers")):
-      with self.subTest(said), self.assertRaisesRegex(ValueError, f"{why}, and this case covers 2025-07 to 2026-06"):
+    for said, why in (("for the income year ended 30 June 2025", "is for the income year that ends in 2025-06"),
+                      ("", "does not show its income year")):
+      with self.subTest(said), self.assertRaisesRegex(ValueError, f"{why}, and this case is for 2025-07 to 2026-06"):
         self.formed(self.made(year=YEAR), text=f"Statement of emoluments {said}\nSalary 1,200.00\n")
 
   def test_a_payslip_is_not_read_as_the_form(self):
     ret = run("add", str(here := self.made()), self.paper("PAY STATEMENT\nPERIOD: June 2026\nNet Pay 90 552,00\n", "slip.txt"))
-    self.assertIn("slip.txt is neither a bank statement nor a statement of emoluments", ret.stderr)
+    self.assertIn("slip.txt is not a bank statement or a statement of emoluments", ret.stderr)
     self.assertEqual(here.read_text(), PLAIN)
 
   def test_a_statement_in_another_currency_than_the_case_is_not_read(self):
     self.banked(here := self.made(), text="Currency : ABC\n" + STATEMENT)
     self.assertEqual(self.held(here).documents["bank.txt"].currency, "ABC")
-    with self.assertRaisesRegex(ValueError, "second.txt is in XYZ, and this case is in ABC, so nothing was read"):
+    with self.assertRaisesRegex(ValueError, r"second\.txt is in XYZ, and this case is in ABC\. The engine did not read second\.txt"):
       self.banked(here, text="Currency : XYZ\n" + STATEMENT, name="second.txt")
 
   def test_removing_a_document_takes_what_was_read_from_it_and_said_about_it(self):
@@ -441,13 +442,13 @@ class TestCase(unittest.TestCase):
     was = self.held(here)
     with mock.patch("it01.__main__.label", return_value=(WALLET, CLIENT)), mock.patch("it01.__main__.spending", return_value=()):
       with mock.patch("it01.__main__.reading", return_value=((NET,), (), ())): said = rebuilt(here)
-    self.assertEqual((said, self.held(here)), ([f"{here.name} was read again from its documents"], was))
+    self.assertEqual((said, self.held(here)), ([f"the engine read the documents of {here.name} again"], was))
 
   def test_a_rebuild_names_the_answers_it_could_not_keep(self):
     self.banked(here := self.made(), (WALLET,))
     responded(here, KEY, "rent")
     with mock.patch("it01.__main__.label", return_value=()), mock.patch("it01.__main__.spending", return_value=()): said = rebuilt(here)
-    self.assertEqual((said[-2:], self.held(here).decisions), (["answers not kept", f"  {KEY}"], {}))
+    self.assertEqual((said[-2:], self.held(here).decisions), (["answers that the case did not keep", f"  {KEY}"], {}))
 
   def test_a_rebuild_that_fails_leaves_the_case_and_no_spare_file(self):
     self.banked(here := self.made(), (WALLET,))
@@ -459,18 +460,18 @@ class TestCase(unittest.TestCase):
   def test_a_case_of_an_earlier_version_is_refused_until_it_is_read_again(self):
     paper = self.paper(STATEMENT)
     here = self.made(version={"case": "2"}, documents={"bank.txt": "bank statement"}, paths={"bank.txt": paper}, answers={"a question": "rent"})
-    self.assertEqual(run("keep", str(here)).stderr, "error: a case of version 2 cannot be read\n")
+    self.assertEqual(run("keep", str(here)).stderr, "error: this engine cannot read a case of version 2\n")
     with mock.patch("it01.__main__.label", return_value=(WALLET,)), mock.patch("it01.__main__.spending", return_value=()): said = rebuilt(here)
-    self.assertEqual((said[-1], list(self.held(here).payments)), ("  answers kept by an earlier version: 1", [KEY]))
+    self.assertEqual((said[-1], list(self.held(here).payments)), ("  answers from a previous version: 1", [KEY]))
 
   def test_a_case_whose_documents_are_gone_is_left_alone(self):
     here = self.made(version={"case": "2"}, documents={"bank.txt": "bank statement"}, paths={"bank.txt": "/nowhere/bank.txt"})
     was = here.read_text()
-    with self.assertRaisesRegex(ValueError, "no longer there, so nothing changed: /nowhere/bank.txt"): rebuilt(here)
+    with self.assertRaisesRegex(ValueError, r"not at their location, and the case did not change: /nowhere/bank\.txt"): rebuilt(here)
     self.assertEqual(here.read_text(), was)
 
   def test_a_document_with_no_recorded_path_stops_the_rebuild(self):
-    with self.assertRaisesRegex(ValueError, "no recorded path, so nothing changed: bank.txt"):
+    with self.assertRaisesRegex(ValueError, r"the case does not show the location of these documents, and the case did not change: bank\.txt"):
       rebuilt(self.made(version={"case": "2"}, documents={"bank.txt": "bank statement"}))
 
   def test_confirming_moves_a_figure_into_the_facts(self):
@@ -482,17 +483,17 @@ class TestCase(unittest.TestCase):
 
   def test_confirming_a_figure_that_was_not_proposed_leaves_the_file_alone(self):
     ret = run("confirm", str(here := self.made()), "salary")
-    self.assertEqual((ret.returncode, ret.stderr, here.read_text()), (1, "error: nothing is proposed for salary\n", PLAIN))
+    self.assertEqual((ret.returncode, ret.stderr, here.read_text()), (1, "error: the case has no proposed figure for salary\n", PLAIN))
 
   def test_a_subject_is_answered_by_the_start_of_its_wording(self):
     self.banked(here := self.made(), (WALLET,))
-    self.assertEqual(responded(here, "BANK.TXT, 20,000", "rent")[0], f"answered {KEY}")
+    self.assertEqual(responded(here, "BANK.TXT, 20,000", "rent")[0], f"your answer to {KEY}")
 
   def test_a_wording_that_matches_no_subject_or_two_leaves_the_file_alone(self):
     self.banked(here := self.made(), (WALLET, CLIENT))
     was = here.read_text()
     for typed, cnt in (("nothing like it", 0), ("bank.txt", 2)):
-      with self.subTest(typed), self.assertRaisesRegex(ValueError, f"^{cnt} questions, payments or readings match"): responded(here, typed, "rent")
+      with self.subTest(typed), self.assertRaisesRegex(ValueError, f"^{cnt} questions, payments or readings start"): responded(here, typed, "rent")
     self.assertEqual(here.read_text(), was)
 
   def test_the_case_data_names_each_payment_with_its_label(self):
@@ -513,15 +514,15 @@ class TestCase(unittest.TestCase):
 
   def test_a_document_the_case_never_read_cannot_be_shown(self):
     ret = run("show", str(self.made()), "other.txt")
-    self.assertEqual((ret.returncode, ret.stderr), (1, "error: the case does not say where other.txt was read from\n"))
+    self.assertEqual((ret.returncode, ret.stderr), (1, "error: the case does not show the location of other.txt\n"))
 
   def test_a_document_that_has_changed_or_moved_is_refused(self):
     self.banked(here := self.made())
     paper = pathlib.Path(self.held(here).documents["bank.txt"].path)
     paper.write_text(OUTGOINGS)
-    self.assertEqual(run("show", str(here), "bank.txt").stderr, "error: bank.txt has changed since it was read\n")
+    self.assertEqual(run("show", str(here), "bank.txt").stderr, "error: bank.txt changed after the engine read it\n")
     paper.unlink()
-    self.assertEqual(run("show", str(here), "bank.txt").stderr, f"error: bank.txt is no longer at {paper}\n")
+    self.assertEqual(run("show", str(here), "bank.txt").stderr, f"error: bank.txt is not at {paper}\n")
 
   def test_a_case_is_given_its_income_year(self):
     ret = run("year", str(here := self.made()), "2025-07")
@@ -530,12 +531,12 @@ class TestCase(unittest.TestCase):
   def test_a_document_already_read_is_not_read_again(self):
     self.banked(here := self.made())
     was = here.read_text()
-    self.assertEqual((self.banked(here, text=INCOMINGS)[0], here.read_text()), ("bank.txt was read before, so nothing changed", was))
+    self.assertEqual((self.banked(here, text=INCOMINGS)[0], here.read_text()), ("bank.txt is in the case. The case did not change", was))
 
   def test_the_same_file_under_another_name_is_not_read_twice(self):
     self.banked(here := self.made())
     with mock.patch("it01.__main__.source", side_effect=AssertionError("read")): said = self.banked(here, name="copy.txt")
-    self.assertEqual(said, ["copy.txt is the same file as bank.txt, so nothing changed"])
+    self.assertEqual(said, ["copy.txt is the same file as bank.txt. The case did not change"])
 
   def test_usage(self):
     for args in ((), ("read",), ("rows",), ("credits",), ("debits",), ("keep",), ("local",), ("read", "a", "b"), ("keep", "a", "b"), ("a", "b"),

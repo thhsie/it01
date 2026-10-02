@@ -35,7 +35,7 @@ def to_whole(value:Any) -> Any:
   return replace(value, **{one.name: to_whole(getattr(value, one.name)) for one in fields(value)})
 
 def sheet(given:Facts) -> list[tuple[str, str]]:
-  if given.period is not Period.YEAR: raise ValueError(f"the return takes a year, not a {given.period.name.lower()}")
+  if given.period is not Period.YEAR: raise ValueError(f"the return is for a year, not for a {given.period.name.lower()}")
   f = to_whole(given)
   table, figs = data("portal"), {fig.rule: fig for fig in assess(f)}
   checks, ret = set(table["checks"]), []

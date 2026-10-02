@@ -13,7 +13,7 @@ from it01.tax import LISTS, PLACES, Facts, Figure, amount, assess, from_json, su
 
 ENTERED = "entered by you"
 NIL = Decimal("0.00")
-GROUPS = {"income": "counts as income", "exempt": "exempt", "unsorted": "still to sort", "other": "not income"}
+GROUPS = {"income": "income", "exempt": "exempt", "unsorted": "type not known", "other": "not income"}
 
 def fingerprint(raw:bytes) -> str: return hashlib.sha256(raw).hexdigest()[:32]
 
@@ -23,7 +23,7 @@ def keyed(into:dict[str, Any], doc:str, said:str, one:Any) -> None:
   into[key] = one
 
 def noted(held:Case, name:str, doc:Document, paid:list[tuple[str, Payment]], read:list[Reading], lines:list[tuple[str, Line]]) -> Case:
-  if name in held.documents: raise ValueError(f"the case already holds a document {name}")
+  if name in held.documents: raise ValueError(f"the case has a document {name}")
   payments, readings, asked = dict(held.payments), dict(held.readings), dict(held.lines)
   for said, p in paid: keyed(payments, name, said, p)
   for r in read: keyed(readings, name, r.fact, r)
@@ -32,7 +32,7 @@ def noted(held:Case, name:str, doc:Document, paid:list[tuple[str, Payment]], rea
 
 def confirm(held:Case, t:Tables, name:str) -> Case:
   proposed, sources = proposals(held, t)
-  if name not in proposed: raise ValueError(f"nothing is proposed for {name}")
+  if name not in proposed: raise ValueError(f"the case has no proposed figure for {name}")
   return replace(held, given=put(held.given, name, proposed[name]), confirmed=held.confirmed | {name: str(proposed[name])},
                  sources=held.sources | {name: sources[name]})
 
@@ -42,17 +42,17 @@ def cleared(given:dict[str, Any], name:str) -> dict[str, Any]:
   return given | {part: {k: v for k, v in (given.get(part) or {}).items() if k != field}}
 
 def unconfirmed(held:Case, name:str) -> Case:
-  if name not in held.confirmed or held.sources.get(name) == ENTERED: raise ValueError(f"{name} was not confirmed from a proposal")
+  if name not in held.confirmed or held.sources.get(name) == ENTERED: raise ValueError(f"{name} is not a proposed figure that you accepted")
   return replace(held, given=cleared(held.given, name), confirmed=without(held.confirmed, name), sources=without(held.sources, name))
 
 def without(held:dict[str, str], *names:str) -> dict[str, str]: return {k: v for k, v in held.items() if k not in names}
 
 def yes_or_no(name:str, said:str) -> bool:
-  if said not in ("yes", "no"): raise ValueError(f"{name} takes yes or no, not {said}")
+  if said not in ("yes", "no"): raise ValueError(f"the answer for {name} must be yes or no, not {said}")
   return said == "yes"
 
 def whole(name:str, said:str) -> int:
-  if not said.isdecimal(): raise ValueError(f"{name} takes a whole number, not {said}")
+  if not said.isdecimal(): raise ValueError(f"the answer for {name} must be a number with no decimal part, not {said}")
   return int(said)
 
 def money_in(name:str, said:str) -> Decimal: return amount(said)
@@ -63,7 +63,7 @@ SETTABLE:dict[str, Callable[[str, str], Any]] = {"resident": yes_or_no, "spouse_
 SETTABLE |= dict.fromkeys(PLACES, money_in) | dict.fromkeys(LISTS, amounts_in)
 
 def set_fact(held:Case, t:Tables, name:str, said:str) -> Case:
-  if (parse := SETTABLE.get(name)) is None: raise ValueError(f"no fact {name} can be entered")
+  if (parse := SETTABLE.get(name)) is None: raise ValueError(f"you cannot type a figure for {name}")
   confirmed, sources = without(held.confirmed, name), without(held.sources, name)
   if said := said.strip().lower():
     given, sources = put(held.given, name, parse(name, said)), sources | {name: ENTERED}
@@ -77,18 +77,19 @@ def answered(held:Case, t:Tables, subject:str, said:str) -> Case:
   return replace(held, decisions=with_answer(held.decisions, q, said, fitted(held, q, said)))
 
 def remember(held:Case, key:str) -> Case:
-  if (p := held.payments.get(key)) is None: raise ValueError(f"the case holds no payment {key}")
-  if not payer(p): raise ValueError(f"{key} has no wording to remember it by")
-  if (said := held.decisions.get(key)) is None or said == SAME: raise ValueError(f"say what {key} was before it is remembered")
+  if (p := held.payments.get(key)) is None: raise ValueError(f"the case has no payment {key}")
+  if not payer(p): raise ValueError(f"{key} has no words that identify the payee")
+  if (said := held.decisions.get(key)) is None or said == SAME:
+    raise ValueError(f"select the type of {key} first, then keep the answer for all payments with the same words")
   return replace(held, decisions=held.decisions | {alike(p): said})
 
 def forgot(held:Case, t:Tables, subject:str) -> Case:
-  if subject not in held.decisions: raise ValueError(f"nothing was said about {subject}")
+  if subject not in held.decisions: raise ValueError(f"the case has no answer for {subject}")
   q = next((q for q in claims(t, counted(held, t, months_of(held))) if q.subject == subject), None)
   return replace(held, decisions=without(held.decisions, subject, *(for_payees(q, "") if q else {})))
 
 def removed(held:Case, t:Tables, name:str) -> Case:
-  if name not in held.documents: raise ValueError(f"the case holds no document {name}")
+  if name not in held.documents: raise ValueError(f"the case has no document {name}")
   def kept[T:(Payment, Reading, Line)](part:dict[str, T]) -> dict[str, T]: return {k: v for k, v in part.items() if v.document != name}
   payments = kept(held.payments)
   gone = {*held.payments, *held.readings, *held.lines} - {*payments, *kept(held.readings), *kept(held.lines)}
@@ -102,7 +103,7 @@ def removed(held:Case, t:Tables, name:str) -> Case:
 def with_year(held:Case, first:str) -> Case:
   year = yearly(first)
   if clash := sorted(n for n, d in held.documents.items() if d.ends and d.ends != year["to"]):
-    raise ValueError(f"{', '.join(clash)} covers another income year, so the case year cannot start in {first}")
+    raise ValueError(f"{', '.join(clash)} is for a different income year, thus the income year of the case cannot start in {first}")
   return replace(held, year=year)
 
 def spoke(src:Source) -> str: return f"{src.doc} {src.section} page {src.page}"
@@ -144,7 +145,7 @@ def texted(value:Any) -> Any:
   if isinstance(value, (int, Decimal)): return str(value)
   if isinstance(value, list): return [texted(one) for one in value]
   if isinstance(value, dict): return {name: texted(one) for name, one in value.items()}
-  raise ValueError(f"a case holds no {type(value).__name__} {value}")
+  raise ValueError(f"a case cannot have the {type(value).__name__} {value}")
 
 def received(held:Case, t:Tables) -> dict[str, Any]:
   table = t.into
@@ -200,39 +201,39 @@ def case(held:Case, t:Tables) -> dict[str, Any]:
 def keep(held:Case, t:Tables) -> list[str]:
   base = based(held, t)
   proposed, proposing = proposed_from(held, base.worked)
-  ret = ["facts you confirmed"] + with_wording(held.given, held.sources) + ["", "figures"] + ["  " + line for line in figures(held.given)]
-  if proposed: ret += ["", "figures proposed, not confirmed"] + with_wording(proposed, proposing)
+  ret = ["facts that you accepted"] + with_wording(held.given, held.sources) + ["", "figures"] + ["  " + line for line in figures(held.given)]
+  if proposed: ret += ["", "proposed figures to accept"] + with_wording(proposed, proposing)
   money = received(held, t)
   if money["kinds"]:
     freed = [f"    {spoke(s)}" for s in t.into.exempt.values()]
-    ret += ["", "money paid in, by what it counts as, as labelled"]
+    ret += ["", "money paid in, in groups"]
     ret += [line for group, amt in money["groups"].items() for line in [f"  {GROUPS[group]:<44}{amt:>14,}"] + (freed if group == "exempt" else [])]
-    ret += ["", "money paid in, by the kind it was labelled"]
+    ret += ["", "money paid in, by type"]
     ret += [f"  {kind:<27}{GROUPS[money['group_of'].get(kind, 'unsorted')]:<17}{amt:>14,}" for kind, amt in money["kinds"].items()]
   if year := list(money["months"]):
     ret += ["", f"money paid in over the income year from {year[0]} to {year[-1]}, {', '.join(spoke(s) for s in YEAR_SRC)}"]
     ret += [f"  {m:<44}{one['total']:>14,}" for m, one in money["months"].items()]
-  if money["outside"]: ret += ["", "money paid in outside that income year"] + [f"  {key}" for key in money["outside"]]
-  if money["undated"]: ret += ["", "money paid in with a date whose month is not clear"] + [f"  {key}" for key in money["undated"]]
+  if money["outside"]: ret += ["", "money paid in, with a date that is not in the income year"] + [f"  {key}" for key in money["outside"]]
+  if money["undated"]: ret += ["", "money paid in, with a month that is not clear"] + [f"  {key}" for key in money["undated"]]
   if before := earlier(held, t, months_of(held)):
-    ret += ["", f"money paid out counted for the year before, {', '.join(spoke(s) for s in EARLIER_SRC)}"]
+    ret += ["", f"money paid out for the previous year, {', '.join(spoke(s) for s in EARLIER_SRC)}"]
     ret += [f"  {key}" for key in before] + [f"    {why}" for why in dict.fromkeys(before.values())]
-    ret += [f'    to count one for this income year, answer "{this_year("PAYMENT")}" with yes']
-  if held.documents: ret += ["", "documents you read"] + [f"  {n:<44}{d.kind}" for n, d in held.documents.items()]
+    ret += [f'    to count a payment for this income year, answer "{this_year("PAYMENT")}" with yes']
+  if held.documents: ret += ["", "documents in the case"] + [f"  {n:<44}{d.kind}" for n, d in held.documents.items()]
   if held.payments:
-    ret += ["", "how each payment was labelled"]
+    ret += ["", "the type of each payment"]
     for key, p in held.payments.items():
-      note = ", as you said" if key in held.decisions else f", as you said for {rule}" if (rule := rule_of(held, t, key, p)) else ""
+      note = ", from your answer" if key in held.decisions else f", from your answer for {rule}" if (rule := rule_of(held, t, key, p)) else ""
       label = label_of(held, t, key, p)
-      kept = ", counted for this income year as you said" if this_year(key) in held.decisions and label in t.out.earlier else ""
+      kept = ", for this income year from your answer" if this_year(key) in held.decisions and label in t.out.earlier else ""
       ret += [f"  {key}", f"      {label}" + (note or (f", {p.check}" if p.check != "ok" else "")) + kept]
   if held.readings:
-    ret += ["", "what each form was read as"]
+    ret += ["", "the figures read from each form"]
     for key, r in held.readings.items():
-      ret += [f"  {key}", f"      {r.amount:,} read from {r.quote}" + (", misread as you said" if held.decisions.get(key) == WRONG else "")]
+      ret += [f"  {key}", f"      {r.amount:,} read from {r.quote}" + (", not correct from your answer" if held.decisions.get(key) == WRONG else "")]
   asked = questions(held, t, proposed)
   if waiting := [q for q in asked if said_to(held, q) is None]:
-    ret += ["", "questions still open"]
+    ret += ["", "questions with no answer"]
     for q in waiting:
       ret += [f"  {q.subject}"] + ([f"      {q.headline}"] if q.headline else []) + ([f"      {q.about}"] if q.about != q.subject else [])
       ret += [f"      {q.asks}: " + "; ".join(f"{n} ({d})" for n, d in q.choices)]
@@ -240,5 +241,5 @@ def keep(held:Case, t:Tables) -> list[str]:
       ret += [f"      {n}. {p.date} {p.amount:,} {p.description}" for n, p in listed]
       for choice, fig in priced(held, t, q, base).items(): ret += [f"      {choice:<30}{fig.amt:>+14,}"]
   if done := [(q, said) for q in asked if (said := said_to(held, q)) is not None]:
-    ret += ["", "questions you answered"] + [line for q, said in done for line in (f"  {q.subject}", f"      {said}")]
+    ret += ["", "questions with an answer"] + [line for q, said in done for line in (f"  {q.subject}", f"      {said}")]
   return ret

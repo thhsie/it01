@@ -36,8 +36,8 @@
   "needs": {
     "pay": {
       "fact": "salary",
-      "asking": "your bank shows your pay after tax. Add the statement of emoluments from your employer, which gives your full salary and the tax already paid. If this money was not pay, say what it was",
-      "headline": "add your salary statement"
+      "asking": "the bank statement shows your pay after tax. Add the statement of emoluments from your employer. This statement shows your full salary and the tax that your employer removed from your pay. If this money is not pay, select the correct type",
+      "headline": "add your statement of emoluments"
     }
   },
   "exempt": {
@@ -46,15 +46,15 @@
   "business": {
     "refund": {
       "fact": "business.other_income",
-      "asking": "pick the refunds of costs of your business, or type the business part. They count as other income of the business"
+      "asking": "select the refunds of business costs, or type the business part of the total. These refunds are other income of the business"
     }
   },
   "headlines": {
-    "refund": "which of these refunds paid back costs of your business?"
+    "refund": "which refunds are for business costs?"
   },
   "not_income": ["other"],
   "asking": {
-    "cash": "where did this cash come from",
-    "unclear": "what was this payment for"
+    "cash": "select the source of this cash",
+    "unclear": "select the type of this payment"
   }
 }

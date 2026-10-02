@@ -177,10 +177,10 @@ Date        Description                   Debit        Credit      Balance
       with self.subTest(tail): self.assertEqual(entries(text + tail)[-1].check, Check.UNCHECKED)
 
   def test_a_statement_with_no_running_balance_is_refused(self):
-    with self.assertRaisesRegex(ValueError, "no running balance column"): entries("Salary 5,000.00\nRent 1,500.00\n")
+    with self.assertRaisesRegex(ValueError, "the statement has no column for the running balance"): entries("Salary 5,000.00\nRent 1,500.00\n")
 
   def test_a_document_with_no_amounts_is_refused(self):
-    with self.assertRaisesRegex(ValueError, "no running balance column"): entries("Nothing here at all\n")
+    with self.assertRaisesRegex(ValueError, "the statement has no column for the running balance"): entries("Nothing here at all\n")
 
   def test_a_summary_above_the_headings_does_not_hide_them(self):
     summarised = "Opening balance 1,000.00 Closing balance 4,312.50\n" + SIDE_BY_SIDE
@@ -205,11 +205,11 @@ Date        Description                   Debit        Credit      Balance
 
   def test_a_statement_with_no_headings_is_refused(self):
     bare = "\n".join(SIDE_BY_SIDE.split("\n")[1:])
-    with self.assertRaisesRegex(ValueError, "which way the money moved"): entries(bare)
+    with self.assertRaisesRegex(ValueError, "the column headings do not show the direction of the money"): entries(bare)
 
   def test_headings_that_disagree_with_each_other_are_refused(self):
     muddled = SIDE_BY_SIDE.replace("Debit       Credit", "Debit        Debit")
-    with self.assertRaisesRegex(ValueError, "which way the money moved"): entries(muddled)
+    with self.assertRaisesRegex(ValueError, "the column headings do not show the direction of the money"): entries(muddled)
 
   def test_a_figure_that_is_not_money_is_not_read(self):
     for shown in ("1,234,567", "5.00%"):
@@ -228,7 +228,7 @@ Date        Description                   Debit        Credit      Balance
 
   def test_a_column_of_two_amounts_is_not_a_running_balance(self):
     short = "\n".join(SIDE_BY_SIDE.split("\n")[:3]) + "\n"
-    with self.assertRaisesRegex(ValueError, "no running balance column"): entries(short)
+    with self.assertRaisesRegex(ValueError, "the statement has no column for the running balance"): entries(short)
 
   def test_a_page_too_short_to_work_out_does_not_vote(self):
     tail = SIDE_BY_SIDE + "\f\nDate        Description                   Credit        Debit      Balance\n" \
@@ -243,15 +243,15 @@ Date        Description                   Debit        Credit      Balance
   def test_two_rows_naming_the_columns_in_opposite_orders_are_refused(self):
     head = SIDE_BY_SIDE.split("\n")[0]
     swapped = head.replace("Debit", "XXXXX").replace("Credit", "Debit").replace("XXXXX", "Credit")
-    with self.assertRaisesRegex(ValueError, "disagree about which way"): entries(swapped + "\n" + SIDE_BY_SIDE)
+    with self.assertRaisesRegex(ValueError, "page 1 do not agree about the direction"): entries(swapped + "\n" + SIDE_BY_SIDE)
 
   def test_a_heading_too_far_from_its_column_is_not_used(self):
     self.assertEqual(entries(under("Debit", "Credit", 3))[1].paid_out, Decimal("1500.00"))
-    with self.assertRaisesRegex(ValueError, "which way the money moved"): entries(under("Debit", "Credit", 20))
+    with self.assertRaisesRegex(ValueError, "the column headings do not show the direction of the money"): entries(under("Debit", "Credit", 20))
 
   def test_a_column_that_explains_half_its_changes_is_not_the_balance(self):
     half = SIDE_BY_SIDE.replace("1,500.00", "1,499.00").replace("  200.00", "  199.00")
-    with self.assertRaisesRegex(ValueError, "no running balance column"): entries(half)
+    with self.assertRaisesRegex(ValueError, "the statement has no column for the running balance"): entries(half)
 
   def test_a_column_pointing_both_ways_is_left_out(self):
     got = entries(BOTH_WAYS)

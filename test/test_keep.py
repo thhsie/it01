@@ -30,8 +30,8 @@ class TestKeep(unittest.TestCase):
   def test_the_record_holds_every_heading(self):
     held = made(paid("500.00", "business"), paid("700.00", "cash"), read=(SALARY,))
     ret = keep(held, T)
-    for heading in ("facts you confirmed", "figures", "figures proposed, not confirmed", "documents you read", "how each payment was labelled",
-                    "what each form was read as", "questions still open"):
+    for heading in ("facts that you accepted", "figures", "proposed figures to accept", "documents in the case",
+                    "the type of each payment", "the figures read from each form", "questions with no answer"):
       with self.subTest(heading): self.assertIn(heading, ret)
 
   def test_a_fact_is_shown_with_the_wording_it_came_from(self):
@@ -46,7 +46,7 @@ class TestKeep(unittest.TestCase):
   def test_an_answer_is_shown_under_its_subject(self):
     held = replace(made(paid("700.00", "cash")), decisions={"bank.txt, 700.00 paid in on 15/07/2025, CLIENT": "dividend"})
     ret = keep(held, T)
-    at = ret.index("questions you answered")
+    at = ret.index("questions with an answer")
     self.assertEqual(ret[at + 1:at + 3], ["  bank.txt, 700.00 paid in on 15/07/2025, CLIENT", "      dividend"])
 
   def test_the_wording_never_reaches_the_computation(self):
@@ -65,7 +65,7 @@ class TestKeep(unittest.TestCase):
     self.assertEqual([line.split() for line in ret[at + 1:at + 3]], [["1", "1,000"], ["2", "2,000"]])
 
   def test_the_same_key_written_twice_is_refused(self):
-    with self.assertRaisesRegex(ValueError, "the same key is written twice cash"): loaded('{"decisions": {"cash": "a", "cash": "b"}}')
+    with self.assertRaisesRegex(ValueError, "the file has the same key two times cash"): loaded('{"decisions": {"cash": "a", "cash": "b"}}')
 
   def test_the_file_comes_back_the_way_it_went_in(self):
     held = replace(made(paid("500.00", "business"), paid("90.00", "pension", way="out", check="not checked"), read=(SALARY,)),
@@ -75,29 +75,29 @@ class TestKeep(unittest.TestCase):
     self.assertEqual(opened(loaded(written(held))), held)
 
   def test_a_case_file_cannot_hold_what_json_has_no_word_for(self):
-    with self.assertRaisesRegex(ValueError, "cannot hold"): dumped({"a": object()})
+    with self.assertRaisesRegex(ValueError, "a case file cannot have <object"): dumped({"a": object()})
 
   def test_a_record_that_does_not_hold_up_is_refused(self):
     good = {"document": "bank.txt", "way": "in", "amount": "5.00", "date": "15/07/2025", "description": "X", "label": "business", "check": "ok"}
-    for records, says in (({"payments": {"k": good | {"colour": "red"}}}, r"payments k holds unknown fields \['colour'\]"),
+    for records, says in (({"payments": {"k": good | {"colour": "red"}}}, r"payments k has unknown fields \['colour'\]"),
                           ({"payments": {"k": {n: v for n, v in good.items() if n != "label"}}}, r"payments k needs \['label'\] as text"),
-                          ({"payments": {"k": good | {"way": "sideways"}}}, "unknown way, check or month"),
-                          ({"payments": {"k": good | {"check": "maybe"}}}, "unknown way, check or month"),
-                          ({"payments": {"k": good | {"month": "July"}}}, "unknown way, check or month"),
+                          ({"payments": {"k": good | {"way": "sideways"}}}, r"these payments have an unknown direction, check or month \['k'\]"),
+                          ({"payments": {"k": good | {"check": "maybe"}}}, r"these payments have an unknown direction, check or month \['k'\]"),
+                          ({"payments": {"k": good | {"month": "July"}}}, r"these payments have an unknown direction, check or month \['k'\]"),
                           ({"payments": {"k": good | {"amount": "five"}}}, "not an amount five"),
-                          ({"payments": {"k": good | {"document": "other.txt"}}}, r"name a document the case does not hold \['k'\]"),
-                          ({"readings": {"k": {"document": "bank.txt", "fact": "luck", "amount": "1", "quote": "q"}}}, "readings name unknown facts"),
+                          ({"payments": {"k": good | {"document": "other.txt"}}}, r"these refer to a document that is not in the case \['k'\]"),
+                          ({"readings": {"k": {"document": "bank.txt", "fact": "luck", "amount": "1", "quote": "q"}}}, r"unknown facts \['k'\]"),
                           ({"lines": {"k": {"document": "bank.txt", "amount": "1", "quote": "q", "asking": "a", "lines": {"x": 1}}}},
                            "lines k lines must be a JSON object of text"),
-                          ({"confirmed": {"salary": "lots"}, "salary": 1}, "confirmed holds a figure that is not an amount"),
-                          ({"sources": {"salary": "a line"}}, "sources and confirmed figures name facts the case does not give"),
+                          ({"confirmed": {"salary": "lots"}, "salary": 1}, r"confirmed has a figure that is not an amount \['salary'\]"),
+                          ({"sources": {"salary": "a line"}}, r"sources and accepted figures refer to facts that are not in the case \['salary'\]"),
                           ({"decisions": {"k": " "}}, "decisions must be a JSON object of text"),
                           ({"payments": []}, "payments must be a JSON object")):
       with self.subTest(says), self.assertRaisesRegex(ValueError, says): opened(broken(**records))
 
   def test_a_case_of_another_version_is_refused(self):
     for raw, says in (({"version": {"case": "2"}}, "version 2"), ({"documents": {"a.txt": "payslip"}}, "version none")):
-      with self.subTest(says), self.assertRaisesRegex(ValueError, f"a case of {says} cannot be read"): opened({"resident": True} | raw)
+      with self.subTest(says), self.assertRaisesRegex(ValueError, f"cannot read a case of {says}"): opened({"resident": True} | raw)
 
   def test_a_case_with_only_a_year_needs_no_version(self):
     self.assertEqual(opened({"resident": True, "year": {"from": "2025-07", "to": "2026-06"}}).year, {"from": "2025-07", "to": "2026-06"})
@@ -108,22 +108,22 @@ class TestKeep(unittest.TestCase):
                      (Decimal("1107000.00"), {"salary": "1107000.00"}, {"salary": "soe.txt, Net emoluments 1,107,000.00"}, {}))
 
   def test_confirming_a_figure_that_was_not_proposed_is_refused(self):
-    with self.assertRaisesRegex(ValueError, "nothing is proposed for salary"): confirm(made(), T, "salary")
+    with self.assertRaisesRegex(ValueError, "the case has no proposed figure for salary"): confirm(made(), T, "salary")
 
   def test_a_confirmed_figure_read_again_as_another_amount_is_proposed_and_listed_as_changed(self):
     held = confirm(made(paid("500.00", "business")), T, "business.gross_income")
     held = noted(held, "two.txt", Document("bank statement", "p", "z"), [("x", paid("300.00", "business", doc="two.txt"))], [], [])
-    said = "bank.txt, 1 labelled business, two.txt, 1 labelled business"
+    said = "bank.txt, 1 of the type business, two.txt, 1 of the type business"
     self.assertEqual(case(held, T)["changed"], {"business.gross_income": {"was": "500.00", "source": said}})
 
   def test_a_confirmed_figure_no_longer_read_is_proposed_at_zero(self):
     held = removed(confirm(made(read=(SALARY,)), T, "salary"), T, "soe.txt")
-    self.assertEqual(proposals(held, T), ({"salary": Decimal(0)}, {"salary": "no longer read from any document"}))
+    self.assertEqual(proposals(held, T), ({"salary": Decimal(0)}, {"salary": "no document gives this figure at this time"}))
 
   def test_business_income_is_proposed_and_confirmed_inside_the_business(self):
     held = confirm(made(paid("500.00", "business")), T, "business.gross_income")
     self.assertEqual(held.given["business"], {"gross_income": Decimal("500.00")})
-    self.assertEqual(held.sources["business.gross_income"], "bank.txt, 1 labelled business")
+    self.assertEqual(held.sources["business.gross_income"], "bank.txt, 1 of the type business")
 
   def test_income_tax_paid_early_in_the_year_counts_for_the_year_before(self):
     rows = (paid("500.00", "tax_paid", date=f"15/{m[5:]}/{m[:4]}", way="out", month=m) for m in ("2025-07", "2025-10", "2025-11"))
@@ -132,7 +132,7 @@ class TestKeep(unittest.TestCase):
     data = case(held, T)["earlier"]
     self.assertEqual((len(q.paid), sorted(data["payments"])), (1, sorted(k for k, p in held.payments.items() if p.month != "2025-11")))
     self.assertEqual([s["url"][-7:] for s in data["sources"]], ["#page=3", "#page=9"])
-    self.assertIn("money paid out counted for the year before", "\n".join(keep(held, T)))
+    self.assertIn("money paid out for the previous year", "\n".join(keep(held, T)))
 
   def early_and_late(self) -> Case:
     rows = (paid("500.00", "pension", date=f"15/{m[5:]}/{m[:4]}", way="out", month=m) for m in ("2025-08", "2025-11"))
@@ -152,7 +152,7 @@ class TestKeep(unittest.TestCase):
     held = answered(held, T, f"{early}, for this income year", "yes")
     self.assertEqual((case(held, T)["earlier"]["payments"], label_of(held, T, early, held.payments[early])), ({}, "tax_paid"))
     self.assertEqual(proposed(answered(held, T, "bank.txt, paid out as tax paid", "yes")), {"quarterly_tax_paid": Decimal("1000.00")})
-    self.assertIn(f"  {early}\n      tax_paid, as you said, counted for this income year as you said", "\n".join(keep(held, T)))
+    self.assertIn(f"  {early}\n      tax_paid, from your answer, for this income year from your answer", "\n".join(keep(held, T)))
 
   def test_removing_the_statement_drops_the_answer_for_this_year(self):
     held = self.early_and_late()
@@ -246,16 +246,16 @@ class TestKeep(unittest.TestCase):
 
   def test_only_an_answered_payment_with_wording_is_remembered(self):
     one, digits = "bank.txt, 700.00 paid in on 15/07/2025, CLIENT", replace(paid("5.00", "cash"), description="12345")
-    for held, key, says in ((made(paid("700.00", "cash")), one, "say what"),
-                            (replace(made(paid("700.00", "cash")), decisions={one: SAME}), one, "say what"),
-                            (replace(made(digits), decisions={"k": "other"}, payments={"k": digits}), "k", "no wording")):
+    for held, key, says in ((made(paid("700.00", "cash")), one, "CLIENT first, then keep the answer"),
+                            (replace(made(paid("700.00", "cash")), decisions={one: SAME}), one, "CLIENT first, then keep the answer"),
+                            (replace(made(digits), decisions={"k": "other"}, payments={"k": digits}), "k", "k has no words that identify the payee")):
       with self.subTest(says=says), self.assertRaisesRegex(ValueError, says): remember(held, key)
 
   def test_a_remembered_label_says_why_in_the_record(self):
     one = "bank.txt, 700.00 paid in on 15/07/2025, CLIENT"
     held = remember(answered(made(paid("700.00", "cash")), T, one, "business"), one)
     later = noted(held, "two.txt", Document("bank statement", "q", "z"), [("x", paid("50.00", "cash", doc="two.txt"))], [], [])
-    self.assertIn("      business, as you said for payments paid in worded like CLIENT", keep(later, T))
+    self.assertIn("      business, from your answer for payments paid in worded like CLIENT", keep(later, T))
 
   def test_alike_credits_can_be_asked_about_one_by_one(self):
     held = answered(self.alike(), T, "payments paid in worded like CLIENT", EACH)
@@ -341,7 +341,7 @@ class TestKeep(unittest.TestCase):
   def test_a_carried_figure_names_the_payees_it_came_from(self):
     held = answered(made(paid("100.00", "pension", way="out")), T, "bank.txt, paid out as pension", "yes")
     later = self.two(held, paid("200.00", "pension", way="out"))
-    self.assertIn("carried from payments paid out worded like CLIENT, as pension", proposals(later, T)[1]["pension_contributions"])
+    self.assertIn("your answer for payments paid out worded like CLIENT, as pension", proposals(later, T)[1]["pension_contributions"])
 
   def test_the_payments_and_readings_behind_a_figure_add_up_to_it(self):
     pension, other = paid("90.00", "pension", way="out"), replace(paid("40.00", "pension", way="out"), description="OTHER PLAN")
@@ -384,14 +384,14 @@ class TestKeep(unittest.TestCase):
 
   def test_payments_whose_balance_was_not_checked_are_counted_and_named(self):
     held = made(paid("500.00", "business", check="not checked"), paid("300.00", "business", date="16/07/2025"))
-    self.assertEqual(proposals(held, T)[1], {"business.gross_income": "bank.txt, 2 labelled business, 1 unchecked"})
+    self.assertEqual(proposals(held, T)[1], {"business.gross_income": "bank.txt, 2 of the type business, 1 with no balance check"})
 
   def test_every_question_carries_a_plain_headline(self):
     held = made(paid("900.00", "rent", check="does not agree"), paid("500.00", "pay"), paid("40.00", "business_expense", way="out"),
                 paid("60.00", "pension", way="out"))
     self.assertEqual([q.headline for q in questions(held, T, proposed(held))],
-                     ["a payment was left out of the totals", "add your salary statement", "costs of a business with no income yet?",
-                      "were these paid into your own approved pension?"])
+                     ["the totals do not include a payment", "add your statement of emoluments", "business costs, but no business income?",
+                      "did these payments go into your approved pension scheme?"])
 
   def test_a_kind_given_to_an_unclear_payment_counts(self):
     held = replace(made(paid("700.00", "cash")), decisions={"bank.txt, 700.00 paid in on 15/07/2025, CLIENT": "rent"})
@@ -464,8 +464,8 @@ class TestKeep(unittest.TestCase):
     self.assertEqual(("salary" in held.given, held.sources), (False, {}))
 
   def test_an_unknown_fact_or_value_is_refused(self):
-    for name, said, says in (("luck", "1", "no fact luck"), ("dependants", "two", "whole number"), ("resident", "maybe", "yes or no"),
-                             ("salary", "lots", "not an amount")):
+    for name, said, says in (("luck", "1", "cannot type a figure for luck"), ("dependants", "two", "no decimal part, not two"),
+                             ("resident", "maybe", "yes or no"), ("salary", "lots", "not an amount")):
       with self.subTest(name), self.assertRaisesRegex(ValueError, says): set_fact(made(), T, name, said)
 
   def test_a_confirmed_figure_goes_back_to_waiting(self):
@@ -474,7 +474,7 @@ class TestKeep(unittest.TestCase):
 
   def test_a_figure_never_confirmed_or_entered_by_hand_cannot_go_back(self):
     for held in (made(salary=1), set_fact(made(), T, "salary", "1")):
-      with self.subTest(held.sources), self.assertRaisesRegex(ValueError, "salary was not confirmed from a proposal"): unconfirmed(held, "salary")
+      with self.subTest(held.sources), self.assertRaisesRegex(ValueError, "not a proposed figure that you accepted"): unconfirmed(held, "salary")
 
   def test_costs_said_not_to_be_a_business_count_nothing_whatever_was_answered_before(self):
     key = "bank.txt, 500,000.00 paid in on 15/07/2025, CLIENT"
@@ -487,7 +487,7 @@ class TestKeep(unittest.TestCase):
     self.assertEqual(held.decisions, {})
 
   def test_a_label_the_tables_do_not_list_is_refused_by_name(self):
-    with self.assertRaisesRegex(ValueError, "bank.txt holds a payment labelled windfall, which the labelling tables do not list"):
+    with self.assertRaisesRegex(ValueError, r"bank\.txt has a payment of the type windfall, and the tables of types do not have this type"):
       keep(made(paid("5.00", "windfall")), T)
 
   def test_an_answer_about_a_payment_that_names_no_kind_counts_nothing(self):
@@ -509,7 +509,7 @@ class TestKeep(unittest.TestCase):
     with self.assertRaisesRegex(ValueError, "not an amount lots"): set_fact(held, T, "school_fees", "lots")
 
   def test_forgetting_needs_something_said(self):
-    with self.assertRaisesRegex(ValueError, "nothing was said about x"): forgot(made(), T, "x")
+    with self.assertRaisesRegex(ValueError, "the case has no answer for x"): forgot(made(), T, "x")
 
   def test_a_removed_document_takes_its_records_and_leaves_the_others(self):
     key = "bank.txt, 500.00 paid in on 15/07/2025, CLIENT"
@@ -519,13 +519,13 @@ class TestKeep(unittest.TestCase):
                      (["bank.txt"], {}, ["bank.txt, 500.00 paid in on 15/07/2025, CLIENT"], {"rent": Decimal("500.00")}))
 
   def test_a_document_the_case_does_not_hold_cannot_be_removed(self):
-    with self.assertRaisesRegex(ValueError, "the case holds no document x.txt"): removed(made(), T, "x.txt")
+    with self.assertRaisesRegex(ValueError, r"the case has no document x\.txt"): removed(made(), T, "x.txt")
 
   def test_a_case_is_given_twelve_months_from_july(self):
     self.assertEqual(with_year(made(), "2025-07").year, {"from": "2025-07", "to": "2026-06"})
 
   def test_a_year_starts_in_july(self):
-    with self.assertRaisesRegex(ValueError, "an income year starts in month 7, not '2025-01'"): with_year(made(), "2025-01")
+    with self.assertRaisesRegex(ValueError, "an income year starts in month 7, not in '2025-01'"): with_year(made(), "2025-01")
 
   def test_a_question_is_priced_by_each_answer(self):
     held = made(paid("900000.00", "cash"))
@@ -568,7 +568,7 @@ class TestKeep(unittest.TestCase):
     held = self.statements(paid("500.00", "business", doc="two.txt"))
     q = next(q for q in questions(held, T, proposed(held)) if q.document == "two.txt")
     self.assertEqual(proposed(held), {"business.gross_income": Decimal("500.00")})
-    self.assertEqual((q.headline, q.choices[0][0]), ("a payment read in two statements", SAME))
+    self.assertEqual((q.headline, q.choices[0][0]), ("a payment is in two statements", SAME))
     for said, amt in (("business", "1000.00"), (SAME, "500.00"), (OUT, "500.00")):
       with self.subTest(said):
         self.assertEqual(proposed(replace(held, decisions={"two.txt, x0": said}))["business.gross_income"], Decimal(amt))
@@ -579,7 +579,7 @@ class TestKeep(unittest.TestCase):
 
   def test_leaving_out_the_first_copy_counts_the_second(self):
     held = replace(self.statements(paid("500.00", "business", doc="two.txt")), decisions={"bank.txt, 500.00 paid in on 15/07/2025, CLIENT": OUT})
-    self.assertEqual((proposed(held), [q.subject for q in questions(held, T, proposed(held)) if q.headline == "a payment read in two statements"]),
+    self.assertEqual((proposed(held), [q.subject for q in questions(held, T, proposed(held)) if q.headline == "a payment is in two statements"]),
                      ({"business.gross_income": Decimal("500.00")}, []))
 
   def test_a_payment_said_to_be_the_same_counts_again_once_the_first_statement_goes(self):
@@ -593,7 +593,7 @@ class TestKeep(unittest.TestCase):
       with self.subTest(first.check, month=first.month):
         asked = [q.headline for q in questions(held, T, proposed(held)) if not q.subject.startswith("months no statement")]
         self.assertEqual((proposed(held), asked),
-                         ({"business.gross_income": Decimal("500.00")}, ["a payment was left out of the totals"] if first.check != "ok" else []))
+                         ({"business.gross_income": Decimal("500.00")}, ["the totals do not include a payment"] if first.check != "ok" else []))
 
   def test_a_copy_is_left_out_of_the_money_paid_in(self):
     self.assertEqual(received(self.statements(paid("500.00", "business", doc="two.txt")), T)["kinds"], {"business": Decimal("500.00")})

@@ -72,7 +72,7 @@ class TestPdf(unittest.TestCase):
   def test_a_page_with_nothing_read_is_refused(self):
     here = saved(written(LINES, LINES), ".pdf")
     self.addCleanup(here.unlink)
-    with told("Tax  9.00", " "), self.assertRaisesRegex(ValueError, "nothing could be read on .* page 2"): source(here)
+    with told("Tax  9.00", " "), self.assertRaisesRegex(ValueError, r"the engine found no text on \S+\.pdf page 2"): source(here)
 
   def test_a_pdf_a_case_read_is_shown_line_by_line(self):
     here = saved(written(LINES), ".pdf")
@@ -94,6 +94,6 @@ class TestPdf(unittest.TestCase):
   def test_a_file_that_does_not_read_as_a_pdf_is_refused(self):
     here = saved(b"not a pdf at all", ".pdf")
     self.addCleanup(here.unlink)
-    with self.assertRaisesRegex(ValueError, "does not read as a PDF"): source(here)
+    with self.assertRaisesRegex(ValueError, "is not a correct PDF"): source(here)
 
 if __name__ == "__main__": unittest.main()

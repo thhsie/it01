@@ -29,7 +29,7 @@ class TestQuarter(unittest.TestCase):
   def test_quarter_refuses_reliefs_of_the_year(self):
     for kw in ({"school_fees": (Decimal(1),)}, {"electronic_donations": Decimal(1)}, {"additional_deduction": Addition.DISABLED},
                {"students": (Student(True, True, Decimal(0), 1),)}, {"solar_energy": Investment(Decimal(1))}):
-      with self.subTest(kw), self.assertRaisesRegex(ValueError, "a quarter does not take"): Facts(True, 1, period=Period.QUARTER, **kw)
+      with self.subTest(kw), self.assertRaisesRegex(ValueError, "a quarter cannot have"): Facts(True, 1, period=Period.QUARTER, **kw)
 
   def test_quarter_reliefs(self):
     held = Facts(True, 1, rent=Decimal(400000), period=Period.QUARTER)
@@ -41,11 +41,11 @@ class TestQuarter(unittest.TestCase):
         figs = assess(Facts(resident, rent=Decimal(400000), period=Period.QUARTER))
         self.assertIn(Source("ita", "s.107(2)", 122), fig(figs, "chargeable income").src)
         self.assertIn(Source("cps", "9. Calculation of Tax", 8), fig(figs, "income tax").src)
-        self.assertIn(Source("cps", "10. Tax Deducted at Source", 9), fig(figs, "tax already paid").src)
+        self.assertIn(Source("cps", "10. Tax Deducted at Source", 9), fig(figs, "tax paid").src)
 
   def test_quarter_figures(self):
     figs = assess(Facts(True, rent=Decimal(400000), period=Period.QUARTER))
-    self.assertEqual([x.rule for x in figs], ["chargeable income", "income tax", "tax already paid", "balance of tax", "losses carried forward"])
+    self.assertEqual([x.rule for x in figs], ["chargeable income", "income tax", "tax paid", "balance of tax", "losses carried forward"])
 
   def test_quarter_credit(self):
     held = Facts(True, rent=Decimal(400000), tax_deducted_at_source=Decimal(1000), period=Period.QUARTER)
@@ -54,7 +54,7 @@ class TestQuarter(unittest.TestCase):
   def test_quarter_refuses_the_year(self):
     for name in AMOUNTS:
       if name in ("rent", "losses_brought_forward", "tax_deducted_at_source"): continue
-      with self.subTest(name), self.assertRaisesRegex(ValueError, f"quarter does not take \\['{name}'\\]"):
+      with self.subTest(name), self.assertRaisesRegex(ValueError, f"quarter cannot have \\['{name}'\\]"):
         Facts(True, period=Period.QUARTER, **{name: Decimal(1)})
 
   def test_quarter_takes_a_quarter_of_the_allowance(self):
@@ -65,7 +65,7 @@ class TestQuarter(unittest.TestCase):
 
   def test_quarter_shows_the_business_working(self):
     figs = assess(Facts(True, business=biz(gross_income=900000), period=Period.QUARTER))
-    self.assertEqual([x.rule for x in figs][-5:], ["gross profit", "net profit per accounts", "non-allowable expenses",
+    self.assertEqual([x.rule for x in figs][-5:], ["gross profit", "net profit in the accounts", "non-allowable expenses",
                                                    "a quarter of the annual allowance on business assets", "net income from business"])
 
   def test_quarter_allowance_keeps_its_cents(self):
@@ -104,7 +104,7 @@ class TestChargeableIncome(unittest.TestCase):
         self.assertEqual(ci(dependants, salary=1000000, medical_insurance=tuple(Decimal(x) for x in paid)), 1000000 - DEPENDANTS[dependants] - relief)
 
   def test_medical_relief_names_no_more_people_than_the_case(self):
-    with self.assertRaisesRegex(ValueError, "medical_insurance names 3 people, at most 2 can be insured"):
+    with self.assertRaisesRegex(ValueError, "medical_insurance has 3 persons, and the maximum is 2"):
       Facts(True, 1, medical_insurance=(Decimal(1), Decimal(1), Decimal(1)))
 
   def test_capped_reliefs(self):
@@ -132,9 +132,9 @@ class TestChargeableIncome(unittest.TestCase):
   def test_reliefs_name_no_more_children_than_the_case(self):
     student = Student(True, True, Decimal(0), 1)
     for kw in ({"school_fees": (Decimal(1), Decimal(1))}, {"students": (student,) * 2}, {"school_fees": (Decimal(1),), "students": (student,)}):
-      with self.subTest(kw), self.assertRaisesRegex(ValueError, "school_fees and students name 2 children, more than the 1 dependants"):
+      with self.subTest(kw), self.assertRaisesRegex(ValueError, "school_fees and students have 2 children, which is more than the 1 dependants"):
         Facts(True, 1, **kw)
-    with self.assertRaisesRegex(ValueError, "students names 5 children, at most 4 can be claimed"): Facts(True, 5, students=(student,) * 5)
+    with self.assertRaisesRegex(ValueError, "students has 5 children, and the maximum is 4"): Facts(True, 5, students=(student,) * 5)
 
   def test_reliefs_read_from_json(self):
     raw = {"resident": True, "dependants": 2, "additional_deduction": "disabled", "school_fees": [70000],
@@ -210,7 +210,7 @@ class TestIncomeHeads(unittest.TestCase):
       Facts(False, foreign_rent=Decimal(1))
 
   def test_quarter_refuses_the_heads(self):
-    with self.assertRaisesRegex(ValueError, "a quarter does not take"): Facts(True, taxable_interest=Decimal(1), period=Period.QUARTER)
+    with self.assertRaisesRegex(ValueError, "a quarter cannot have"): Facts(True, taxable_interest=Decimal(1), period=Period.QUARTER)
 
 class TestInvestments(unittest.TestCase):
   def test_allowances_take_what_income_is_left_in_order(self):
@@ -257,7 +257,7 @@ class TestDependantIncome(unittest.TestCase):
     self.assertEqual(chargeable_income(held).amt, 1040000 - DEPENDANTS[1])
 
   def test_a_dependant_above_the_limit_cannot_be_claimed(self):
-    with self.assertRaisesRegex(ValueError, "dependant 2 has 80,001 of income, above 80,000, so cannot be claimed"):
+    with self.assertRaisesRegex(ValueError, r"dependant 2 has 80,001 of income, more than 80,000\. You cannot claim this dependant"):
       Facts(True, 2, dependant_income=(Dependant(Decimal(0)), Dependant(Decimal(80001))))
 
   def test_a_non_resident_claims_no_dependant_income(self):
@@ -265,10 +265,10 @@ class TestDependantIncome(unittest.TestCase):
       Facts(False, 1, dependant_income=(Dependant(Decimal(1)),))
 
   def test_parts_cannot_exceed_the_income(self):
-    with self.assertRaisesRegex(ValueError, "exempt income and emoluments exceed the income 10"): Dependant(Decimal(10), Decimal(6), Decimal(5))
+    with self.assertRaisesRegex(ValueError, "emoluments are more than the income 10"): Dependant(Decimal(10), Decimal(6), Decimal(5))
 
   def test_no_more_incomes_than_dependants(self):
-    with self.assertRaisesRegex(ValueError, "dependant_income names 2 dependants, at most 1 can have income"):
+    with self.assertRaisesRegex(ValueError, "dependant_income has 2 dependants, and the maximum is 1"):
       Facts(True, 1, dependant_income=(Dependant(Decimal(0)),) * 2)
 
 class TestNettedHeads(unittest.TestCase):
@@ -309,7 +309,7 @@ class TestLetting(unittest.TestCase):
                                                          Source("ita", "s.18(3)", 38), Source("ita", "s.19(1)", 40))))
 
   def test_quarter_refuses_letting_expenses(self):
-    with self.assertRaisesRegex(ValueError, "a quarter does not take"):
+    with self.assertRaisesRegex(ValueError, "a quarter cannot have"):
       Facts(True, rent=Decimal(1), letting=Letting(repairs=Decimal(1)), period=Period.QUARTER)
 
   def test_letting_reads_from_json(self):
@@ -322,7 +322,7 @@ class TestAccounts(unittest.TestCase):
 
   def test_follows_the_return_lines(self):
     figs = assess(Facts(True, business=self.LINES))
-    rules = ("gross profit", "net profit per accounts", "non-allowable expenses", "annual allowance on computer", "net income from business")
+    rules = ("gross profit", "net profit in the accounts", "non-allowable expenses", "annual allowance on computer", "net income from business")
     self.assertEqual([fig(figs, r).amt for r in rules], [700000, 560000, 35000, 40000, 556000])
 
   def test_adds_back_depreciation_and_entertainment(self):
@@ -422,7 +422,7 @@ class TestAssess(unittest.TestCase):
   def test_reports_tax_already_paid(self):
     held = Facts(True, salary=Decimal(1000000), paye_withheld=Decimal(30000), tax_deducted_at_source=Decimal(2000), quarterly_tax_paid=Decimal(5000))
     figs = assess(held)
-    self.assertEqual(fig(figs, "tax already paid").amt, Decimal(37000))
+    self.assertEqual(fig(figs, "tax paid").amt, Decimal(37000))
     self.assertEqual(fig(figs, "balance of tax").amt, fig(figs, "total tax").amt - Decimal(37000))
 
   def test_balance_cites_the_credits(self):

@@ -137,7 +137,7 @@ class TestLocal(unittest.TestCase):
 
   def test_reading_with_a_model_file_that_is_not_there_is_refused(self):
     with mock.patch("it01.local.IT01_MODEL_FILE", "/no/such/reader.onnx"):
-      with self.assertRaisesRegex(ValueError, "which is not a file"): reader()
+      with self.assertRaisesRegex(ValueError, r"IT01_MODEL_FILE refers to /no/such/reader\.onnx, and /no/such/reader\.onnx is not a file"): reader()
 
   def test_a_tokeniser_that_splits_the_words_differently_is_refused(self):
     with self.assertRaisesRegex(ValueError, "cannot be traced"): prompt(Halved(), words("a b c"), FORM, SHAPE)
@@ -220,7 +220,7 @@ class TestLocal(unittest.TestCase):
       self.assertEqual(found("pay emoluments"), ())
 
   def test_a_document_with_no_words_is_refused(self):
-    with self.assertRaisesRegex(ValueError, "holds no words"): found("   ")
+    with self.assertRaisesRegex(ValueError, "the document has no words"): found("   ")
 
   def test_the_form_the_package_ships_is_read(self):
     shipped = wanted()
