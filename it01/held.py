@@ -29,6 +29,7 @@ class Payment:
   label: str
   check: str
   month: str|None = None
+  line: int|None = None
 
 @dataclass(frozen=True)
 class Reading:
@@ -83,8 +84,13 @@ def to_document(raw:Any, where:str) -> Document:
   return Document(got["kind"], got["path"], got["mark"], got.get("currency"), got.get("ends"))
 
 def to_payment(raw:Any, where:str) -> Payment:
-  got = part(raw, where, ("document", "way", "amount", "date", "description", "label", "check"), ("month",))
-  return Payment(got["document"], got["way"], amount(got["amount"]), got["date"], got["description"], got["label"], got["check"], got.get("month"))
+  if not isinstance(raw, dict): raise ValueError(f"{where} must be a JSON object")
+  if (line := raw.get("line")) is not None and (type(line) is not int or line < 1):
+    raise ValueError(f"{where} needs line as a number from 1 with no decimal part, not {line}")
+  need = ("document", "way", "amount", "date", "description", "label", "check")
+  got = part({k: v for k, v in raw.items() if k != "line"}, where, need, ("month",))
+  return Payment(got["document"], got["way"], amount(got["amount"]), got["date"], got["description"], got["label"], got["check"], got.get("month"),
+                 line)
 
 def to_reading(raw:Any, where:str) -> Reading:
   got = part(raw, where, ("document", "fact", "amount", "quote"))

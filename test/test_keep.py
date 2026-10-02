@@ -85,6 +85,7 @@ class TestKeep(unittest.TestCase):
                           ({"payments": {"k": good | {"check": "maybe"}}}, r"these payments have an unknown direction, check or month \['k'\]"),
                           ({"payments": {"k": good | {"month": "July"}}}, r"these payments have an unknown direction, check or month \['k'\]"),
                           ({"payments": {"k": good | {"amount": "five"}}}, "not an amount five"),
+                          *(({"payments": {"k": good | {"line": bad}}}, "line as a number from 1") for bad in ("3", Decimal("1.5"), True, 0)),
                           ({"payments": {"k": good | {"document": "other.txt"}}}, r"these refer to a document that is not in the case \['k'\]"),
                           ({"readings": {"k": {"document": "bank.txt", "fact": "luck", "amount": "1", "quote": "q"}}}, r"unknown facts \['k'\]"),
                           ({"lines": {"k": {"document": "bank.txt", "amount": "1", "quote": "q", "asking": "a", "lines": {"x": 1}}}},

@@ -6,7 +6,7 @@ from it01.__main__ import accepted, added, dropped_doc, forgotten, rebuilt, resp
 from it01.asks import ADRIFT, proposals, questions, tables
 from it01.held import Case, loaded, opened
 from it01.labels import Labelled
-from it01.rows import Check
+from it01.rows import Check, entries
 from test.helpers import ROOT
 
 @dataclass(frozen=True)
@@ -57,6 +57,12 @@ Date        Description        Debit       Credit      Balance
 01/07/2025  Opening                                   1,000.00
 02/07/2025  Salary                       5,000.00     6,000.00
 03/07/2025  Interest                        12.50     6,012.50
+"""
+
+TWO_PAGES = STATEMENT + """\
+\fDate        Description        Debit       Credit      Balance
+04/07/2025  Office supplies      200.00               4,300.00
+            for the shop
 """
 
 LOST_PAGE = STATEMENT + """\
@@ -155,9 +161,9 @@ class TestCli(unittest.TestCase):
     self.assertEqual((out.returncode, out.stdout.strip()), (0, "the statement shows no money paid into the account"))
 
   def test_debits_are_totalled_by_kind(self):
-    found = (Labelled("03/07/2025", Decimal("1000.00"), "RETIREMENT PLAN", "pension", Check.AGREES),
-             Labelled("03/08/2025", Decimal("1000.00"), "RETIREMENT PLAN", "pension", Check.UNCHECKED),
-             Labelled("04/08/2025", Decimal("800.00"), "SHOP", "no_claim", Check.AGREES))
+    found = (Labelled("03/07/2025", Decimal("1000.00"), "RETIREMENT PLAN", "pension", Check.AGREES, 1),
+             Labelled("03/08/2025", Decimal("1000.00"), "RETIREMENT PLAN", "pension", Check.UNCHECKED, 2),
+             Labelled("04/08/2025", Decimal("800.00"), "SHOP", "no_claim", Check.AGREES, 3))
     with mock.patch("it01.__main__.spending", return_value=found): got = to_debits("")
     self.assertEqual(got, [f"{'pension':<46}{'2,000.00':>14}    2 debits, 1 with a balance that does not agree or has no check",
                            f"{'no_claim':<46}{'800.00':>14}    1 debit"])
@@ -177,7 +183,7 @@ FORM = "Statement of emoluments\nfor the income year ended 30 June 2026\nNet emo
 YEAR = {"from": "2025-07", "to": "2026-06"}
 
 def pay(date:str, amt:str, description:str, kind:str, check:Check=Check.AGREES) -> Labelled:
-  return Labelled(date, Decimal(amt), description, kind, check)
+  return Labelled(date, Decimal(amt), description, kind, check, 0)
 
 WALLET = pay("13/07/2025", "20000.00", "WALLET TRANSFER", "unclear")
 CLIENT = pay("15/07/2025", "500.00", "CLIENT", "business")
@@ -511,6 +517,19 @@ class TestCase(unittest.TestCase):
     self.banked(here := self.made())
     ret = run("show", str(here), "bank.txt")
     self.assertEqual((ret.returncode, ret.stdout), (0, STATEMENT))
+
+  def test_each_payment_keeps_the_line_it_was_read_from(self):
+    rows = entries(TWO_PAGES)
+    found = tuple(Labelled(e.date, e.paid_in, e.description, "unclear", e.check, e.line) for e in rows if e.paid_in is not None)
+    spent = tuple(Labelled(e.date, e.paid_out, e.description, "no_claim", e.check, e.line) for e in rows if e.paid_out is not None)
+    self.banked(here := self.made(), found, spent, TWO_PAGES)
+    shown = run("show", str(here), "bank.txt").stdout.split("\n")
+    lines = sorted((p.line or 0, p.date) for p in self.held(here).payments.values())
+    self.assertEqual([n for n, _ in lines], [3, 4, 6])
+    for n, date in lines:
+      with self.subTest(date): self.assertIn(date, shown[n - 1])
+    sent = json.loads(run("data", str(here)).stdout)["payments"]
+    self.assertEqual({p["line"] for p in sent.values()}, {p.line for p in self.held(here).payments.values()})
 
   def test_a_document_the_case_never_read_cannot_be_shown(self):
     ret = run("show", str(self.made()), "other.txt")
