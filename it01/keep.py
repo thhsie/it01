@@ -170,7 +170,7 @@ def asked_data(held:Case, t:Tables, q:Asked, base:Base) -> dict[str, Any]:
   return {"subject": q.subject, "about": q.about, "asks": q.asks, "choices": [list(c) for c in q.choices], "document": q.document,
           "headline": q.headline, "amount": str(q.amount), "payments": list(q.paid), "listed": is_listed(q), "share": q.share, "said": said,
           "carried": said is not None and q.subject not in held.decisions, "closes": q.closes,
-          "earlier": held.decisions.get(q.subject) if said is None else None, "prices": shown}
+          "earlier": held.decisions.get(q.subject) if said is None else None, "prices": shown, "months": list(q.months)}
 
 def case(held:Case, t:Tables) -> dict[str, Any]:
   base, months = based(held, t), months_of(held)

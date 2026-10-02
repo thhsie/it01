@@ -163,6 +163,8 @@ class TestKeep(unittest.TestCase):
     later = [(f"x{n}", paid("5.00", "business", month=m, doc="two.txt")) for n, m in enumerate(("2025-12", "2026-06"))]
     held = noted(made(*first, year=yearly("2025-07")), "two.txt", Document("bank statement", "q", "z"), later, [], [])
     self.assertEqual([q.about for q in gaps(held)], ["no statement covers 2025-10, 2025-11"])
+    sent = next(q for q in case(held, T)["questions"] if q["subject"] == gaps(held)[0].subject)
+    self.assertEqual(sent["months"], ["2025-10", "2025-11"])
     self.assertEqual(gaps(made(*first)), [])
     q = gaps(held)[0]
     self.assertEqual(said_to(answered(held, T, q.subject, "none"), q), "none")
