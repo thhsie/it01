@@ -143,6 +143,9 @@ def earlier(held:Case, t:Tables, months:tuple[str, ...]) -> dict[str, str]:
 def counted(held:Case, t:Tables, months:tuple[str, ...]) -> Rows:
   return [(key, p, kind) for key, p, kind in kept_rows(held, t, months) if not is_earlier(held, t, key, kind, p, months)]
 
+def kept_this_year(held:Case, t:Tables) -> dict[str, str]:
+  return {key: this_year(key) for key, p in held.payments.items() if this_year(key) in held.decisions and label_of(held, t, key, p) in t.out.earlier}
+
 def kept_asks(held:Case, t:Tables) -> list[Asked]:
   kept = (("yes", "this payment is tax for this income year"),)
   return [Asked(this_year(key), worded(p := held.payments[key]), why, kept, p.document, amount=p.amount)
