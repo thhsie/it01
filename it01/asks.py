@@ -207,17 +207,21 @@ def moved(held:Case, t:Tables, months:tuple[str, ...]) -> dict[str, str]:
 def is_open(held:Case, t:Tables, key:str, p:Payment, months:tuple[str, ...], copied:dict[str, str]) -> bool:
   return p.way == "out" and is_inside(p, months) and key not in copied and remembered(held, t, p) is None
 
+def typing_asked(held:Case, t:Tables, key:str) -> Asked:
+  q = payment_asked(held, t, key)
+  return replace(q, choices=tuple(c for c in q.choices if c[0] not in t.out.unsure))
+
 def unsure(held:Case, t:Tables, months:tuple[str, ...], copied:dict[str, str]) -> list[Asked]:
   groups:dict[tuple[str, str], list[tuple[str, Payment]]] = {}
   ret = []
   for key, p in held.payments.items():
     if not is_open(held, t, key, p, months, copied): continue
-    if held.decisions.get(key) == PICKED: ret.append(payment_asked(held, t, key))
+    if held.decisions.get(key) == PICKED: ret.append(typing_asked(held, t, key))
     elif key not in held.decisions and (kind := read_as(held, t, p)) in t.out.unsure: groups.setdefault((p.document, kind), []).append((key, p))
   for (doc, kind), members in groups.items():
     asking, one, many, personal = t.out.unsure[kind]
     if len(members) == 1:
-      ret.append(replace(payment_asked(held, t, members[0][0]), headline=one))
+      ret.append(replace(typing_asked(held, t, members[0][0]), headline=one))
       continue
     total = sum((p.amount for _, p in members), ZERO)
     ret.append(Asked(costs_of(doc, kind), outgoing(total, len(members), kind, doc, "out"), asking, (("no", "all these payments are personal"),), doc,
