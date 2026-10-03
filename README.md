@@ -70,7 +70,9 @@ A relief or a business cost also adds to its fact when your answer is yes. A lin
 
 If a new document or answer changes an accepted figure, the figure becomes a proposed figure again. `data` then shows the previous amount in `changed`. If no document gives an accepted figure at this time, the engine proposes 0 for that figure.
 
-If a figure comes only from your answers, the engine accepts it when you give the answer. If a new answer or document changes that figure, the accepted figure changes with it. If you answer no, or `forget` or `remove` takes these answers away, the engine removes the figure from the facts. If you use `unconfirm` on that figure, it stays a proposed figure. A figure that you typed with `set` does not change in this way.
+If a figure comes only from your answers, the engine accepts it when you give the answer. If a new answer or document changes that figure, the accepted figure changes with it. If you answer no, or `forget` or `remove` takes these answers away, the engine removes the figure from the facts.
+
+If you use `unconfirm` on that figure, it stays a proposed figure. A figure that you typed with `set` does not change in this way.
 
 `unconfirm` removes an accepted figure from the facts, and the figure becomes a proposed figure again. Use `set` to clear a figure that you gave with `set`.
 
@@ -214,7 +216,11 @@ For each type of payment out in a statement, `it01 add` makes one question. `cla
 
 `aside` gives the types that do not count. If the balance after a payment does not agree, the totals do not include that payment.
 
-`unsure` gives the types from `aside` that can include a payment for a claim. For each statement, one question lists those payments. The person selects each payment for a claim, and each selected payment gets its own question. The other payments get the type that `personal` gives. A statement with one such payment gets one question for the type of that payment.
+`unsure` gives the types from `aside` that can include a payment for a claim. For each statement, one question lists those payments. The person selects each payment for a claim, and each selected payment gets its own question.
+
+The other payments get the type that `personal` gives. A statement with one such payment gets one question for the type of that payment.
+
+Money can move between two accounts of the same person. A payment out of a type from `unsure` gets no question when another statement shows the same amount paid in. That payment in must be not income, on the same day or up to three days later. The case data lists each pair under `moved`.
 
 `keep` shows the answers to each question after a colon, and each answer tells its effect.
 
