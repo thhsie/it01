@@ -232,6 +232,7 @@ class TestKeep(unittest.TestCase):
     after = answered(held, T, subject, "payments 2")
     key = subject_of(held, T, subject).paid[1]
     self.assertEqual([x.subject for x in questions(after, T, proposed(after)) if said_to(after, x) is None], [key])
+    self.assertNotIn("unclear", dict(subject_of(after, T, key).choices))
     after = answered(answered(after, T, key, "pension"), T, "bank.txt, paid out as pension", "yes")
     self.assertEqual(figured(after), {"pension_contributions": Decimal("15000.00")})
 
@@ -246,6 +247,8 @@ class TestKeep(unittest.TestCase):
     held = made(paid("2500.00", "unclear", way="out"))
     q = questions(held, T, proposed(held))[0]
     self.assertEqual((q.subject, q.headline), (next(iter(held.payments)), T.out.unsure["unclear"][1]))
+    self.assertNotIn("unclear", dict(q.choices))
+    with self.assertRaises(ValueError): answered(held, T, q.subject, "unclear")
 
   def test_forgetting_a_picked_payments_type_asks_about_it_again(self):
     held = self.unclear()
