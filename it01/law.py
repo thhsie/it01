@@ -82,6 +82,15 @@ QUARTER_BANDS_SRC = (Source("ita", "s.108", 123), Source("cps", "9. Calculation 
 QUARTER_INCOME_SRC = (Source("ita", "s.105", 121), Source("ita", "s.107(2)", 122))
 QUARTER_CREDIT_SRC = (Source("ita", "s.111G", 129), Source("cps", "10. Tax Deducted at Source", 9))
 QUARTER_RELIEF = Decimal("0.25")
+STATEMENT_FLOOR = Decimal(4000000)
+STATEMENT_SRC = (Source("ita", "s.106(1)", 121), Source("ita", "s.106(2)(a)", 122), Source("ita", "s.106(2)(b)", 122),
+                 Source("ita", "s.106(2)(c)", 122))
+STATEMENT_UNLESS = ("the tax on a quarter of the last income year's chargeable income from business and rent is 500 or less",
+                    "you had no chargeable income in the last income year",
+                    "your gross income was 10,000,000 or less, and your work is in the Thirteenth Schedule")
+STATEMENT_DUE = (("July to September", "2 days before the end of December, but do not count Saturdays and public holidays"),
+                 ("October to December", "31 March"),
+                 ("January to March", "2 days before the end of June, but do not count Saturdays and public holidays"))
 
 class Period(Enum):
   YEAR = auto()

@@ -6,9 +6,10 @@ from typing import Any
 from it01.form import wanted
 from it01.held import DIFFERS, MONTH, UNCHECKED, Case, Line, Payment, Reading, at, typed
 from it01.kinds import Paying, Table, paying, picked, spoken
-from it01.law import EARLIER_MONTHS, YEAR_STARTS
+from it01.law import EARLIER_MONTHS, STATEMENT_FLOOR, YEAR_STARTS
 from it01.tax import ZERO, Facts, Figure, amount, assess, from_json, plain
 
+STATEMENTS = "statements of income for each quarter"
 OUT, SAME, WRONG, EACH, PICKED, GONE = "out", "same", "wrong", "each", "picked", "no document gives this figure at this time"
 ADRIFT = "the balance on the statement after this payment does not agree with the amounts. The totals do not include this payment"
 NUMBERED = re.compile(r"payments? (?P<nums>\d+(?:, ?\d+)*)")
@@ -374,6 +375,16 @@ def questions(held:Case, t:Tables, proposed:dict[str, Decimal]) -> list[Asked]:
   ret += [q for q in owed if not q.trade and not is_closed(held, q)] + unsure(held, t, months, copied)
   return unread(uncovered(held, months)) + ret + form_lines(held, t)
 
+def statements() -> Asked:
+  asks = (f"the law sets a limit of {STATEMENT_FLOOR:,} of gross income from business and rent in the last income year. "
+          "Above this limit, a statement for each quarter is necessary. Select yes if your income was more")
+  choices = (("yes", f"your gross income was more than {STATEMENT_FLOOR:,}"), ("no", f"your gross income was {STATEMENT_FLOOR:,} or less"))
+  return Asked(STATEMENTS, "the case has income from a business or from rent", asks, choices, None,
+               f"was your gross income from business and rent more than {STATEMENT_FLOOR:,} in the last income year?")
+
+def is_business_or_rent(held:Case, proposed:dict[str, Decimal]) -> bool:
+  return is_given(held, proposed, "business.gross_income") or is_given(held, proposed, "rent")
+
 def is_closed(held:Case, q:Asked) -> bool: return q.closes is not None and at(held.given, q.closes) not in (None, [])
 
 def payment_asked(held:Case, t:Tables, key:str) -> Asked:
@@ -384,6 +395,7 @@ def subject_of(held:Case, t:Tables, subject:str) -> Asked:
   if q := next((q for q in questions(held, t, proposals(held, t)[0]) if q.subject == subject), None): return q
   if subject in held.payments: return payment_asked(held, t, subject)
   if q := next((q for q in kept_asks(held, t) if q.subject == subject), None): return q
+  if subject == STATEMENTS: return statements()
   if r := held.readings.get(subject):
     misread = ((WRONG, "the figure is not correct"),)
     return Asked(subject, f"{r.amount:,} read from {r.quote}", "tell if the figure is not correct", misread, r.document)

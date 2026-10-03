@@ -6,10 +6,10 @@ from typing import Any
 from it01.asks import SAME, WRONG, Asked, Base, Tables, alike, based, claims, counted, copies, costs_of, derived, fitted, is_dropped, is_inside
 from it01.asks import is_listed, label_of, months_of, needing, payer, priced, proposals, proposed_from, put, questions, read_as, rule_of, said_of
 from it01.asks import earlier, evidence, from_answers, kept_this_year, for_payees, said_to, subject_of, this_year, trading_in, with_answer, yearly
-from it01.asks import PICKED
+from it01.asks import PICKED, STATEMENTS, is_business_or_rent, statements
 from it01.held import Case, Document, Line, Payment, Reading, at
 from it01.kinds import picked
-from it01.law import EARLIER_SRC, RETURN_DUE, RETURN_DUE_SRC, YEAR_SRC, Source
+from it01.law import EARLIER_SRC, RETURN_DUE, RETURN_DUE_SRC, STATEMENT_DUE, STATEMENT_SRC, STATEMENT_UNLESS, YEAR_SRC, Source
 from it01.tax import LISTS, PLACES, Facts, Figure, amount, assess, from_json, summed
 
 ENTERED = "entered by you"
@@ -202,6 +202,9 @@ def case(held:Case, t:Tables) -> dict[str, Any]:
   sources = held.sources | {n: said for n, said in proposing.items() if at(held.given, n) is None}
   return {"facts": texted(held.given), "proposed": texted(proposed), "changed": changed, "sources": sources, "confirmed": held.confirmed,
           "year": held.year, "due": {"date": due(held), "sources": [cited(s) for s in RETURN_DUE_SRC]},
+          "statements": {"question": asked_data(held, t, statements(), base) if is_business_or_rent(held, proposed) else None,
+                         "unless": list(STATEMENT_UNLESS), "quarters": [{"quarter": quarter, "due": when} for quarter, when in STATEMENT_DUE],
+                         "sources": [cited(s) for s in STATEMENT_SRC]},
           "documents": {n: d.kind for n, d in held.documents.items()},
           "outside": [k for k, p in held.payments.items() if not is_inside(p, months)],
           "earlier": {"payments": (before := earlier(held, t, months)), "asks": {key: this_year(key) for key in before},
@@ -214,12 +217,24 @@ def case(held:Case, t:Tables) -> dict[str, Any]:
 
 def due(held:Case) -> str|None: return f"{to[:4]}-{RETURN_DUE}" if (to := held.year.get("to")) else None
 
+def asking(q:Asked) -> list[str]:
+  ret = [f"  {q.subject}"] + ([f"      {q.headline}"] if q.headline else []) + ([f"      {q.about}"] if q.about != q.subject else [])
+  return ret + [f"      {q.asks}: " + "; ".join(f"{n} ({d})" for n, d in q.choices)]
+
 def keep(held:Case, t:Tables) -> list[str]:
   base = based(held, t)
   proposed, proposing = proposed_from(held, base.worked)
   ret = ["facts that you accepted"] + with_wording(held.given, held.sources) + ["", "figures"] + ["  " + line for line in figures(held.given)]
   if proposed: ret += ["", "proposed figures to accept"] + with_wording(proposed, proposing)
   if date := due(held): ret += ["", f"send the return and pay the tax by {date}, {', '.join(spoke(s) for s in RETURN_DUE_SRC)}"]
+  statute = f"    {', '.join(spoke(s) for s in STATEMENT_SRC)}"
+  match held.decisions.get(STATEMENTS):
+    case "yes":
+      ret += ["", "a statement for each quarter is necessary, from your answer, but not in these conditions:"]
+      ret += [f"  {one}" for one in STATEMENT_UNLESS] + [statute, "", "the due date of the statement for each quarter"]
+      ret += [f"  {quarter}: {when}" for quarter, when in STATEMENT_DUE]
+    case "no": ret += ["", "a statement for each quarter is not necessary, from your answer", statute]
+    case _ if is_business_or_rent(held, proposed): ret += ["", "a question that does not change the figures"] + asking(statements())
   money = received(held, t)
   if money["kinds"]:
     freed = [f"    {spoke(s)}" for s in t.into.exempt.values()]
@@ -253,8 +268,7 @@ def keep(held:Case, t:Tables) -> list[str]:
   if waiting := [q for q in asked if said_to(held, q) is None]:
     ret += ["", "questions with no answer"]
     for q in waiting:
-      ret += [f"  {q.subject}"] + ([f"      {q.headline}"] if q.headline else []) + ([f"      {q.about}"] if q.about != q.subject else [])
-      ret += [f"      {q.asks}: " + "; ".join(f"{n} ({d})" for n, d in q.choices)]
+      ret += asking(q)
       listed = enumerate((held.payments[k] for k in q.paid), 1) if is_listed(q) else ()
       ret += [f"      {n}. {p.date} {p.amount:,} {p.description}" for n, p in listed]
       for choice, fig in priced(held, t, q, base).items(): ret += [f"      {choice:<30}{fig.amt:>+14,}"]
