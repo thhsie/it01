@@ -3,7 +3,7 @@ from collections.abc import Callable
 from dataclasses import replace
 from decimal import Decimal
 from typing import TYPE_CHECKING
-from it01.asks import Tables, from_answers, is_inside, is_business_or_rent, kept_asks, months_of, proposals, questions, statements, tables, worded
+from it01.asks import Tables, from_answers, is_inside, kept_asks, months_of, proposals, questions, quarterly, tables, worded
 from it01.credits import label
 from it01.debits import spending
 from it01.kinds import spoken
@@ -148,7 +148,7 @@ def matched(held:list[str], asked:str, what:str) -> str:
 
 def subjects(held:Case, t:Tables) -> list[str]:
   proposed = proposals(held, t)[0]
-  asked = [q.subject for q in questions(held, t, proposed) + kept_asks(held, t) + ([statements()] if is_business_or_rent(held, proposed) else [])]
+  asked = [q.subject for q in questions(held, t, proposed) + kept_asks(held, t) + quarterly(held, proposed)]
   return list(dict.fromkeys(asked + [*held.payments, *held.readings]))
 
 def responded(here:pathlib.Path, typed:str, said:str) -> list[str]:

@@ -382,8 +382,8 @@ def statements() -> Asked:
   return Asked(STATEMENTS, "the case has income from a business or from rent", asks, choices, None,
                f"was your gross income from business and rent more than {STATEMENT_FLOOR:,} in the last income year?")
 
-def is_business_or_rent(held:Case, proposed:dict[str, Decimal]) -> bool:
-  return is_given(held, proposed, "business.gross_income") or is_given(held, proposed, "rent")
+def quarterly(held:Case, proposed:dict[str, Decimal]) -> list[Asked]:
+  return [statements()] if is_given(held, proposed, "business.gross_income") or is_given(held, proposed, "rent") else []
 
 def is_closed(held:Case, q:Asked) -> bool: return q.closes is not None and at(held.given, q.closes) not in (None, [])
 
