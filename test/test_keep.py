@@ -36,6 +36,12 @@ class TestKeep(unittest.TestCase):
                     "the type of each payment", "the figures read from each form", "questions with no answer"):
       with self.subTest(heading): self.assertIn(heading, ret)
 
+  def test_the_return_is_due_after_the_income_year(self):
+    held = with_year(made(), "2025-07")
+    self.assertEqual(case(held, T)["due"]["date"], "2026-10-15")
+    self.assertIn("send the return and pay the tax by 2026-10-15, ita s.112(1) page 138, ita s.112A(1) page 139", keep(held, T))
+    self.assertIsNone(case(made(), T)["due"]["date"])
+
   def test_a_fact_is_shown_with_the_wording_it_came_from(self):
     ret = keep(confirm(made(read=(SALARY,)), T, "salary"), T)
     self.assertEqual(ret[ret.index(next(line for line in ret if line.startswith("  salary"))) + 1], "      soe.txt, Net emoluments 1,107,000.00")
