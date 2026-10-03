@@ -9,7 +9,7 @@ from it01.asks import earlier, evidence, from_answers, kept_this_year, for_payee
 from it01.asks import PICKED
 from it01.held import Case, Document, Line, Payment, Reading, at
 from it01.kinds import picked
-from it01.law import EARLIER_SRC, YEAR_SRC, Source
+from it01.law import EARLIER_SRC, RETURN_DUE, RETURN_DUE_SRC, YEAR_SRC, Source
 from it01.tax import LISTS, PLACES, Facts, Figure, amount, assess, from_json, summed
 
 ENTERED = "entered by you"
@@ -201,7 +201,8 @@ def case(held:Case, t:Tables) -> dict[str, Any]:
   changed = {fact: {"was": texted(at(held.given, fact)), "source": proposing[fact]} for fact in proposed if at(held.given, fact) is not None}
   sources = held.sources | {n: said for n, said in proposing.items() if at(held.given, n) is None}
   return {"facts": texted(held.given), "proposed": texted(proposed), "changed": changed, "sources": sources, "confirmed": held.confirmed,
-          "year": held.year, "documents": {n: d.kind for n, d in held.documents.items()},
+          "year": held.year, "due": {"date": due(held), "sources": [cited(s) for s in RETURN_DUE_SRC]},
+          "documents": {n: d.kind for n, d in held.documents.items()},
           "outside": [k for k, p in held.payments.items() if not is_inside(p, months)],
           "earlier": {"payments": (before := earlier(held, t, months)), "asks": {key: this_year(key) for key in before},
                       "kept": kept_this_year(held, t),
@@ -211,11 +212,14 @@ def case(held:Case, t:Tables) -> dict[str, Any]:
           "evidence": {fact: keys for fact, keys in evidence(held, t).items() if held.sources.get(fact) != ENTERED},
           "figures": [{"rule": f.rule, "amount": str(f.amt), "sources": [cited(s) for s in f.src]} for f in assessed(held.given)], "received": money}
 
+def due(held:Case) -> str|None: return f"{to[:4]}-{RETURN_DUE}" if (to := held.year.get("to")) else None
+
 def keep(held:Case, t:Tables) -> list[str]:
   base = based(held, t)
   proposed, proposing = proposed_from(held, base.worked)
   ret = ["facts that you accepted"] + with_wording(held.given, held.sources) + ["", "figures"] + ["  " + line for line in figures(held.given)]
   if proposed: ret += ["", "proposed figures to accept"] + with_wording(proposed, proposing)
+  if date := due(held): ret += ["", f"send the return and pay the tax by {date}, {', '.join(spoke(s) for s in RETURN_DUE_SRC)}"]
   money = received(held, t)
   if money["kinds"]:
     freed = [f"    {spoke(s)}" for s in t.into.exempt.values()]
