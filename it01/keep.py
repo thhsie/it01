@@ -6,7 +6,7 @@ from typing import Any
 from it01.asks import SAME, WRONG, Asked, Base, Tables, alike, based, claims, counted, copies, costs_of, derived, fitted, is_dropped, is_inside
 from it01.asks import is_listed, label_of, months_of, needing, payer, priced, proposals, proposed_from, put, questions, read_as, rule_of, said_of
 from it01.asks import earlier, evidence, from_answers, kept_this_year, for_payees, said_to, subject_of, this_year, trading_in, with_answer, yearly
-from it01.asks import PICKED, STATEMENTS, quarterly
+from it01.asks import PICKED, STATEMENTS, moved, quarterly
 from it01.held import Case, Document, Line, Payment, Reading, at
 from it01.kinds import picked
 from it01.law import EARLIER_SRC, RETURN_DUE, RETURN_DUE_SRC, STATEMENT_DUE, STATEMENT_SRC, STATEMENT_UNLESS, YEAR_SRC, Source
@@ -207,6 +207,7 @@ def case(held:Case, t:Tables) -> dict[str, Any]:
                          "sources": [cited(s) for s in STATEMENT_SRC]},
           "documents": {n: d.kind for n, d in held.documents.items()},
           "outside": [k for k, p in held.payments.items() if not is_inside(p, months)],
+          "moved": moved(held, t, months),
           "earlier": {"payments": (before := earlier(held, t, months)), "asks": {key: this_year(key) for key in before},
                       "kept": kept_this_year(held, t),
                       "sources": [cited(s) for s in EARLIER_SRC]},
@@ -254,12 +255,14 @@ def keep(held:Case, t:Tables) -> list[str]:
   if held.documents: ret += ["", "documents in the case"] + [f"  {n:<44}{d.kind}" for n, d in held.documents.items()]
   if held.payments:
     ret += ["", "the type of each payment"]
-    ours = kept_this_year(held, t)
+    ours, shifted = kept_this_year(held, t), moved(held, t, months_of(held))
+    came = {got: key for key, got in shifted.items()}
     for key, p in held.payments.items():
       note = ", from your answer" if key in held.decisions else f", from your answer for {rule}" if (rule := rule_of(held, t, key, p)) else ""
+      move = f", the same money as {pair}, a move between your accounts" if (pair := shifted.get(key) or came.get(key)) else ""
       label = label_of(held, t, key, p)
       kept = ", for this income year from your answer" if key in ours else ""
-      ret += [f"  {key}", f"      {label}" + (note or (f", {p.check}" if p.check != "ok" else "")) + kept]
+      ret += [f"  {key}", f"      {label}" + (note or (f", {p.check}" if p.check != "ok" else "")) + kept + move]
   if held.readings:
     ret += ["", "the figures read from each form"]
     for key, r in held.readings.items():

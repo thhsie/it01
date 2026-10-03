@@ -255,6 +255,37 @@ class TestKeep(unittest.TestCase):
     after = forgot(after, T, key)
     self.assertEqual(([q.subject for q in questions(after, T, proposed(after)) if said_to(after, q) is None], figured(after)), ([key], {}))
 
+  def moved(self, amt:str="2500.00", date:str="16/07/2025", kind:str="other", doc:str="savings.txt") -> Case:
+    held, came = made(paid("2500.00", "unclear", way="out")), paid(amt, kind, date=date, doc=doc)
+    if doc == "bank.txt": return made(paid("2500.00", "unclear", way="out"), came)
+    return noted(held, doc, BANK, [(f"{came.amount:,} paid in on {came.date}, {came.description}", came)], [], [])
+
+  def test_money_out_that_comes_into_another_statement_soon_after_is_not_asked_about(self):
+    held = self.moved()
+    out, came = list(held.payments)
+    self.assertNotIn(out, [q.subject for q in questions(held, T, proposed(held))])
+    self.assertEqual(case(held, T)["moved"], {out: came})
+
+  def test_one_payment_in_pairs_with_the_closest_payment_out_only(self):
+    spent = paid("2500.00", "unclear", way="out"), paid("2500.00", "unclear", date="14/07/2025", way="out")
+    came = paid("2500.00", "other", date="15/07/2025", doc="savings.txt")
+    held = noted(made(*spent), "savings.txt", BANK, [(f"{came.amount:,} paid in on {came.date}, {came.description}", came)], [], [])
+    first, second, back = list(held.payments)
+    self.assertEqual(case(held, T)["moved"], {first: back})
+    self.assertIn(second, [q.subject for q in questions(held, T, proposed(held))])
+    self.assertIn(f"the same money as {back}, a move between your accounts", "\n".join(keep(held, T)))
+
+  def test_a_payment_out_with_an_answer_is_not_a_move(self):
+    held = self.moved()
+    out = next(iter(held.payments))
+    self.assertEqual(case(answered(held, T, out, "pension"), T)["moved"], {})
+
+  def test_money_out_is_asked_about_when_nothing_like_it_comes_into_another_statement(self):
+    for change in ({"amt": "2400.00"}, {"date": "20/07/2025"}, {"date": "14/07/2025"}, {"kind": "rent"}, {"doc": "bank.txt"}):
+      with self.subTest(change):
+        held = self.moved(**change)
+        self.assertIn(next(iter(held.payments)), [q.subject for q in questions(held, T, proposed(held))])
+
   def test_an_unclear_payment_out_is_left_off_the_list_when_something_else_decides_it(self):
     held = self.unclear()
     first, second = list(held.payments)[:2]

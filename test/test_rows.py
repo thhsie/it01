@@ -328,7 +328,8 @@ Date        Description                   Debit        Credit      Balance
 class TestMonths(unittest.TestCase):
   def test_only_a_real_day_and_a_real_month_are_placed(self):
     for dates, want in ((("45/02/2025", "03/03/2025"), [None, None]), (("1 Junk 25",), [None]), (("1 June 25", "2 Sep 2025"), ["2025-06", "2025-09"]),
-                        (("31/12/2025", "32/01/2025"), ["2025-12", None])):
+                        (("31/12/2025", "32/01/2025"), ["2025-12", None]), (("30/02/2025", "15/03/2025"), [None, "2025-03"]),
+                        (("13/01/0999", "13/01/0000"), ["0999-01", None])):
       with self.subTest(dates): self.assertEqual(list(months(dates).values()), want)
 
 class TestCurrency(unittest.TestCase):

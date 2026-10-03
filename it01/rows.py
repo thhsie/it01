@@ -1,4 +1,4 @@
-import bisect, itertools, re
+import bisect, calendar, itertools, re
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from decimal import Decimal
@@ -239,16 +239,19 @@ def entries(text:str) -> tuple[Entry, ...]:
 
 def year(said:str) -> int: return int(said) + (2000 if len(said) == 2 else 0)
 
-def is_day(said:str) -> bool: return 1 <= int(said) <= 31
-
 def month_number(word:str) -> int: return next((n for n, full in enumerate(MONTHS, 1) if word.lower() in (full, full[:3])), 0)
 
-def month_of(date:str, place:int) -> str|None:
-  if (m := WORDED.fullmatch(date)) and (at := month_number(m[2])) and is_day(m[1]): return f"{year(m[3])}-{at:02d}"
-  if not (m := NUMERIC.fullmatch(date)) or not place: return None
-  return f"{year(m[3])}-{int(m[place]):02d}" if 1 <= int(m[place]) <= 12 and is_day(m[3 - place]) else None
+def real(y:int, m:int, d:int) -> str|None:
+  return f"{y:04d}-{m:02d}-{d:02d}" if y and 1 <= m <= 12 and 1 <= d <= calendar.monthrange(y, m)[1] else None
 
-def months(dates:tuple[str, ...]) -> dict[str, str|None]:
+def day_of(date:str, place:int) -> str|None:
+  if (m := WORDED.fullmatch(date)) and (at := month_number(m[2])): return real(year(m[3]), at, int(m[1]))
+  if not (m := NUMERIC.fullmatch(date)) or not place: return None
+  return real(year(m[3]), int(m[place]), int(m[3 - place]))
+
+def days(dates:tuple[str, ...]) -> dict[str, str|None]:
   split = [(int(m[1]), int(m[2])) for d in dates if (m := NUMERIC.fullmatch(d))]
   place = ORDER.get((any(12 < a <= 31 for a, _ in split), any(12 < b <= 31 for _, b in split)), 0)
-  return {d: month_of(d, place) for d in dates}
+  return {d: day_of(d, place) for d in dates}
+
+def months(dates:tuple[str, ...]) -> dict[str, str|None]: return {d: day[:7] if day else None for d, day in days(dates).items()}

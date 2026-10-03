@@ -1,12 +1,14 @@
 import re
 from collections import Counter
 from dataclasses import dataclass, replace
+from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 from it01.form import wanted
 from it01.held import DIFFERS, MONTH, UNCHECKED, Case, Line, Payment, Reading, at, typed
 from it01.kinds import Paying, Table, paying, picked, spoken
 from it01.law import EARLIER_MONTHS, STATEMENT_FLOOR, YEAR_STARTS
+from it01.rows import days
 from it01.tax import ZERO, Facts, Figure, amount, assess, from_json, plain
 
 STATEMENTS = "statements of income for each quarter"
@@ -183,6 +185,23 @@ def claims(t:Tables, rows:Rows) -> list[Asked]:
     ret.append(Asked(costs_of(doc, kind, way), outgoing(total, len(paid), kind, doc, way), asking, choices, doc, headlines.get(kind), total,
                      (("yes", claim[0]),) if claim else (), tuple(k for k, _ in paid), kind in picking, closes, trade=kind in trading,
                      payees=payees, amounts=tuple(amt for _, amt in paid)))
+  return ret
+
+MOVE_DAYS = timedelta(days=3)
+
+def moved(held:Case, t:Tables, months:tuple[str, ...]) -> dict[str, str]:
+  dated = {doc: days(tuple(p.date for p in held.payments.values() if p.document == doc)) for doc in held.documents}
+  def day(p:Payment) -> date|None: return date.fromisoformat(d) if (d := dated.get(p.document, {}).get(p.date)) else None
+  copied = copies(held, t, months)
+  came = [(key, p, d) for key, p in held.payments.items() if p.way == "in" and is_inside(p, months) and key not in copied and p.check != DIFFERS
+          and (d := day(p)) and label_of(held, t, key, p) in t.into.not_income]
+  sent = [(d, key, p) for key, p in held.payments.items() if is_open(held, t, key, p, months, copied) and key not in held.decisions
+          and read_as(held, t, p) in t.out.unsure and (d := day(p))]
+  near = sorted((d - left, left, key, k) for left, key, p in sent for k, q, d in came
+                if q.document != p.document and q.amount == p.amount and timedelta(0) <= d - left <= MOVE_DAYS)
+  ret:dict[str, str] = {}
+  for _, _, key, k in near:
+    if key not in ret and k not in ret.values(): ret[key] = k
   return ret
 
 def is_open(held:Case, t:Tables, key:str, p:Payment, months:tuple[str, ...], copied:dict[str, str]) -> bool:
@@ -372,7 +391,7 @@ def questions(held:Case, t:Tables, proposed:dict[str, Decimal]) -> list[Asked]:
                        "and the case has no business income", "tell if you have a business. A business with no income also counts", costing(), doc,
                        "business costs, but no business income?"))
     ret += [q for q in costs if is_owed(held, q, trading)]
-  ret += [q for q in owed if not q.trade and not is_closed(held, q)] + unsure(held, t, months, copied)
+  ret += [q for q in owed if not q.trade and not is_closed(held, q)] + unsure(held, t, months, copied | moved(held, t, months))
   return unread(uncovered(held, months)) + ret + form_lines(held, t)
 
 def statements() -> Asked:
