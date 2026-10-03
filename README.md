@@ -33,6 +33,14 @@ it01 q1.json
 
 If you do not set `period`, its value is `year`. The tax for a quarter uses the bands for a quarter. A quarter gets one quarter of the deduction for dependants. The engine subtracts the tax deducted at source in that quarter, and a quarter has no fair share contribution.
 
+A statement for each quarter is necessary only above a limit of gross income in the last income year. The engine cannot see that year. Tell the engine with this command:
+
+```sh
+it01 answer facts.json "statements of income for each quarter" yes
+```
+
+The answer changes no figure. `keep` and the case data then give the due date of the statement for each quarter.
+
 For a quarter, the facts file can have only `resident`, `dependants`, `period`, `rent`, `losses_brought_forward`, `tax_deducted_at_source` and `business`. For each other fact, the engine shows an error that gives the name of the fact. For a quarter, the allowance on an asset is one quarter of the annual allowance. The name of that figure starts with `a quarter of the annual allowance on`.
 
 ## Add a document to the case

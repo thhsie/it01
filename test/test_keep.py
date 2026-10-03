@@ -42,6 +42,20 @@ class TestKeep(unittest.TestCase):
     self.assertIn("send the return and pay the tax by 2026-10-15, ita s.112(1) page 138, ita s.112A(1) page 139", keep(held, T))
     self.assertIsNone(case(made(), T)["due"]["date"])
 
+  def test_a_business_is_asked_once_about_statements_for_each_quarter(self):
+    subject = "statements of income for each quarter"
+    self.assertIsNone(case(with_year(made(), "2025-07"), T)["statements"]["question"])
+    held = with_year(made(paid("900.00", "business")), "2025-07")
+    self.assertEqual(case(held, T)["statements"]["question"]["said"], None)
+    self.assertIn("a question that does not change the figures", keep(held, T))
+    after = answered(held, T, subject, "yes")
+    self.assertEqual(case(after, T)["statements"]["quarters"][1], {"quarter": "October to December", "due": "31 March"})
+    self.assertIn("  October to December: 31 March", keep(after, T))
+    self.assertIn("  your gross income was 10,000,000 or less, and your work is in the Thirteenth Schedule", keep(after, T))
+    self.assertEqual(case(after, T)["statements"]["question"]["said"], "yes")
+    self.assertEqual(figured(after), figured(held))
+    with self.assertRaises(ValueError): answered(held, T, subject, "maybe")
+
   def test_a_fact_is_shown_with_the_wording_it_came_from(self):
     ret = keep(confirm(made(read=(SALARY,)), T, "salary"), T)
     self.assertEqual(ret[ret.index(next(line for line in ret if line.startswith("  salary"))) + 1], "      soe.txt, Net emoluments 1,107,000.00")

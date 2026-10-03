@@ -238,6 +238,12 @@ class TestCase(unittest.TestCase):
     self.assertEqual((self.waiting(here), self.proposed(here)), ([], {"business.gross_income": Decimal("20000.00")}))
     self.assertEqual(proposals(self.held(here), tables())[1]["business.gross_income"], "bank.txt, 1 of the type business")
 
+  def test_a_business_answers_the_quarter_question_by_its_words(self):
+    self.banked(here := self.made(), (WALLET,))
+    responded(here, KEY, "business")
+    responded(here, "statements of income", "no")
+    self.assertEqual(self.held(here).decisions["statements of income for each quarter"], "no")
+
   def test_a_kind_that_counts_nothing_proposes_nothing(self):
     self.banked(here := self.made(), (WALLET,))
     responded(here, KEY, "other")
