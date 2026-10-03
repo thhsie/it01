@@ -6,6 +6,7 @@ from typing import Any
 from it01.asks import SAME, WRONG, Asked, Base, Tables, alike, based, claims, counted, copies, costs_of, derived, fitted, is_dropped, is_inside
 from it01.asks import is_listed, label_of, months_of, needing, payer, priced, proposals, proposed_from, put, questions, read_as, rule_of, said_of
 from it01.asks import earlier, evidence, from_answers, kept_this_year, for_payees, said_to, subject_of, this_year, trading_in, with_answer, yearly
+from it01.asks import PICKED
 from it01.held import Case, Document, Line, Payment, Reading, at
 from it01.kinds import picked
 from it01.law import EARLIER_SRC, YEAR_SRC, Source
@@ -89,7 +90,7 @@ def in_step(held:Case, t:Tables, after:Case) -> Case:
 def remember(held:Case, key:str) -> Case:
   if (p := held.payments.get(key)) is None: raise ValueError(f"the case has no payment {key}")
   if not payer(p): raise ValueError(f"{key} has no words that identify the payee")
-  if (said := held.decisions.get(key)) is None or said == SAME:
+  if (said := held.decisions.get(key)) in (None, SAME, PICKED):
     raise ValueError(f"select the type of {key} first, then keep the answer for all payments with the same words")
   return replace(held, decisions=held.decisions | {alike(p): said})
 

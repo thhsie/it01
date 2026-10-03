@@ -71,7 +71,8 @@ class TestMoves(unittest.TestCase):
   def test_every_answer_offered_is_taken_and_sticks(self):
     for at, held in CASES:
       for q in waiting(held):
-        for choice in [c for c, _ in q.choices] + (["payments 1", str((q.amount / 2).quantize(Decimal("0.01")))] if q.share else []):
+        typed = [str((q.amount / 2).quantize(Decimal("0.01")))] if q.share and q.adds else []
+        for choice in [c for c, _ in q.choices] + (["payments 1"] if q.share else []) + typed:
           with self.subTest(at, subject=q.subject, choice=choice):
             after = answered(held, T, q.subject, choice)
             asked = [x for x in questions(after, T, proposals(after, T)[0]) if x.subject == q.subject]

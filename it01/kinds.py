@@ -105,6 +105,7 @@ class Paying:
   aside: tuple[str, ...]
   headlines: dict[str, str]
   earlier: dict[str, str]
+  unsure: dict[str, tuple[str, str, str, str]]
 
 def questions(name:str, held:dict[str, Any], part:str) -> dict[str, str]:
   if not isinstance(got := held.get(part, {}), dict) or not all(isinstance(v, str) and v.strip() for v in got.values()):
@@ -140,10 +141,18 @@ def paying() -> Paying:
   if not isinstance(aside := held.get("aside", []), list) or not all(isinstance(k, str) for k in aside):
     raise ValueError("paying.json must hold aside as a list of kinds")
   headlines, earlier = questions("paying", held, "headlines"), questions("paying", held, "earlier")
+  if not isinstance(asked := held.get("unsure", {}), dict): raise ValueError("paying.json must hold unsure as an object of kinds")
+  unsure = {}
+  for kind, v in asked.items():
+    got = questions("paying", {"unsure": v}, "unsure")
+    if set(got) != {"asking", "one", "many", "personal"}: raise ValueError(f"paying.json must give asking, one, many and personal for {kind}")
+    unsure[str(kind)] = (got["asking"], got["one"], got["many"], got["personal"])
   uses = (set(claims), set(certificates), set(business), set(picks), set(aside))
   if unknown := sorted(set().union(*uses) - set(prompt.kinds)): raise ValueError(f"paying.json uses unknown kinds {unknown}")
   if twice := sorted(k for k in prompt.kinds if sum(k in use for use in uses) > 1): raise ValueError(f"paying.json gives {twice} more than one use")
   if loose := sorted(set(prompt.kinds) - set().union(*uses)): raise ValueError(f"paying.json says nothing of how {loose} count")
   if stray := sorted(set(headlines) - set(prompt.kinds)): raise ValueError(f"paying.json gives headlines for unknown kinds {stray}")
   if stray := sorted(set(earlier) - set(prompt.kinds)): raise ValueError(f"paying.json counts unknown kinds {stray} for the year before")
-  return Paying(prompt, claims, certificates, business, picks, tuple(aside), headlines, earlier)
+  if stray := sorted((set(unsure) | {v[3] for v in unsure.values()}) - set(aside)):
+    raise ValueError(f"paying.json uses kinds {stray} for unsure payments that it does not set aside")
+  return Paying(prompt, claims, certificates, business, picks, tuple(aside), headlines, earlier, unsure)

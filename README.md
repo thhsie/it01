@@ -206,6 +206,8 @@ For each type of payment out in a statement, `it01 add` makes one question. `cla
 
 `aside` gives the types that do not count. If the balance after a payment does not agree, the totals do not include that payment.
 
+`unsure` gives the types from `aside` that can include a payment for a claim. For each statement, one question lists those payments. The person selects each payment for a claim, and each selected payment gets its own question. The other payments get the type that `personal` gives. A statement with one such payment gets one question for the type of that payment.
+
 `keep` shows the answers to each question after a colon, and each answer tells its effect.
 
 A question for a missing document, for example a statement of emoluments, closes when the case has the figure. Its answers give a different type for the money, for example business or rent. The answer changes the type of each payment of that type. The engine then proposes their total in the income year as the fact for the new type.

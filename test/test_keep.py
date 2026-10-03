@@ -193,6 +193,63 @@ class TestKeep(unittest.TestCase):
     self.assertIn(subject, [q.subject for q in questions(held, T, proposed(held))])
     self.assertEqual(figured(answered(held, T, subject, "yes"))["business.other_income"], Decimal("40.00"))
 
+  def unclear(self) -> Case:
+    spent = paid("2500.00", "unclear", way="out"), paid("15000.00", "unclear", date="20/07/2025", way="out")
+    return made(*spent, paid("80.00", "no_claim", way="out"))
+
+  def test_unclear_payments_out_are_asked_about_in_one_list(self):
+    held = self.unclear()
+    q = next(q for q in questions(held, T, proposed(held)) if q.subject == "bank.txt, paid out as unclear")
+    self.assertEqual((len(q.paid), q.amount), (2, Decimal("17500.00")))
+    after = answered(held, T, q.subject, "no")
+    self.assertEqual([x.subject for x in questions(after, T, proposed(after)) if said_to(after, x) is None], [])
+    self.assertEqual(figured(after), {})
+
+  def test_a_picked_unclear_payment_is_asked_its_type_and_then_counts(self):
+    held = self.unclear()
+    subject = "bank.txt, paid out as unclear"
+    after = answered(held, T, subject, "payments 2")
+    key = subject_of(held, T, subject).paid[1]
+    self.assertEqual([x.subject for x in questions(after, T, proposed(after)) if said_to(after, x) is None], [key])
+    after = answered(answered(after, T, key, "pension"), T, "bank.txt, paid out as pension", "yes")
+    self.assertEqual(figured(after), {"pension_contributions": Decimal("15000.00")})
+
+  def test_a_picked_payment_cannot_be_remembered_before_its_type(self):
+    held = answered(self.unclear(), T, "bank.txt, paid out as unclear", "payments 1")
+    with self.assertRaises(ValueError): remember(held, next(iter(held.payments)))
+
+  def test_an_unclear_list_takes_no_typed_part(self):
+    with self.assertRaises(ValueError): answered(self.unclear(), T, "bank.txt, paid out as unclear", "500")
+
+  def test_one_unclear_payment_out_is_asked_its_type(self):
+    held = made(paid("2500.00", "unclear", way="out"))
+    q = questions(held, T, proposed(held))[0]
+    self.assertEqual((q.subject, q.headline), (next(iter(held.payments)), T.out.unsure["unclear"][1]))
+
+  def test_forgetting_a_picked_payments_type_asks_about_it_again(self):
+    held = self.unclear()
+    key = subject_of(held, T, "bank.txt, paid out as unclear").paid[1]
+    after = answered(answered(held, T, "bank.txt, paid out as unclear", "payments 2"), T, key, "pension")
+    after = answered(after, T, "bank.txt, paid out as pension", "yes")
+    after = forgot(after, T, key)
+    self.assertEqual(([q.subject for q in questions(after, T, proposed(after)) if said_to(after, q) is None], figured(after)), ([key], {}))
+
+  def test_an_unclear_payment_out_is_left_off_the_list_when_something_else_decides_it(self):
+    held = self.unclear()
+    first, second = list(held.payments)[:2]
+    outside = paid("15000.00", "unclear", date="20/07/2026", way="out", month="2026-07")
+    late = made(paid("2500.00", "unclear", way="out"), outside, year={"from": "2025-07"})
+    told = answered(held, T, first, "no_claim")
+    copied = noted(held, "copy.txt", BANK, [(f"{p.amount:,} paid out", replace(p, document="copy.txt")) for p in held.payments.values()], [], [])
+    listed = "bank.txt, paid out as unclear"
+    for at, case_, left in (("own answer", told, [second]), ("payee answer", remember(told, first), []),
+                            ("outside the year", late, [next(iter(late.payments))]), ("in two statements", copied, [listed]),
+                            ("personal in the other statement", answered(copied, T, listed, "no"), [])):
+      with self.subTest(at):
+        unsure = T.out.unsure["unclear"][1:3]
+        asked = [q.subject for q in questions(case_, T, proposed(case_)) if said_to(case_, q) is None and q.headline in unsure]
+        self.assertEqual(asked, left)
+
   def test_months_no_statement_covers_are_asked_about_once_the_year_is_set(self):
     def gaps(held:Case) -> list[Asked]: return [q for q in questions(held, T, proposed(held)) if q.subject.startswith("months no statement")]
     first = (paid("5.00", "business", month="2025-07"), paid("5.00", "business", month="2025-09"))

@@ -9,7 +9,7 @@ from it01.kinds import Paying, Table, paying, picked, spoken
 from it01.law import EARLIER_MONTHS, YEAR_STARTS
 from it01.tax import ZERO, Facts, Figure, amount, assess, from_json, plain
 
-OUT, SAME, WRONG, EACH, GONE = "out", "same", "wrong", "each", "no document gives this figure at this time"
+OUT, SAME, WRONG, EACH, PICKED, GONE = "out", "same", "wrong", "each", "picked", "no document gives this figure at this time"
 ADRIFT = "the balance on the statement after this payment does not agree with the amounts. The totals do not include this payment"
 NUMBERED = re.compile(r"payments? (?P<nums>\d+(?:, ?\d+)*)")
 SHARE = re.compile(r"share (?P<part>\S+) of (?P<whole>\S+)")
@@ -39,6 +39,7 @@ class Asked:
   payees: tuple[str, ...] = ()
   amounts: tuple[Decimal, ...] = ()
   months: tuple[str, ...] = ()
+  personal: str|None = None
 
 def year_of(month:str) -> tuple[str, ...]:
   first = int(month[:4]) - (int(month[5:]) < YEAR_STARTS)
@@ -183,6 +184,26 @@ def claims(t:Tables, rows:Rows) -> list[Asked]:
                      payees=payees, amounts=tuple(amt for _, amt in paid)))
   return ret
 
+def is_open(held:Case, t:Tables, key:str, p:Payment, months:tuple[str, ...], copied:dict[str, str]) -> bool:
+  return p.way == "out" and is_inside(p, months) and key not in copied and remembered(held, t, p) is None
+
+def unsure(held:Case, t:Tables, months:tuple[str, ...], copied:dict[str, str]) -> list[Asked]:
+  groups:dict[tuple[str, str], list[tuple[str, Payment]]] = {}
+  ret = []
+  for key, p in held.payments.items():
+    if not is_open(held, t, key, p, months, copied): continue
+    if held.decisions.get(key) == PICKED: ret.append(payment_asked(held, t, key))
+    elif key not in held.decisions and (kind := read_as(held, t, p)) in t.out.unsure: groups.setdefault((p.document, kind), []).append((key, p))
+  for (doc, kind), members in groups.items():
+    asking, one, many, personal = t.out.unsure[kind]
+    if len(members) == 1:
+      ret.append(replace(payment_asked(held, t, members[0][0]), headline=one))
+      continue
+    total = sum((p.amount for _, p in members), ZERO)
+    ret.append(Asked(costs_of(doc, kind), outgoing(total, len(members), kind, doc, "out"), asking, (("no", "all these payments are personal"),), doc,
+                     many, total, paid=tuple(key for key, _ in members), share=True, amounts=tuple(p.amount for _, p in members), personal=personal))
+  return ret
+
 def form_lines(held:Case, t:Tables) -> list[Asked]:
   return [Asked(key, f"{one.amount:,} on the line {one.quote}, in {one.document}", one.asking, one.lines, one.document, amount=one.amount,
                 adds=tuple((line, fact) for line, fact in t.lines.items() if line in dict(one.lines))) for key, one in held.lines.items()]
@@ -193,7 +214,7 @@ def chosen_in(q:Asked, said:str) -> tuple[int, ...]|None:
 
 def share_of(q:Asked, said:str) -> Decimal|None:
   if (nums := chosen_in(q, said)) is not None: return sum((q.amounts[n - 1] for n in nums), ZERO)
-  return part if q.share and (part := typed(said)) is not None and ZERO < part <= q.amount else None
+  return part if q.share and q.adds and (part := typed(said)) is not None and ZERO < part <= q.amount else None
 
 def fits(q:Asked, said:str) -> bool: return said in dict(q.choices) or share_of(q, said) is not None
 
@@ -298,7 +319,10 @@ def is_alike(q:Asked) -> bool: return EACH in dict(q.choices)
 
 def is_listed(q:Asked) -> bool: return q.share or is_alike(q)
 
-def decided(q:Asked, said:str) -> dict[str, str]: return dict.fromkeys(q.paid, said) if is_alike(q) and said != EACH else {q.subject: said}
+def decided(q:Asked, said:str) -> dict[str, str]:
+  if is_alike(q) and said != EACH: return dict.fromkeys(q.paid, said)
+  if q.personal: return {key: PICKED if key in behind(q, said) else q.personal for key in q.paid}
+  return {q.subject: said}
 
 def for_payees(q:Asked, said:str) -> dict[str, str|None]:
   if said in ("yes", "no"): return {payee: said for payee in q.payees if payee}
@@ -347,7 +371,8 @@ def questions(held:Case, t:Tables, proposed:dict[str, Decimal]) -> list[Asked]:
                        "and the case has no business income", "tell if you have a business. A business with no income also counts", costing(), doc,
                        "business costs, but no business income?"))
     ret += [q for q in costs if is_owed(held, q, trading)]
-  return unread(uncovered(held, months)) + ret + [q for q in owed if not q.trade and not is_closed(held, q)] + form_lines(held, t)
+  ret += [q for q in owed if not q.trade and not is_closed(held, q)] + unsure(held, t, months, copied)
+  return unread(uncovered(held, months)) + ret + form_lines(held, t)
 
 def is_closed(held:Case, q:Asked) -> bool: return q.closes is not None and at(held.given, q.closes) not in (None, [])
 
@@ -375,7 +400,7 @@ def fitted(held:Case, q:Asked, said:str) -> str:
     return f"payments {', '.join(str(n) for n in sorted(named))}"
   if fits(q, said): return said
   numbered = ", the payment numbers, for example payments 1, 3" if q.share and q.paid else ""
-  share = f"{numbered}, or a part of the total, from 0.01 to {q.amount:,}" if q.share else ""
+  share = f"{numbered}, or a part of the total, from 0.01 to {q.amount:,}" if q.share and q.adds else numbered
   raise ValueError(f"for {q.subject}, the answer must be one of: {', '.join(n for n, _ in q.choices)}{share}")
 
 def put(given:dict[str, Any], name:str, amt:Decimal|int|bool|list[Decimal]) -> dict[str, Any]:
