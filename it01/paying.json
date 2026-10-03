@@ -86,6 +86,14 @@
     "green_equipment": "add the invoice for the equipment",
     "tax_paid": "which payments are income tax for this year?"
   },
+  "unsure": {
+    "unclear": {
+      "asking": "the statement does not show the use of these payments. Select each payment for your business, for income tax or for a relief such as a pension or insurance. Then select the type of each one",
+      "one": "is this payment for your business, a relief or income tax?",
+      "many": "are some of these payments for your business, a relief or income tax?",
+      "personal": "no_claim"
+    }
+  },
   "earlier": {
     "tax_paid": "income tax that you pay from July to October is for the previous year. The last date for the return of that year is 15 October"
   },
