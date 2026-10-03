@@ -39,7 +39,7 @@ A statement for each quarter is necessary only above a limit of gross income in 
 it01 answer facts.json "statements of income for each quarter" yes
 ```
 
-The answer changes no figure. `keep` and the case data then give the due date of the statement for each quarter.
+The answer changes no figure. The case data lists this question with the other questions. `keep` and the case data then give the due date of the statement for each quarter.
 
 For a quarter, the facts file can have only `resident`, `dependants`, `period`, `rent`, `losses_brought_forward`, `tax_deducted_at_source` and `business`. For each other fact, the engine shows an error that gives the name of the fact. For a quarter, the allowance on an asset is one quarter of the annual allowance. The name of that figure starts with `a quarter of the annual allowance on`.
 

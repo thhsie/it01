@@ -44,15 +44,16 @@ class TestKeep(unittest.TestCase):
 
   def test_a_business_is_asked_once_about_statements_for_each_quarter(self):
     subject = "statements of income for each quarter"
-    self.assertIsNone(case(with_year(made(), "2025-07"), T)["statements"]["question"])
+    def asked(held:Case) -> list: return [q for q in case(held, T)["questions"] if q["subject"] == subject]
+    self.assertEqual(asked(with_year(made(), "2025-07")), [])
     held = with_year(made(paid("900.00", "business")), "2025-07")
-    self.assertEqual(case(held, T)["statements"]["question"]["said"], None)
+    self.assertEqual(asked(held)[0]["said"], None)
     self.assertIn("a question that does not change the figures", keep(held, T))
     after = answered(held, T, subject, "yes")
     self.assertEqual(case(after, T)["statements"]["quarters"][1], {"quarter": "October to December", "due": "31 March"})
     self.assertIn("  October to December: 31 March", keep(after, T))
     self.assertIn("  your gross income was 10,000,000 or less, and your work is in the Thirteenth Schedule", keep(after, T))
-    self.assertEqual(case(after, T)["statements"]["question"]["said"], "yes")
+    self.assertEqual(asked(after)[0]["said"], "yes")
     self.assertEqual(figured(after), figured(held))
     with self.assertRaises(ValueError): answered(held, T, subject, "maybe")
 
